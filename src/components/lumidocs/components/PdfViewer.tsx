@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Document, Page, pdfjs } from 'react-pdf';
+import { Document, Page } from 'react-pdf';
 import { X, GripHorizontal, UserCircle } from 'lucide-react';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
 
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+// Importar nossa configuração customizada do PDF.js
+import { pdfjs } from '../utils/pdfConfig';
 
 interface Field {
   type: 'assinatura' | 'nome' | 'email' | 'cpf';
@@ -48,9 +49,19 @@ export function PdfViewer({
   const [draggingField, setDraggingField] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [showAllFields, setShowAllFields] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
+    setLoading(false);
+    setError(null);
+  }
+
+  function onDocumentLoadError(error: any) {
+    console.error('Error loading PDF:', error);
+    setError('Falha ao carregar o arquivo PDF. Verifique se o arquivo é válido.');
+    setLoading(false);
   }
 
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -246,19 +257,38 @@ export function PdfViewer({
         onMouseMove={handleDrag}
         onMouseUp={handleDragEnd}
       >
-        <Document
-          file={pdfUrl}
-          onLoadSuccess={onDocumentLoadSuccess}
-          className="w-full"
-        >
-          <Page 
-            pageNumber={pageNumber}
-            renderTextLayer={false}
-            renderAnnotationLayer={false}
-            className="pdf-page w-full"
-            width={800}
-          />
-        </Document>
+        {error ? (
+          <div className="flex flex-col items-center justify-center h-96 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg">
+            <div className="text-center">
+              <div className="text-red-500 text-lg mb-2">⚠️</div>
+              <p className="text-gray-700 mb-2">{error}</p>
+              <p className="text-sm text-gray-500">Verifique sua conexão com a internet e tente novamente.</p>
+            </div>
+          </div>
+        ) : (
+          <Document
+            file={pdfUrl}
+            onLoadSuccess={onDocumentLoadSuccess}
+            onLoadError={onDocumentLoadError}
+            loading={
+              <div className="flex items-center justify-center h-96 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-gray-600">Carregando PDF...</p>
+                </div>
+              </div>
+            }
+            className="w-full"
+          >
+            <Page 
+              pageNumber={pageNumber}
+              renderTextLayer={false}
+              renderAnnotationLayer={false}
+              className="pdf-page w-full"
+              width={800}
+            />
+          </Document>
+        )}
 
         {/* Current signer's fields */}
         {fields.filter(f => f.position.page === pageNumber).map((field, index) => (

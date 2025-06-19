@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X, FileText } from 'lucide-react';
-import { Cliente, Documento, SignatureField, Modelo } from '../types';
-import { storage } from '../utils/localStorage';
+import { Cliente, Documento, SignatureField, Modelo, syncStorage as storage } from '../utils/localStorage';
+// Importar configuração do PDF antes do PdfViewer
+import '../utils/pdfConfig';
 import { PdfViewer } from './PdfViewer';
 
 interface DocumentoFormProps {

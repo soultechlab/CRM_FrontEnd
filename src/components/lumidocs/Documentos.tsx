@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, FileText, Send, CheckCircle, Search, Calendar, X, Archive, ChevronLeft, ChevronRight, Trash2, AlertTriangle } from 'lucide-react';
 import { Modal } from './components/Modal';
+// Importar configuração do PDF logo no início
+import './utils/pdfConfig';
 import { DocumentoForm } from './components/DocumentoForm';
-import { storage, Documento } from './utils/localStorage';
+import { syncStorage as storage, Documento } from './utils/localStorage';
+import { createTestData } from './utils/testData';
 
 type TabType = 'rascunhos' | 'enviados' | 'assinados' | 'arquivados' | 'lixeira';
 
@@ -14,6 +17,18 @@ export function Documentos() {
   const [currentPage, setCurrentPage] = useState(1);
   const [documentos, setDocumentos] = useState(storage.getDocumentos());
 
+  useEffect(() => {
+    // Limpar dados antigos e recriar dados de teste
+    localStorage.removeItem('clientes');
+    localStorage.removeItem('documentos');
+    localStorage.removeItem('modelos');
+    
+    if (storage.getClientes().length === 0 && storage.getDocumentos().length === 0) {
+      createTestData();
+      setDocumentos(storage.getDocumentos());
+    }
+  }, []);
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
@@ -21,7 +36,7 @@ export function Documentos() {
   const handleDocumentoSubmit = (novoDocumento: Documento) => {
     const novosDocumentos = [...documentos, novoDocumento];
     setDocumentos(novosDocumentos);
-    storage.setDocumentos(novosDocumentos);
+    localStorage.setItem('lumidocs_documentos', JSON.stringify(novosDocumentos));
     setIsModalOpen(false);
   };
 
