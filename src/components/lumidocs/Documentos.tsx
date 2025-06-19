@@ -261,7 +261,7 @@ export function Documentos() {
                 }`}
             </p>
         </div>
-        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Cadastrar Documento">
+        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Cadastrar Documento" maxWidth="max-w-6xl">
           <DocumentoForm onSubmit={handleDocumentoSubmit} />
         </Modal>
     </div>
