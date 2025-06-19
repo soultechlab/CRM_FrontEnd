@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, FileText, Send, CheckCircle, Search, Calendar, X, Archive, ChevronLeft, ChevronRight, Trash2, AlertTriangle } from 'lucide-react';
+import { Modal } from './components/Modal';
+import { DocumentoForm } from './components/DocumentoForm';
+import { storage, Documento } from './utils/localStorage';
 
 type TabType = 'rascunhos' | 'enviados' | 'assinados' | 'arquivados' | 'lixeira';
 
@@ -9,9 +12,17 @@ export function Documentos() {
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [activeTab, setActiveTab] = useState<TabType>('rascunhos');
   const [currentPage, setCurrentPage] = useState(1);
+  const [documentos, setDocumentos] = useState(storage.getDocumentos());
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+  };
+
+  const handleDocumentoSubmit = (novoDocumento: Documento) => {
+    const novosDocumentos = [...documentos, novoDocumento];
+    setDocumentos(novosDocumentos);
+    storage.setDocumentos(novosDocumentos);
+    setIsModalOpen(false);
   };
 
   const totalPages = Math.floor(Math.random() * 10);
@@ -235,6 +246,9 @@ export function Documentos() {
                 }`}
             </p>
         </div>
+        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Cadastrar Documento">
+          <DocumentoForm onSubmit={handleDocumentoSubmit} />
+        </Modal>
     </div>
   );
 }
