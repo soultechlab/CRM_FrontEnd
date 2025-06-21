@@ -4,7 +4,9 @@
       "Bash(npm install:*)",
       "Bash(npm run dev:*)",
       "Bash(npm uninstall:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "WebFetch(domain:localhost)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

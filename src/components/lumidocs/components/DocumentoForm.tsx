@@ -1,42 +1,128 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X, FileText } from 'lucide-react';
-import { Cliente, Documento, SignatureField, Modelo, syncStorage as storage } from '../utils/localStorage';
+import { Cliente, SignatureField } from '../utils/localStorage';
 // Importar configuração do PDF antes do PdfViewer
 import '../utils/pdfConfig';
 import { PdfViewer } from './PdfViewer';
+import { criarDocumento, CreateDocumentData, SignerData, obterClientes } from '../../../services/apiService';
+import { useAuth } from '../../../contexts/AuthContext';
+
+interface BackendDocument {
+  id: string;
+  name: string;
+  status: 'draft' | 'pending_signature' | 'signed' | 'rejected';
+  storage_url: string;
+  signed_document_url?: string;
+  autentique_document_id?: string;
+  created_at: string;
+  updated_at: string;
+  user: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  client?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  signers: Array<{
+    id: number;
+    signer_name: string;
+    signer_email: string;
+    signer_cpf?: string;
+    signer_status: string;
+    signature_url?: string;
+    autentique_signer_id?: string;
+  }>;
+}
 
 interface DocumentoFormProps {
-  initialData?: Documento;
-  onSubmit: (documento: Documento) => void;
+  initialData?: BackendDocument;
+  onSubmit: (documento: BackendDocument) => void;
 }
 
 export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
-  const [nome, setNome] = useState(initialData?.nome || '');
+  const { user } = useAuth();
+  const [nome, setNome] = useState(initialData?.name || '');
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClientes, setSelectedClientes] = useState<Array<{
     cliente: Cliente;
     fields: SignatureField[];
-  }>>(
-    initialData?.assinantes.map(a => ({
-      cliente: a,
-      fields: initialData.signatureFields?.[a.id] || []
-    })) || []
-  );
-  const [previewUrl, setPreviewUrl] = useState<string>(initialData?.arquivo_url || '');
+  }>>([]);
+  const [previewUrl, setPreviewUrl] = useState<string>(initialData?.storage_url || '');
   const [currentClienteIndex, setCurrentClienteIndex] = useState<number | null>(null);
   const [fieldType, setFieldType] = useState<'assinatura' | 'nome' | 'email' | 'cpf'>('assinatura');
-  const [selectedModelo, setSelectedModelo] = useState<Modelo | null>(null);
-  const [useModelo, setUseModelo] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const clientes = storage.getClientes();
-  const modelos = storage.getModelos();
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>(initialData?.client?.id?.toString() || '');
+  const [isUniversal, setIsUniversal] = useState(!initialData?.client);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadClientes = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        console.log('Loading clients, user:', user ? 'authenticated' : 'not authenticated');
+        console.log('User token exists:', !!user?.token);
+        
+        if (!user) {
+          setError('Usuário não autenticado');
+          return;
+        }
+        
+        const clientesData = await obterClientes(user);
+        console.log('Clients loaded successfully:', clientesData?.length);
+        setClientes(clientesData);
+        
+        // Initialize signers if editing existing document
+        if (initialData?.signers) {
+          const initialSigners = initialData.signers.map(signer => ({
+            cliente: {
+              id: signer.id.toString(),
+              nome: signer.signer_name,
+              email: signer.signer_email,
+              cpf: signer.signer_cpf || '',
+              // Add other required Cliente fields with defaults
+              telefone: '',
+              endereco: '',
+              observacoes: '',
+              ativo: true,
+              data_nascimento: '',
+              tipo_servico: '',
+              valor_sessao: 0,
+              created_at: ''
+            },
+            fields: [] // Fields will be loaded from backend if needed
+          }));
+          setSelectedClientes(initialSigners);
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar clientes';
+        setError(errorMessage);
+        console.error('Erro ao carregar clientes:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user) {
+      loadClientes();
+    } else {
+      setLoading(false);
+      setError('Aguardando autenticação...');
+    }
+  }, [user, initialData]);
+
   const filteredClientes = clientes.filter(cliente => 
     !selectedClientes.find(sc => sc.cliente.id === cliente.id) &&
     (cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
      cliente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     cliente.cpf.includes(searchTerm))
+     (cliente.cpf && cliente.cpf.includes(searchTerm)))
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,82 +135,64 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
     try {
       // Validate required fields
       if (!nome.trim()) {
-        alert('Por favor, insira o nome do documento');
+        setError('Por favor, insira o nome do documento');
         return;
       }
 
-      if (!initialData && !arquivo && !selectedModelo) {
-        alert('Por favor, selecione um arquivo ou modelo');
+      if (!initialData && !arquivo) {
+        setError('Por favor, selecione um arquivo PDF');
         return;
       }
 
       if (selectedClientes.length === 0) {
-        alert('Por favor, adicione pelo menos um assinante');
+        setError('Por favor, adicione pelo menos um assinante');
         return;
       }
 
       if (selectedClientes.some(sc => sc.fields.length === 0)) {
-        alert('Todos os assinantes precisam ter pelo menos um campo de assinatura definido');
+        setError('Todos os assinantes precisam ter pelo menos um campo de assinatura definido');
         return;
       }
-      
-      let arquivo_url = initialData?.arquivo_url || '';
-      
+
+      // Prepare signers data for backend
+      const signersData: SignerData[] = selectedClientes.map(sc => ({
+        signer_name: sc.cliente.nome,
+        signer_email: sc.cliente.email,
+        signer_cpf: sc.cliente.cpf || undefined,
+        fields_definition: sc.fields.map(field => ({
+          type: field.type,
+          page: field.position.page,
+          x: field.position.x,
+          y: field.position.y,
+          width: field.width,
+          height: field.height,
+          value: field.type === 'nome' ? sc.cliente.nome :
+                 field.type === 'email' ? sc.cliente.email :
+                 field.type === 'cpf' ? sc.cliente.cpf :
+                 undefined
+        }))
+      }));
+
+      // Prepare document data
+      const documentData: CreateDocumentData = {
+        name: nome.trim(),
+        client_id: isUniversal ? undefined : selectedClientId,
+        is_universal: isUniversal,
+        signers: signersData
+      };
+
+      // Call backend API to create document
       if (arquivo) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          arquivo_url = reader.result as string;
-          
-          const documento: Documento = {
-            id: initialData?.id || crypto.randomUUID(),
-            nome: nome.trim(),
-            arquivo_url,
-            status: 'aguardando_envio',
-            created_at: initialData?.created_at || new Date().toISOString(),
-            assinantes: selectedClientes.map(sc => sc.cliente),
-            signatureFields: selectedClientes.reduce((acc, sc) => ({
-              ...acc,
-              [sc.cliente.id]: sc.fields
-            }), {})
-          };
-
-          onSubmit(documento);
-        };
-        reader.readAsDataURL(arquivo);
-      } else if (selectedModelo) {
-        const documento: Documento = {
-          id: initialData?.id || crypto.randomUUID(),
-          nome: nome.trim(),
-          arquivo_url: selectedModelo.arquivo_url,
-          status: 'aguardando_envio',
-          created_at: initialData?.created_at || new Date().toISOString(),
-          assinantes: selectedClientes.map(sc => sc.cliente),
-          signatureFields: selectedClientes.reduce((acc, sc) => ({
-            ...acc,
-            [sc.cliente.id]: sc.fields
-          }), {})
-        };
-
-        onSubmit(documento);
+        const createdDocument = await criarDocumento(documentData, arquivo, user);
+        onSubmit(createdDocument);
       } else {
-        const documento: Documento = {
-          id: initialData?.id || crypto.randomUUID(),
-          nome: nome.trim(),
-          arquivo_url,
-          status: 'aguardando_envio',
-          created_at: initialData?.created_at || new Date().toISOString(),
-          assinantes: selectedClientes.map(sc => sc.cliente),
-          signatureFields: selectedClientes.reduce((acc, sc) => ({
-            ...acc,
-            [sc.cliente.id]: sc.fields
-          }), {})
-        };
-
-        onSubmit(documento);
+        setError('Arquivo é obrigatório para criar documento');
+        return;
       }
+
     } catch (error) {
       console.error('Erro ao salvar documento:', error);
-      alert('Erro ao salvar documento. Tente novamente.');
+      setError(error instanceof Error ? error.message : 'Erro ao salvar documento. Tente novamente.');
     } finally {
       setIsSubmitting(false);
     }
@@ -135,28 +203,20 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert('O arquivo deve ter no máximo 5MB');
+        setError('O arquivo deve ter no máximo 5MB');
         e.target.value = '';
         return;
       }
       if (file.type !== 'application/pdf') {
-        alert('Apenas arquivos PDF são permitidos');
+        setError('Apenas arquivos PDF são permitidos');
         e.target.value = '';
         return;
       }
       setArquivo(file);
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
-      setSelectedModelo(null);
-      setUseModelo(false);
+      setError(null);
     }
-  };
-
-  const handleModeloSelect = (modelo: Modelo) => {
-    setSelectedModelo(modelo);
-    setPreviewUrl(modelo.arquivo_url);
-    setArquivo(null);
-    setUseModelo(true);
   };
 
   const handleAddCliente = (cliente: Cliente) => {
@@ -324,9 +384,31 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
     }));
   };
 
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto flex items-center justify-center py-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto">
       <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex">
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Erro</h3>
+                <div className="mt-2 text-sm text-red-700">{error}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Nome do Documento</label>
           <input
@@ -339,88 +421,50 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
           />
         </div>
 
-        {!initialData && (
-          <div className="space-y-4">
-            <div className="flex space-x-4">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setUseModelo(false);
-                }}
-                className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-colors ${
-                  !useModelo
-                    ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-2 border-gray-300'
-                }`}
-              >
-                Novo Arquivo
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setUseModelo(true);
-                }}
-                className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-colors ${
-                  useModelo
-                    ? 'bg-blue-100 text-blue-700 border-2 border-blue-300'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-2 border-gray-300'
-                }`}
-              >
-                Usar Modelo
-              </button>
-            </div>
+        <div className="space-y-4">
+          <div className="flex items-center space-x-4">
+            <input
+              type="checkbox"
+              id="isUniversal"
+              checked={isUniversal}
+              onChange={(e) => setIsUniversal(e.target.checked)}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="isUniversal" className="text-sm font-medium text-gray-700">
+              Documento Universal (sem cliente específico)
+            </label>
+          </div>
 
-            {useModelo ? (
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium text-gray-700">Selecione um modelo:</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-60 overflow-y-auto">
-                  {modelos.map((modelo) => (
-                    <button
-                      key={modelo.id}
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleModeloSelect(modelo);
-                      }}
-                      className={`p-4 rounded-lg border text-left hover:bg-gray-50 transition-colors ${
-                        selectedModelo?.id === modelo.id
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <FileText className="h-8 w-8 text-blue-500 flex-shrink-0" />
-                        <div className="min-w-0">
-                          <h3 className="font-medium text-gray-900 truncate">{modelo.nome}</h3>
-                          <p className="text-sm text-gray-500">{modelo.categoria}</p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                  {modelos.length === 0 && (
-                    <div className="col-span-2 text-center py-8 text-gray-500">
-                      Nenhum modelo disponível
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Arquivo (PDF até 5MB)</label>
-                <input
-                  type="file"
-                  accept=".pdf"
-                  onChange={handleFileChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                  required={!initialData && !selectedModelo}
-                />
-              </div>
-            )}
+          {!isUniversal && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
+              <select
+                value={selectedClientId}
+                onChange={(e) => setSelectedClientId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                required={!isUniversal}
+              >
+                <option value="">Selecione um cliente</option>
+                {clientes.map((cliente) => (
+                  <option key={cliente.id} value={cliente.id}>
+                    {cliente.nome} - {cliente.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {!initialData && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Arquivo (PDF até 5MB)</label>
+            <input
+              type="file"
+              accept=".pdf"
+              onChange={handleFileChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              required={!initialData}
+            />
           </div>
         )}
 

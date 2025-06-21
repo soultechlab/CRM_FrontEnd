@@ -291,3 +291,157 @@ export const buscarDadosDashboard = async (user: User|null) => {
     throw new Error(error.response?.data?.message || 'Erro ao buscar dados');
   }
 }
+
+// Documentos
+
+export interface DocumentListParams {
+  page?: number;
+  per_page?: number;
+  status?: 'draft' | 'pending_signature' | 'signed' | 'rejected';
+  is_active?: boolean;
+  name?: string;
+}
+
+export interface SignerData {
+  signer_name: string;
+  signer_email: string;
+  signer_cpf?: string;
+}
+
+export interface CreateDocumentData {
+  name: string;
+  client_id?: number;
+  is_universal?: boolean;
+  is_active?: boolean;
+  file: File;
+  signers?: SignerData[];
+}
+
+export const obterDocumentos = async (params: DocumentListParams, user: User | null) => {
+  try {
+    const response = await apiClient.get('/documents', {
+      params,
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao obter documentos');
+  }
+};
+
+export const criarDocumento = async (data: CreateDocumentData, user: User | null) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', data.file);
+    formData.append('name', data.name);
+    
+    if (data.client_id) {
+      formData.append('client_id', data.client_id.toString());
+    }
+    
+    if (data.is_universal !== undefined) {
+      formData.append('is_universal', data.is_universal.toString());
+    }
+    
+    if (data.is_active !== undefined) {
+      formData.append('is_active', data.is_active.toString());
+    }
+
+    if (data.signers) {
+      formData.append('signers', JSON.stringify(data.signers));
+    }
+
+    const response = await apiClient.post('/documents', formData, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao criar documento');
+  }
+};
+
+export const enviarDocumentoParaAssinatura = async (documentId: string, user: User | null) => {
+  try {
+    const response = await apiClient.post(`/documents/${documentId}/send-autentique`, {}, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao enviar documento para assinatura');
+  }
+};
+
+export const baixarDocumentoAssinado = async (documentId: string, user: User | null) => {
+  try {
+    const response = await apiClient.get(`/documents/${documentId}/download-signed`, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+      responseType: 'blob',
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao baixar documento assinado');
+  }
+};
+
+export const arquivarDocumento = async (documentId: string, user: User | null) => {
+  try {
+    const response = await apiClient.delete(`/documents/${documentId}`, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao arquivar documento');
+  }
+};
+
+export const desarquivarDocumento = async (documentId: string, user: User | null) => {
+  try {
+    const response = await apiClient.put(`/documents/${documentId}`, 
+      { is_active: true }, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao desarquivar documento');
+  }
+};
+
+export const excluirDocumento = async (documentId: string, user: User | null) => {
+  try {
+    const response = await apiClient.delete(`/documents/${documentId}`, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao excluir documento');
+  }
+};
+
+export const restaurarDocumento = async (documentId: string, user: User | null) => {
+  try {
+    const response = await apiClient.put(`/documents/${documentId}`, 
+      { is_active: true }, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao restaurar documento');
+  }
+};
