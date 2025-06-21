@@ -69,17 +69,40 @@ export function Documentos() {
     arquivados: 0,
     lixeira: 0
   });
+
   const [selectedDocument, setSelectedDocument] = useState<BackendDocument | null>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
+
+  const loadTabCounts = async () => {
+    if (!user) return;
+    
+    try {
+      const promises = [
+        obterDocumentos({ status: 'draft', per_page: 1000 }, user),
+        obterDocumentos({ status: 'pending_signature', per_page: 1000 }, user),
+        obterDocumentos({ status: 'signed', per_page: 1000 }, user),
+        obterDocumentos({ is_active: false, per_page: 1000 }, user),
+      ];
+
+      const [rascunhosRes, enviadosRes, assinadosRes, arquivadosRes] = await Promise.all(promises);
+      
+      setTabCounts({
+        rascunhos: rascunhosRes.data?.length || 0,
+        enviados: enviadosRes.data?.length || 0,
+        assinados: assinadosRes.data?.length || 0,
+        arquivados: arquivadosRes.data?.length || 0,
+        lixeira: 0 // Implementar lógica para lixeira se necessário
+      });
+    } catch (err) {
+      console.error('Erro ao carregar contagens:', err);
+    }
+  };
 
   const loadDocuments = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      console.log('Loading documents, user:', user ? 'authenticated' : 'not authenticated');
-      console.log('User token exists:', !!user?.token);
-      console.log('Active tab:', activeTab);
       
       if (!user) {
         setError('Usuário não autenticado');
@@ -95,22 +118,17 @@ export function Documentos() {
         params.status = statusMapping[activeTab] as any;
       }
 
-      console.log('API params:', params);
+      // Para arquivados, usamos is_active: false
+      if (activeTab === 'arquivados') {
+        params.is_active = false;
+      } else if (activeTab !== 'lixeira') {
+        params.is_active = true;
+      }
+
       const response = await obterDocumentos(params, user);
-      console.log('Documents loaded successfully:', response.data?.length);
       
       setDocumentos(response.data || []);
       setTotalPages(response.meta?.last_page || 1);
-      
-      // Load tab counts (you might want to do separate API calls for each status)
-      // For now, we'll use the current response meta
-      setTabCounts({
-        rascunhos: response.meta?.total || 0,
-        enviados: 0,
-        assinados: 0,
-        arquivados: 0,
-        lixeira: 0
-      });
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar documentos';
@@ -130,6 +148,13 @@ export function Documentos() {
     }
   }, [user, activeTab, currentPage]);
 
+  // Carregar contagens apenas uma vez quando o usuário é autenticado
+  useEffect(() => {
+    if (user && user.token) {
+      loadTabCounts();
+    }
+  }, [user]);
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
@@ -137,6 +162,7 @@ export function Documentos() {
   const handleDocumentoSubmit = (novoDocumento: BackendDocument) => {
     setIsModalOpen(false);
     loadDocuments(); // Reload documents after creating new one
+    loadTabCounts(); // Reload counts after creating new document
   };
 
   const handleSendDocument = async (documentId: string) => {
@@ -144,6 +170,7 @@ export function Documentos() {
       setError(null);
       await enviarDocumentoParaAssinatura(documentId, user);
       loadDocuments(); // Reload to get updated status
+      loadTabCounts(); // Reload counts after status change
     } catch (err) {
       setError('Erro ao enviar documento para assinatura');
       console.error('Erro ao enviar documento:', err);
@@ -173,6 +200,7 @@ export function Documentos() {
       setError(null);
       await arquivarDocumento(documentId, user);
       loadDocuments(); // Reload to update list
+      loadTabCounts(); // Reload counts after archiving
     } catch (err) {
       setError('Erro ao arquivar documento');
       console.error('Erro ao arquivar documento:', err);
@@ -185,6 +213,7 @@ export function Documentos() {
         setError(null);
         await excluirDocumento(documentId, user);
         loadDocuments(); // Reload to update list
+        loadTabCounts(); // Reload counts after deletion
       } catch (err) {
         setError('Erro ao excluir documento');
         console.error('Erro ao excluir documento:', err);
