@@ -6,7 +6,10 @@
       "Bash(npm uninstall:*)",
       "Bash(cat:*)",
       "WebFetch(domain:localhost)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npm run copy-pdf-worker:*)",
+      "Bash(cp:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

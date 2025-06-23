@@ -60,7 +60,9 @@ export function PdfViewer({
 
   function onDocumentLoadError(error: any) {
     console.error('Error loading PDF:', error);
-    setError('Falha ao carregar o arquivo PDF. Verifique se o arquivo é válido.');
+    console.error('PDF URL:', pdfUrl);
+    console.error('Error details:', error.message, error.name, error.stack);
+    setError(`Falha ao carregar o arquivo PDF: ${error.message || 'Arquivo inválido ou corrompido'}`);
     setLoading(false);
   }
 
@@ -270,11 +272,17 @@ export function PdfViewer({
             file={pdfUrl}
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
+            options={{
+              cMapUrl: 'https://unpkg.com/pdfjs-dist@4.8.69/cmaps/',
+              cMapPacked: true,
+              standardFontDataUrl: 'https://unpkg.com/pdfjs-dist@4.8.69/standard_fonts/',
+            }}
             loading={
               <div className="flex items-center justify-center h-96 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
                   <p className="text-gray-600">Carregando PDF...</p>
+                  <p className="text-xs text-gray-500 mt-1">URL: {pdfUrl}</p>
                 </div>
               </div>
             }

@@ -156,34 +156,33 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
 
       // Prepare signers data for backend
       const signersData: SignerData[] = selectedClientes.map(sc => ({
-        signer_name: sc.cliente.nome,
-        signer_email: sc.cliente.email,
-        signer_cpf: sc.cliente.cpf || undefined,
-        fields_definition: sc.fields.map(field => ({
+        name: sc.cliente.nome,
+        email: sc.cliente.email,
+        cpf: sc.cliente.cpf || undefined,
+        fields: sc.fields.map(field => ({
           type: field.type,
           page: field.position.page,
           x: field.position.x,
           y: field.position.y,
           width: field.width,
-          height: field.height,
-          value: field.type === 'nome' ? sc.cliente.nome :
-                 field.type === 'email' ? sc.cliente.email :
-                 field.type === 'cpf' ? sc.cliente.cpf :
-                 undefined
+          height: field.height
         }))
       }));
 
       // Prepare document data
       const documentData: CreateDocumentData = {
         name: nome.trim(),
-        client_id: isUniversal ? undefined : selectedClientId,
+        client_id: isUniversal ? undefined : (selectedClientId || selectedClientes[0]?.cliente?.id),
+        file: arquivo!,
+        is_active: true,
         is_universal: isUniversal,
         signers: signersData
       };
+      
 
       // Call backend API to create document
       if (arquivo) {
-        const createdDocument = await criarDocumento(documentData, arquivo, user);
+        const createdDocument = await criarDocumento(documentData, user);
         onSubmit(createdDocument);
       } else {
         setError('Arquivo é obrigatório para criar documento');

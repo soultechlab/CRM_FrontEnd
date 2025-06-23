@@ -303,9 +303,17 @@ export interface DocumentListParams {
 }
 
 export interface SignerData {
-  signer_name: string;
-  signer_email: string;
-  signer_cpf?: string;
+  name: string;
+  email: string;
+  cpf?: string;
+  fields: Array<{
+    type: string;
+    page: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }>;
 }
 
 export interface CreateDocumentData {
@@ -334,6 +342,7 @@ export const obterDocumentos = async (params: DocumentListParams, user: User | n
 export const criarDocumento = async (data: CreateDocumentData, user: User | null) => {
   try {
     const formData = new FormData();
+    
     formData.append('file', data.file);
     formData.append('name', data.name);
     
@@ -341,27 +350,34 @@ export const criarDocumento = async (data: CreateDocumentData, user: User | null
       formData.append('client_id', data.client_id.toString());
     }
     
-    if (data.is_universal !== undefined) {
-      formData.append('is_universal', data.is_universal.toString());
-    }
-    
-    if (data.is_active !== undefined) {
-      formData.append('is_active', data.is_active.toString());
-    }
+    formData.append('is_universal', data.is_universal ? 'true' : 'false');
+    formData.append('is_active', data.is_active ? 'true' : 'false');
 
     if (data.signers) {
       formData.append('signers', JSON.stringify(data.signers));
     }
 
-    const response = await apiClient.post('/documents', formData, {
+    if (!data.file || !(data.file instanceof File) || data.file.size === 0) {
+      throw new Error('Arquivo PDF inválido ou corrompido');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/documents`, {
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${user?.token}`,
-        'Content-Type': 'multipart/form-data',
       },
+      body: formData
     });
-    return response.data;
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP ${response.status}`);
+    }
+
+    const responseData = await response.json();
+    return responseData;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao criar documento');
+    throw new Error(error.message || 'Erro ao criar documento');
   }
 };
 
