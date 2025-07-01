@@ -9,7 +9,8 @@
       "Bash(grep:*)",
       "Bash(npm run copy-pdf-worker:*)",
       "Bash(cp:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

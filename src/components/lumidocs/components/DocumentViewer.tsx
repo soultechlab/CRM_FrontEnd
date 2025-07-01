@@ -11,36 +11,8 @@ import {
   excluirDocumento 
 } from '../../../services/apiService';
 import { useAuth } from '../../../contexts/AuthContext';
+import { BackendDocument } from '../../../types';
 
-interface BackendDocument {
-  id: string;
-  name: string;
-  status: 'draft' | 'pending_signature' | 'signed' | 'rejected';
-  storage_url: string;
-  signed_document_url?: string;
-  autentique_document_id?: string;
-  created_at: string;
-  updated_at: string;
-  user: {
-    id: number;
-    name: string;
-    email: string;
-  };
-  client?: {
-    id: number;
-    name: string;
-    email: string;
-  };
-  signers: Array<{
-    id: number;
-    signer_name: string;
-    signer_email: string;
-    signer_cpf?: string;
-    signer_status: string;
-    signature_url?: string;
-    autentique_signer_id?: string;
-  }>;
-}
 
 interface DocumentViewerProps {
   document: BackendDocument;

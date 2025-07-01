@@ -1,41 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X, FileText } from 'lucide-react';
-import { Cliente, SignatureField } from '../utils/localStorage';
+import { Cliente as LocalCliente, SignatureField } from '../utils/localStorage';
+import { BackendDocument } from '../../../types';
 // Importar configuração do PDF antes do PdfViewer
 import '../utils/pdfConfig';
 import { PdfViewer } from './PdfViewer';
 import { criarDocumento, CreateDocumentData, SignerData, obterClientes } from '../../../services/apiService';
 import { useAuth } from '../../../contexts/AuthContext';
 
-interface BackendDocument {
-  id: string;
-  name: string;
-  status: 'draft' | 'pending_signature' | 'signed' | 'rejected';
-  storage_url: string;
-  signed_document_url?: string;
-  autentique_document_id?: string;
-  created_at: string;
-  updated_at: string;
-  user: {
-    id: number;
-    name: string;
-    email: string;
-  };
-  client?: {
-    id: number;
-    name: string;
-    email: string;
-  };
-  signers: Array<{
-    id: number;
-    signer_name: string;
-    signer_email: string;
-    signer_cpf?: string;
-    signer_status: string;
-    signature_url?: string;
-    autentique_signer_id?: string;
-  }>;
-}
 
 interface DocumentoFormProps {
   initialData?: BackendDocument;
@@ -67,8 +39,6 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
         setLoading(true);
         setError(null);
         
-        console.log('Loading clients, user:', user ? 'authenticated' : 'not authenticated');
-        console.log('User token exists:', !!user?.token);
         
         if (!user) {
           setError('Usuário não autenticado');
