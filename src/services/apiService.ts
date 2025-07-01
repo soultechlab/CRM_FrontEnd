@@ -381,9 +381,19 @@ export const criarDocumento = async (data: CreateDocumentData, user: User | null
   }
 };
 
-export const enviarDocumentoParaAssinatura = async (documentId: string, user: User | null) => {
+export const enviarDocumentoParaAssinatura = async (
+  documentId: string, 
+  user: User | null, 
+  signers?: Array<{
+    id: number;
+    signer_name: string;
+    signer_email: string;
+    signer_cpf?: string;
+  }>
+) => {
   try {
-    const response = await apiClient.post(`/documents/${documentId}/send-autentique`, {}, {
+    const requestBody = signers ? { signers } : {};
+    const response = await apiClient.post(`/documents/${documentId}/send-autentique`, requestBody, {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
@@ -391,6 +401,19 @@ export const enviarDocumentoParaAssinatura = async (documentId: string, user: Us
     return response.data;
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Erro ao enviar documento para assinatura');
+  }
+};
+
+export const verificarStatusDocumento = async (documentId: string, user: User | null) => {
+  try {
+    const response = await apiClient.get(`/documents/${documentId}/status`, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao verificar status do documento');
   }
 };
 

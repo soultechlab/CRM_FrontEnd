@@ -62,6 +62,9 @@ export interface BackendDocument {
   autentique_document_id?: string;
   created_at: string;
   updated_at: string;
+  send_status?: 'success' | 'failed' | 'pending';
+  send_error_message?: string;
+  last_send_attempt?: string;
   user: {
     id: number;
     name: string;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, FileText, Send, CheckCircle, Search, Calendar, X, Archive, ChevronLeft, ChevronRight, Trash2, AlertTriangle, Download, Eye, MoreVertical, ExternalLink } from 'lucide-react';
+import { Plus, FileText, Send, CheckCircle, Search, Calendar, X, Archive, ChevronLeft, ChevronRight, Trash2, AlertTriangle, Download, Eye, MoreVertical, ExternalLink, RefreshCw, Shield } from 'lucide-react';
 import { Modal } from './components/Modal';
 // Importar configuração do PDF logo no início
 import './utils/pdfConfig';
@@ -7,7 +7,9 @@ import { DocumentoForm } from './components/DocumentoForm';
 import { DocumentStatus } from './components/DocumentStatus';
 import { SignatureProgress } from './components/SignatureProgress';
 import { DocumentViewer } from './components/DocumentViewer';
-import { obterDocumentos, DocumentListParams, enviarDocumentoParaAssinatura, baixarDocumentoAssinado, arquivarDocumento, desarquivarDocumento, excluirDocumento, restaurarDocumento } from '../../services/apiService';
+import { SendSignatureModal } from './components/SendSignatureModal';
+import { SendStatus, SendStatusIcon } from './components/SendStatus';
+import { obterDocumentos, DocumentListParams, enviarDocumentoParaAssinatura, baixarDocumentoAssinado, arquivarDocumento, desarquivarDocumento, excluirDocumento, restaurarDocumento, verificarStatusDocumento } from '../../services/apiService';
 import { useAuth } from '../../contexts/AuthContext';
 import { BackendDocument } from '../../types';
 
@@ -44,6 +46,11 @@ export function Documentos() {
 
   const [selectedDocument, setSelectedDocument] = useState<BackendDocument | null>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [selectedDocumentForSignature, setSelectedDocumentForSignature] = useState<BackendDocument | null>(null);
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [isResendMode, setIsResendMode] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState<Set<string>>(new Set());
+  const [autoCheckInProgress, setAutoCheckInProgress] = useState(false);
 
   const loadTabCounts = async () => {
     if (!user) return;
@@ -127,6 +134,42 @@ export function Documentos() {
     }
   }, [user]);
 
+  // Verificar status automaticamente de documentos pendentes ao carregar
+  useEffect(() => {
+    const checkPendingDocuments = async () => {
+      if (!user?.token || loading) return;
+      
+      const pendingDocs = documentos.filter(doc => doc.status === 'pending_signature');
+      
+      if (pendingDocs.length > 0) {
+        setAutoCheckInProgress(true);
+        console.log(`Verificando status de ${pendingDocs.length} documentos pendentes...`);
+        
+        try {
+          // Verificar até 3 documentos por vez para não sobrecarregar
+          const docsToCheck = pendingDocs.slice(0, 3);
+          
+          for (const doc of docsToCheck) {
+            try {
+              await handleCheckDocumentStatus(String(doc.id));
+              // Pequeno delay entre verificações
+              await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (error) {
+              console.error(`Erro ao verificar documento ${doc.id}:`, error);
+            }
+          }
+        } finally {
+          setAutoCheckInProgress(false);
+        }
+      }
+    };
+
+    // Executar verificação 2 segundos após carregar os documentos
+    const timer = setTimeout(checkPendingDocuments, 2000);
+    
+    return () => clearTimeout(timer);
+  }, [documentos, user, loading]);
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
@@ -137,15 +180,113 @@ export function Documentos() {
     loadTabCounts(); // Reload counts after creating new document
   };
 
-  const handleSendDocument = async (documentId: string) => {
+  const handleSendDocument = async (documentId: string, signers?: Array<{
+    id: number;
+    signer_name: string;
+    signer_email: string;
+    signer_cpf?: string;
+  }>) => {
     try {
       setError(null);
-      await enviarDocumentoParaAssinatura(documentId, user);
-      loadDocuments(); // Reload to get updated status
-      loadTabCounts(); // Reload counts after status change
-    } catch (err) {
+      
+      // Mostrar status de envio como pendente nos documentos
+      setDocumentos(prev => prev.map(doc => 
+        String(doc.id) === documentId 
+          ? { ...doc, send_status: 'pending' as const }
+          : doc
+      ));
+
+      const response = await enviarDocumentoParaAssinatura(documentId, user, signers);
+      
+      // Atualizar status baseado na resposta
+      if (response.success) {
+        setDocumentos(prev => prev.map(doc => 
+          String(doc.id) === documentId 
+            ? { 
+                ...doc, 
+                send_status: 'success' as const,
+                last_send_attempt: new Date().toISOString(),
+                status: 'pending_signature' as const
+              }
+            : doc
+        ));
+      } else {
+        setDocumentos(prev => prev.map(doc => 
+          String(doc.id) === documentId 
+            ? { 
+                ...doc, 
+                send_status: 'failed' as const,
+                send_error_message: response.error || 'Erro desconhecido',
+                last_send_attempt: new Date().toISOString()
+              }
+            : doc
+        ));
+      }
+      
+      // Recarregar após um breve delay para pegar dados atualizados do servidor
+      setTimeout(() => {
+        loadDocuments();
+        loadTabCounts();
+      }, 1000);
+      
+    } catch (err: any) {
+      // Atualizar status como falha em caso de erro
+      setDocumentos(prev => prev.map(doc => 
+        String(doc.id) === documentId 
+          ? { 
+              ...doc, 
+              send_status: 'failed' as const,
+              send_error_message: err.message || 'Erro ao enviar documento',
+              last_send_attempt: new Date().toISOString()
+            }
+          : doc
+      ));
+      
       setError('Erro ao enviar documento para assinatura');
       console.error('Erro ao enviar documento:', err);
+    }
+  };
+
+  const handleOpenSignatureModal = (document: BackendDocument, isResend = false) => {
+    setSelectedDocumentForSignature(document);
+    setIsResendMode(isResend);
+    setIsSignatureModalOpen(true);
+  };
+
+  const handleCloseSignatureModal = () => {
+    setIsSignatureModalOpen(false);
+    setSelectedDocumentForSignature(null);
+    setIsResendMode(false);
+  };
+
+  const handleCheckDocumentStatus = async (documentId: string) => {
+    try {
+      setCheckingStatus(prev => new Set(prev).add(documentId));
+      
+      const response = await verificarStatusDocumento(documentId, user);
+      
+      if (response.success) {
+        // Atualizar o documento local com as informações mais recentes
+        setDocumentos(prev => prev.map(doc => 
+          String(doc.id) === documentId 
+            ? { ...doc, ...response.data.document }
+            : doc
+        ));
+        
+        // Se o status mudou, recarregar as contagens
+        if (response.data.local_status !== response.data.autentique_status) {
+          loadTabCounts();
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao verificar status do documento:', err);
+      setError('Erro ao verificar status do documento');
+    } finally {
+      setCheckingStatus(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(documentId);
+        return newSet;
+      });
     }
   };
 
@@ -260,7 +401,12 @@ export function Documentos() {
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start mb-4">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">{document.name}</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold text-gray-900">{document.name}</h3>
+            {(document.status === 'pending_signature' || document.status === 'signed') && (
+              <SendStatusIcon status={document.send_status} errorMessage={document.send_error_message} />
+            )}
+          </div>
           <p className="text-sm text-gray-600 mb-1">
             Cliente: {document.client?.name || 'Documento Universal'}
           </p>
@@ -280,11 +426,20 @@ export function Documentos() {
         <SignatureProgress signers={document.signers} />
       </div>
 
+      {/* Send Status for documents that have been sent */}
+      {(document.status === 'pending_signature' || document.status === 'signed') && document.send_status && (
+        <SendStatus 
+          status={document.send_status} 
+          errorMessage={document.send_error_message}
+          lastAttempt={document.last_send_attempt}
+        />
+      )}
+
       <div className="flex flex-wrap gap-2">
         {/* Action buttons based on document status */}
-        {document.status === 'draft' && (
+        {document.status === 'draft' && !document.send_status && (
           <button
-            onClick={() => handleSendDocument(String(document.id))}
+            onClick={() => handleOpenSignatureModal(document)}
             className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center"
           >
             <Send className="w-4 h-4 mr-1" />
@@ -299,6 +454,56 @@ export function Documentos() {
           >
             <Download className="w-4 h-4 mr-1" />
             Download Assinado
+          </button>
+        )}
+
+        {/* Resend button for pending signature documents */}
+        {document.status === 'pending_signature' && (
+          <button
+            onClick={() => handleOpenSignatureModal(document, true)}
+            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center ${
+              document.send_status === 'failed' 
+                ? 'bg-red-600 text-white hover:bg-red-700' 
+                : 'bg-yellow-600 text-white hover:bg-yellow-700'
+            }`}
+            title={document.send_status === 'failed' ? 'Tentar enviar novamente' : 'Reenviar para assinatura'}
+          >
+            <RefreshCw className="w-4 h-4 mr-1" />
+            {document.send_status === 'failed' ? 'Tentar Novamente' : 'Reenviar'}
+          </button>
+        )}
+
+        {/* Special retry button for failed draft sends */}
+        {document.status === 'draft' && document.send_status === 'failed' && (
+          <button
+            onClick={() => handleOpenSignatureModal(document)}
+            className="bg-red-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-red-700 transition-colors flex items-center justify-center"
+            title="Tentar enviar novamente"
+          >
+            <RefreshCw className="w-4 h-4 mr-1" />
+            Tentar Novamente
+          </button>
+        )}
+
+        {/* Status check button for pending signature documents */}
+        {document.status === 'pending_signature' && (
+          <button
+            onClick={() => handleCheckDocumentStatus(String(document.id))}
+            disabled={checkingStatus.has(String(document.id))}
+            className="bg-green-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+            title="Verificar status de assinatura"
+          >
+            {checkingStatus.has(String(document.id)) ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1"></div>
+                Verificando...
+              </>
+            ) : (
+              <>
+                <Shield className="w-4 h-4 mr-1" />
+                Status
+              </>
+            )}
           </button>
         )}
         
@@ -384,7 +589,15 @@ export function Documentos() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* HEADER */}
         <div className="flex justify-between items-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">Documentos</h1>
+            <div className="flex items-center space-x-4">
+              <h1 className="text-2xl font-bold text-gray-900">Documentos</h1>
+              {autoCheckInProgress && (
+                <div className="flex items-center text-sm text-blue-600">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                  Verificando status de assinaturas...
+                </div>
+              )}
+            </div>
             <button
             onClick={() => setIsModalOpen(true)}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
@@ -604,6 +817,16 @@ export function Documentos() {
             isOpen={isViewerOpen}
             onClose={handleCloseViewer}
             onDocumentUpdate={loadDocuments}
+          />
+        )}
+
+        {selectedDocumentForSignature && (
+          <SendSignatureModal
+            document={selectedDocumentForSignature}
+            isOpen={isSignatureModalOpen}
+            onClose={handleCloseSignatureModal}
+            onConfirm={handleSendDocument}
+            isResend={isResendMode}
           />
         )}
     </div>
