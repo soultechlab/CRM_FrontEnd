@@ -80,8 +80,22 @@ export interface BackendDocument {
     signer_name: string;
     signer_email: string;
     signer_cpf?: string;
-    signer_status: string;
+    signer_status: 'signed' | 'pending' | 'rejected';
     signature_url?: string;
     autentique_signer_id?: string;
+    signed_at?: string | null;
   }>;
+}
+
+export interface DocumentStatusResponse {
+  success: boolean;
+  data: {
+    local_status: 'signed' | 'pending_signature' | 'draft' | 'rejected';
+    autentique_status: 'completed' | 'pending' | 'signed' | 'in_progress';
+    all_signed: boolean;
+    document: BackendDocument;
+    updated_signers: number;
+    autentique_data: any;
+  };
+  message: string;
 }

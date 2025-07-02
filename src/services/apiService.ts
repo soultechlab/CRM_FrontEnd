@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Agendamento, Cliente } from '../types';
+import { Agendamento, Cliente, DocumentStatusResponse } from '../types';
 import { User } from './auth/types';
 import { Transacao } from '../types/financeiro';
 
@@ -404,15 +404,44 @@ export const enviarDocumentoParaAssinatura = async (
   }
 };
 
-export const verificarStatusDocumento = async (documentId: string, user: User | null) => {
+export const verificarStatusDocumento = async (documentId: string, user: User | null): Promise<DocumentStatusResponse> => {
   try {
+    const headers = {
+      Authorization: `Bearer ${user?.token}`,
+      'Content-Type': 'application/json',
+    };
+
+    console.log('📤 HEADERS ENVIADOS:', headers);
+    console.log('🔗 URL REQUISIÇÃO:', `/documents/${documentId}/status`);
+
     const response = await apiClient.get(`/documents/${documentId}/status`, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
+      headers,
     });
+
+    console.log('📡 STATUS HTTP:', response.status);
+    console.log('📡 STATUS TEXT:', response.statusText);
+    console.log('🔍 RESPOSTA COMPLETA DA API:', JSON.stringify(response.data, null, 2));
+
+    // Debug específico para documentos com erro
+    if (response.data?.data?.autentique_status === 'error') {
+      console.log('❌ ERRO NO DOCUMENTO:', {
+        id: documentId,
+        autentique_error: response.data.data?.autentique_error,
+        sync_error: response.data.data?.sync_error,
+        mensagem_completa: response.data.message,
+        response_completa: response.data
+      });
+    }
+
     return response.data;
   } catch (error: any) {
+    console.log('❌ ERRO NA REQUISIÇÃO:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      message: error.response?.data?.message,
+      errorCompleto: error.response?.data,
+      documentId
+    });
     throw new Error(error.response?.data?.message || 'Erro ao verificar status do documento');
   }
 };

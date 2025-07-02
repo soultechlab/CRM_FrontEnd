@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, FileText, Send, CheckCircle, Search, Calendar, X, Archive, ChevronLeft, ChevronRight, Trash2, AlertTriangle, Download, Eye, MoreVertical, ExternalLink, RefreshCw, Shield } from 'lucide-react';
+import { Plus, FileText, Send, CheckCircle, Search, Calendar, X, Archive, ChevronLeft, ChevronRight, Trash2, AlertTriangle, Download, Eye, MoreVertical, ExternalLink, RefreshCw } from 'lucide-react';
 import { Modal } from './components/Modal';
 // Importar configuração do PDF logo no início
 import './utils/pdfConfig';
@@ -51,6 +51,7 @@ export function Documentos() {
   const [isResendMode, setIsResendMode] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState<Set<string>>(new Set());
   const [autoCheckInProgress, setAutoCheckInProgress] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadTabCounts = async () => {
     if (!user) return;
@@ -106,6 +107,14 @@ export function Documentos() {
 
       const response = await obterDocumentos(params, user);
       
+      console.log('📋 RESPOSTA LISTAGEM DE DOCUMENTOS:', {
+        total: response.data?.length,
+        sync_results: response.sync_results,
+        meta: response.meta,
+        activeTab,
+        params
+      });
+      
       setDocumentos(response.data || []);
       setTotalPages(response.meta?.last_page || 1);
       
@@ -143,21 +152,35 @@ export function Documentos() {
       
       if (pendingDocs.length > 0) {
         setAutoCheckInProgress(true);
-        console.log(`Verificando status de ${pendingDocs.length} documentos pendentes...`);
+        console.log(`🔄 Iniciando verificação automática de ${pendingDocs.length} documentos pendentes...`);
+        
+        let updatedCount = 0;
         
         try {
-          // Verificar até 3 documentos por vez para não sobrecarregar
-          const docsToCheck = pendingDocs.slice(0, 3);
-          
-          for (const doc of docsToCheck) {
+          // Verificar todos os documentos pendentes
+          for (const doc of pendingDocs) {
             try {
+              console.log(`📋 Verificando documento: ${doc.name} (ID: ${doc.id})`);
               await handleCheckDocumentStatus(String(doc.id));
-              // Pequeno delay entre verificações
-              await new Promise(resolve => setTimeout(resolve, 500));
+              // Pequeno delay entre verificações para não sobrecarregar
+              await new Promise(resolve => setTimeout(resolve, 300));
             } catch (error) {
-              console.error(`Erro ao verificar documento ${doc.id}:`, error);
+              console.error(`❌ Erro ao verificar documento ${doc.id}:`, error);
             }
           }
+          
+          console.log(`✅ Verificação automática concluída. ${updatedCount} documentos foram atualizados.`);
+          
+          // Log final com resumo completo
+          console.log('📊 RESUMO VERIFICAÇÃO AUTOMÁTICA:', {
+            totalDocumentosPendentes: pendingDocs.length,
+            documentosVerificados: pendingDocs.map(doc => ({
+              id: doc.id,
+              nome: doc.name,
+              status: doc.status
+            })),
+            timestamp: new Date().toISOString()
+          });
         } finally {
           setAutoCheckInProgress(false);
         }
@@ -263,24 +286,109 @@ export function Documentos() {
     try {
       setCheckingStatus(prev => new Set(prev).add(documentId));
       
+      console.log(`🔍 Iniciando verificação do documento ${documentId}`);
+      
       const response = await verificarStatusDocumento(documentId, user);
       
+      console.log('📊 ESTRUTURA COMPLETA DA RESPOSTA:', {
+        success: response.success,
+        data: response.data,
+        sync_results: response.data?.sync_results,
+        message: response.message,
+        autentique_error: response.data?.autentique_error,
+        sync_error: response.data?.sync_error
+      });
+      
       if (response.success) {
+        const { data } = response;
+        const wasUpdated = data.local_status !== data.autentique_status || data.updated_signers > 0;
+        const wasCompleted = data.all_signed && data.document.status === 'signed';
+        
+        // Debug específico para documentos com erro
+        if (data.autentique_status === 'error') {
+          console.log('❌ ERRO NO DOCUMENTO:', {
+            id: documentId,
+            nome: data.document?.name,
+            autentique_error: data.autentique_error,
+            sync_error: data.sync_error,
+            mensagem_completa: response.message,
+            response_completa: response,
+            local_status: data.local_status,
+            autentique_status: data.autentique_status
+          });
+        }
+        
+        // Log para documentos que foram totalmente assinados
+        if (wasCompleted) {
+          console.log('🎉 DOCUMENTO TOTALMENTE ASSINADO:', {
+            id: documentId,
+            nome: data.document.name,
+            statusAnterior: data.local_status,
+            statusAtual: data.document.status,
+            todosAssinaram: data.all_signed,
+            signedDocumentUrl: data.document.signed_document_url
+          });
+          
+          // Mostrar mensagem de sucesso temporária
+          const message = `Documento "${data.document.name}" foi totalmente assinado!`;
+          setSuccessMessage(message);
+          setTimeout(() => setSuccessMessage(null), 5000);
+        }
+        
         // Atualizar o documento local com as informações mais recentes
         setDocumentos(prev => prev.map(doc => 
           String(doc.id) === documentId 
-            ? { ...doc, ...response.data.document }
+            ? { 
+                ...doc, 
+                ...data.document,
+                // Garantir que o status seja atualizado
+                status: data.document.status,
+                // Atualizar signers com informações completas
+                signers: data.document.signers
+              }
             : doc
         ));
         
-        // Se o status mudou, recarregar as contagens
-        if (response.data.local_status !== response.data.autentique_status) {
+        // Log detalhado do que foi atualizado
+        if (wasUpdated) {
+          console.log(`📋 Documento ${documentId} atualizado:`, {
+            statusAnterior: data.local_status,
+            statusAtual: data.autentique_status,
+            signersAtualizados: data.updated_signers,
+            todosAssinaram: data.all_signed,
+            documento: data.document.name,
+            autentique_error: data.autentique_error,
+            sync_error: data.sync_error,
+            documentoCompleto: wasCompleted
+          });
+          
+          // Recarregar contagens se houve mudança - especialmente importante para documentos assinados
           loadTabCounts();
+          
+          // Se o documento foi totalmente assinado, recarregar a lista para movê-lo para a aba correta
+          if (wasCompleted) {
+            setTimeout(() => {
+              loadDocuments();
+            }, 1000);
+          }
+        } else {
+          console.log(`✅ Documento ${documentId} já está sincronizado`);
         }
+      } else {
+        console.log('❌ RESPOSTA COM SUCESSO = FALSE:', {
+          response,
+          message: response.message,
+          data: response.data
+        });
       }
-    } catch (err) {
-      console.error('Erro ao verificar status do documento:', err);
-      setError('Erro ao verificar status do documento');
+    } catch (err: any) {
+      console.error('❌ ERRO COMPLETO AO VERIFICAR DOCUMENTO:', {
+        documentId,
+        error: err,
+        message: err.message,
+        stack: err.stack
+      });
+      setError(`Erro ao verificar status do documento ${documentId}: ${err.message}`);
     } finally {
       setCheckingStatus(prev => {
         const newSet = new Set(prev);
@@ -485,27 +593,6 @@ export function Documentos() {
           </button>
         )}
 
-        {/* Status check button for pending signature documents */}
-        {document.status === 'pending_signature' && (
-          <button
-            onClick={() => handleCheckDocumentStatus(String(document.id))}
-            disabled={checkingStatus.has(String(document.id))}
-            className="bg-green-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-            title="Verificar status de assinatura"
-          >
-            {checkingStatus.has(String(document.id)) ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1"></div>
-                Verificando...
-              </>
-            ) : (
-              <>
-                <Shield className="w-4 h-4 mr-1" />
-                Status
-              </>
-            )}
-          </button>
-        )}
         
         {/* Signature links for pending documents */}
         {document.status === 'pending_signature' && document.signers.length > 0 && (
@@ -615,6 +702,19 @@ export function Documentos() {
               <div className="ml-3">
                 <h3 className="text-sm font-medium text-red-800">Erro</h3>
                 <div className="mt-2 text-sm text-red-700">{error}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SUCCESS MESSAGE */}
+        {successMessage && (
+          <div className="mb-6 bg-green-50 border border-green-200 rounded-md p-4">
+            <div className="flex">
+              <CheckCircle className="h-5 w-5 text-green-400" />
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-green-800">Sucesso</h3>
+                <div className="mt-2 text-sm text-green-700">{successMessage}</div>
               </div>
             </div>
           </div>

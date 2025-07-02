@@ -31,7 +31,7 @@ export function DocumentStatus({ status, className = '' }: DocumentStatusProps) 
           text: 'Assinado',
           bgColor: 'bg-green-100',
           textColor: 'text-green-800',
-          iconColor: 'text-green-600'
+          iconColor: 'text-green-500'
         };
       case 'rejected':
         return {
