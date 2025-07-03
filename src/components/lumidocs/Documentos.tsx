@@ -9,7 +9,7 @@ import { SignatureProgress } from './components/SignatureProgress';
 import { DocumentViewer } from './components/DocumentViewer';
 import { SendSignatureModal } from './components/SendSignatureModal';
 import { SendStatus, SendStatusIcon } from './components/SendStatus';
-import { obterDocumentos, DocumentListParams, enviarDocumentoParaAssinatura, baixarDocumentoAssinado, arquivarDocumento, desarquivarDocumento, excluirDocumento, restaurarDocumento, verificarStatusDocumento } from '../../services/apiService';
+import { obterDocumentos, DocumentListParams, enviarDocumentoParaAssinatura, baixarDocumentoAssinado, arquivarDocumento, desarquivarDocumento, excluirDocumento, restaurarDocumento, verificarStatusDocumento, marcarDocumentoAssinado } from '../../services/apiService';
 import { useAuth } from '../../contexts/AuthContext';
 import { BackendDocument } from '../../types';
 
@@ -19,8 +19,8 @@ const statusMapping: Record<TabType, string | undefined> = {
   'rascunhos': 'draft',
   'enviados': 'pending_signature', 
   'assinados': 'signed',
-  'arquivados': undefined, // Will be handled separately
-  'lixeira': undefined // Will be handled separately
+  'arquivados': undefined, 
+  'lixeira': undefined 
 };
 
 
@@ -57,22 +57,46 @@ export function Documentos() {
     if (!user) return;
     
     try {
+      console.log('🔄 Carregando contagens das abas...');
+      
       const promises = [
-        obterDocumentos({ status: 'draft', per_page: 1000 }, user),
-        obterDocumentos({ status: 'pending_signature', per_page: 1000 }, user),
-        obterDocumentos({ status: 'signed', per_page: 1000 }, user),
+        obterDocumentos({ status: 'draft', is_active: true, per_page: 1000 }, user),
+        obterDocumentos({ status: 'pending_signature', is_active: true, per_page: 1000 }, user),
+        obterDocumentos({ status: 'signed', is_active: true, per_page: 1000 }, user),
         obterDocumentos({ is_active: false, per_page: 1000 }, user),
       ];
 
       const [rascunhosRes, enviadosRes, assinadosRes, arquivadosRes] = await Promise.all(promises);
       
-      setTabCounts({
+      console.log('📊 CONTAGENS DETALHADAS:', {
+        rascunhos: {
+          total: rascunhosRes.data?.length || 0,
+          documentos: rascunhosRes.data?.map(d => ({ id: d.id, name: d.name, status: d.status }))
+        },
+        enviados: {
+          total: enviadosRes.data?.length || 0,
+          documentos: enviadosRes.data?.map(d => ({ id: d.id, name: d.name, status: d.status }))
+        },
+        assinados: {
+          total: assinadosRes.data?.length || 0,
+          documentos: assinadosRes.data?.map(d => ({ id: d.id, name: d.name, status: d.status }))
+        },
+        arquivados: {
+          total: arquivadosRes.data?.length || 0,
+          documentos: arquivadosRes.data?.map(d => ({ id: d.id, name: d.name, status: d.status }))
+        }
+      });
+      
+      const newTabCounts = {
         rascunhos: rascunhosRes.data?.length || 0,
         enviados: enviadosRes.data?.length || 0,
         assinados: assinadosRes.data?.length || 0,
         arquivados: arquivadosRes.data?.length || 0,
         lixeira: 0 // Implementar lógica para lixeira se necessário
-      });
+      };
+      
+      console.log('📈 ATUALIZANDO CONTADORES:', newTabCounts);
+      setTabCounts(newTabCounts);
     } catch (err) {
       console.error('Erro ao carregar contagens:', err);
     }
@@ -98,7 +122,6 @@ export function Documentos() {
         params.status = statusMapping[activeTab] as any;
       }
 
-      // Para arquivados, usamos is_active: false
       if (activeTab === 'arquivados') {
         params.is_active = false;
       } else if (activeTab !== 'lixeira') {
@@ -143,55 +166,43 @@ export function Documentos() {
     }
   }, [user]);
 
-  // Verificar status automaticamente de documentos pendentes ao carregar
+  // Verificar status automaticamente de documentos pendentes apenas ao carregar a página (uma única vez)
   useEffect(() => {
+    let hasChecked = false;
+    
     const checkPendingDocuments = async () => {
-      if (!user?.token || loading) return;
+      if (!user?.token || loading || hasChecked) return;
       
-      const pendingDocs = documentos.filter(doc => doc.status === 'pending_signature');
+      // Aguardar documentos serem carregados
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
-      if (pendingDocs.length > 0) {
+      const currentDocuments = documentos.filter(doc => doc.status === 'pending_signature');
+      
+      if (currentDocuments.length > 0) {
+        hasChecked = true;
         setAutoCheckInProgress(true);
-        console.log(`🔄 Iniciando verificação automática de ${pendingDocs.length} documentos pendentes...`);
-        
-        let updatedCount = 0;
+        console.log(`🔄 Verificação inicial de statusSSSSSSSSSSSSSSSSSSSSSSSS: ${currentDocuments.length} documentos pendentes...`);
         
         try {
-          // Verificar todos os documentos pendentes
-          for (const doc of pendingDocs) {
+          for (const doc of currentDocuments) {
             try {
               console.log(`📋 Verificando documento: ${doc.name} (ID: ${doc.id})`);
               await handleCheckDocumentStatus(String(doc.id));
-              // Pequeno delay entre verificações para não sobrecarregar
               await new Promise(resolve => setTimeout(resolve, 300));
             } catch (error) {
               console.error(`❌ Erro ao verificar documento ${doc.id}:`, error);
             }
           }
           
-          console.log(`✅ Verificação automática concluída. ${updatedCount} documentos foram atualizados.`);
-          
-          // Log final com resumo completo
-          console.log('📊 RESUMO VERIFICAÇÃO AUTOMÁTICA:', {
-            totalDocumentosPendentes: pendingDocs.length,
-            documentosVerificados: pendingDocs.map(doc => ({
-              id: doc.id,
-              nome: doc.name,
-              status: doc.status
-            })),
-            timestamp: new Date().toISOString()
-          });
+          console.log(`✅ Verificação inicial concluída.`);
         } finally {
           setAutoCheckInProgress(false);
         }
       }
     };
 
-    // Executar verificação 2 segundos após carregar os documentos
-    const timer = setTimeout(checkPendingDocuments, 2000);
-    
-    return () => clearTimeout(timer);
-  }, [documentos, user, loading]);
+    checkPendingDocuments();
+  }, [user?.token]); // Executa apenas uma vez quando user.token está disponível
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -286,7 +297,10 @@ export function Documentos() {
     try {
       setCheckingStatus(prev => new Set(prev).add(documentId));
       
-      console.log(`🔍 Iniciando verificação do documento ${documentId}`);
+      console.log(`🔍 Iniciando verificação do documento ${documentId}`, {
+        documentoAntes: documentos.find(d => String(d.id) === documentId),
+        timestamp: new Date().toISOString()
+      });
       
       const response = await verificarStatusDocumento(documentId, user);
       
@@ -531,7 +545,20 @@ export function Documentos() {
       </div>
 
       <div className="mb-4">
-        <SignatureProgress signers={document.signers} />
+        <SignatureProgress 
+          signers={document.signers} 
+          documentId={String(document.id)}
+          documentStatus={document.status}
+          onStatusUpdate={() => {
+            console.log('🔄 Atualizando documentos e contadores após assinatura completa...');
+            loadDocuments();
+            loadTabCounts();
+          }}
+          onCheckStatus={(docId) => {
+            console.log('🔍 Verificação manual de status solicitada para documento:', docId);
+            handleCheckDocumentStatus(docId);
+          }}
+        />
       </div>
 
       {/* Send Status for documents that have been sent */}

@@ -118,13 +118,6 @@ export function DocumentViewer({ document, isOpen, onClose, onDocumentUpdate }: 
               )}
             </div>
           </div>
-          
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-200 rounded-full transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
         </div>
 
         {/* Error message */}
@@ -153,7 +146,7 @@ export function DocumentViewer({ document, isOpen, onClose, onDocumentUpdate }: 
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Criado por:</span>
-                    <span className="text-gray-900">{document.user.name}</span>
+                    <span className="text-gray-900">{document.user?.name || 'N/A'}</span>
                   </div>
                 </div>
               </div>
@@ -248,7 +241,7 @@ export function DocumentViewer({ document, isOpen, onClose, onDocumentUpdate }: 
           </div>
 
           {/* PDF Viewer */}
-          <div className="flex-1 bg-gray-100">
+          <div className="flex-1 bg-gray-100 overflow-y-auto">
             <PdfViewer
               pdfUrl={documentUrl}
               readOnly={true}

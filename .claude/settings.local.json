@@ -10,7 +10,8 @@
       "Bash(npm run copy-pdf-worker:*)",
       "Bash(cp:*)",
       "Bash(find:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(npm run typecheck:*)"
     ],
     "deny": []
   }

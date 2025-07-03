@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Document, Page } from 'react-pdf';
 import { X, GripHorizontal, UserCircle } from 'lucide-react';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
@@ -17,7 +17,7 @@ interface Field {
 
 interface PdfViewerProps {
   pdfUrl: string;
-  onPositionSelect: (position: { x: number; y: number; page: number }) => void;
+  onPositionSelect?: (position: { x: number; y: number; page: number }) => void;
   onDeleteField?: (index: number) => void;
   onMoveField?: (index: number, newPosition: { x: number; y: number }) => void;
   fields?: Field[];
@@ -33,6 +33,8 @@ interface PdfViewerProps {
     assinatura: string;
     assinanteIndex: number;
   };
+  readOnly?: boolean;
+  showSignatureFields?: boolean;
 }
 
 export function PdfViewer({ 
@@ -42,7 +44,9 @@ export function PdfViewer({
   onMoveField,
   fields = [],
   allSignerFields = [],
-  previewData
+  previewData,
+  readOnly = false,
+  showSignatureFields = false
 }: PdfViewerProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
@@ -51,6 +55,13 @@ export function PdfViewer({
   const [showAllFields, setShowAllFields] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Memoizar as opções do Document para evitar reloads desnecessários
+  const documentOptions = useMemo(() => ({
+    cMapUrl: 'https://unpkg.com/pdfjs-dist@4.8.69/cmaps/',
+    cMapPacked: true,
+    standardFontDataUrl: 'https://unpkg.com/pdfjs-dist@4.8.69/standard_fonts/',
+  }), []);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
@@ -67,7 +78,7 @@ export function PdfViewer({
   }
 
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (draggingField !== null) return;
+    if (draggingField !== null || readOnly || !onPositionSelect) return;
     
     const target = event.currentTarget;
     const rect = target.getBoundingClientRect();
@@ -272,11 +283,7 @@ export function PdfViewer({
             file={pdfUrl}
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
-            options={{
-              cMapUrl: 'https://unpkg.com/pdfjs-dist@4.8.69/cmaps/',
-              cMapPacked: true,
-              standardFontDataUrl: 'https://unpkg.com/pdfjs-dist@4.8.69/standard_fonts/',
-            }}
+            options={documentOptions}
             loading={
               <div className="flex items-center justify-center h-96 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg">
                 <div className="text-center">
@@ -318,9 +325,11 @@ export function PdfViewer({
         ))}
       </div>
       
-      <div className="mt-4 text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
-        <p><strong>Dica:</strong> Clique no documento para adicionar um campo na posição desejada. Arraste os campos para reposicioná-los.</p>
-      </div>
+      {!readOnly && (
+        <div className="mt-4 text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <p><strong>Dica:</strong> Clique no documento para adicionar um campo na posição desejada. Arraste os campos para reposicioná-los.</p>
+        </div>
+      )}
     </div>
   );
 }
