@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, FileText, Send, CheckCircle, Search, Calendar, X, Archive, ChevronLeft, ChevronRight, Trash2, AlertTriangle, Download, Eye, MoreVertical, ExternalLink, RefreshCw } from 'lucide-react';
 import { Modal } from './components/Modal';
+import { ConfirmationModal } from './components/ConfirmationModal';
 // Importar configuração do PDF logo no início
 import './utils/pdfConfig';
 import { DocumentoForm } from './components/DocumentoForm';
@@ -9,7 +10,7 @@ import { SignatureProgress } from './components/SignatureProgress';
 import { DocumentViewer } from './components/DocumentViewer';
 import { SendSignatureModal } from './components/SendSignatureModal';
 import { SendStatus, SendStatusIcon } from './components/SendStatus';
-import { obterDocumentos, DocumentListParams, enviarDocumentoParaAssinatura, baixarDocumentoAssinado, arquivarDocumento, desarquivarDocumento, excluirDocumento, restaurarDocumento, verificarStatusDocumento, marcarDocumentoAssinado, sincronizarStatusDocumento } from '../../services/apiService';
+import { obterDocumentos, DocumentListParams, enviarDocumentoParaAssinatura, baixarDocumentoAssinado, arquivarDocumento, desarquivarDocumento, excluirDocumento, restaurarDocumento, verificarStatusDocumento, marcarDocumentoAssinado, sincronizarStatusDocumento, buscarDocumentosArquivados, buscarDocumentosLixeira, buscarEstatisticasDocumentos } from '../../services/apiService';
 import { useAuth } from '../../contexts/AuthContext';
 import { BackendDocument } from '../../types';
 
@@ -53,28 +54,23 @@ export function Documentos() {
   const [autoCheckInProgress, setAutoCheckInProgress] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadTabCounts = useCallback(async () => {
     if (!user) return;
     
     try {
-      const promises = [
-        obterDocumentos({ status: 'draft', is_active: true, per_page: 1000 }, user),
-        obterDocumentos({ status: 'pending_signature', is_active: true, per_page: 1000 }, user),
-        obterDocumentos({ status: 'signed', is_active: true, per_page: 1000 }, user),
-        obterDocumentos({ status: 'archived', is_active: true, per_page: 1000 }, user),
-      ];
-
-      const [rascunhosRes, enviadosRes, assinadosRes, arquivadosRes] = await Promise.all(promises);
-      
-      // Logs removidos para parar poluição
+      const statsResponse = await buscarEstatisticasDocumentos(user);
+      const stats = statsResponse.data || {};
       
       setTabCounts({
-        rascunhos: rascunhosRes.data?.length || 0,
-        enviados: enviadosRes.data?.length || 0,
-        assinados: assinadosRes.data?.length || 0,
-        arquivados: arquivadosRes.data?.length || 0,
-        lixeira: 0 // Implementar lógica para lixeira se necessário
+        rascunhos: stats.draft || 0,
+        enviados: stats.pending_signature || 0,
+        assinados: stats.signed || 0,
+        arquivados: stats.archived || 0,
+        lixeira: stats.trashed || 0
       });
     } catch (err) {
       console.error('Erro ao carregar contagens:', err);
@@ -86,32 +82,32 @@ export function Documentos() {
       setLoading(true);
       setError(null);
       
-      
       if (!user) {
         setError('Usuário não autenticado');
         return;
       }
       
-      const params: DocumentListParams = {
-        page: currentPage,
-        per_page: perPage
-      };
-
-      if (statusMapping[activeTab]) {
-        params.status = statusMapping[activeTab] as any;
-      }
-
-      // Para arquivados, usamos status: 'archived'
-      // Para lixeira, usamos is_active: false
-      if (activeTab === 'lixeira') {
-        params.is_active = false;
-      } else {
-        params.is_active = true;
-      }
-
-      const response = await obterDocumentos(params, user);
+      let response;
       
-      // Log removido
+      if (activeTab === 'arquivados') {
+        // Usar endpoint específico para arquivados
+        response = await buscarDocumentosArquivados(user);
+      } else if (activeTab === 'lixeira') {
+        // Usar endpoint específico para lixeira
+        response = await buscarDocumentosLixeira(user);
+      } else {
+        // Usar endpoint padrão para documentos ativos
+        const params: DocumentListParams = {
+          page: currentPage,
+          per_page: perPage
+        };
+
+        if (statusMapping[activeTab]) {
+          params.status = statusMapping[activeTab] as any;
+        }
+
+        response = await obterDocumentos(params, user);
+      }
       
       setDocumentos(response.data || []);
       setTotalPages(response.meta?.last_page || 1);
@@ -424,18 +420,33 @@ export function Documentos() {
   }, [user, loadDocuments, loadTabCounts]);
 
   const handleDeleteDocument = useCallback(async (documentId: string) => {
-    if (confirm('Tem certeza que deseja excluir este documento?')) {
-      try {
-        setError(null);
-        await excluirDocumento(documentId, user);
-        loadDocuments(); // Reload to update list
-        loadTabCounts(); // Reload counts after deletion
-      } catch (err) {
-        setError('Erro ao excluir documento');
-        console.error('Erro ao excluir documento:', err);
-      }
+    setDocumentToDelete(documentId);
+    setIsDeleteModalOpen(true);
+  }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!documentToDelete) return;
+    
+    try {
+      setIsDeleting(true);
+      setError(null);
+      await excluirDocumento(documentToDelete, user);
+      loadDocuments(); // Reload to update list
+      loadTabCounts(); // Reload counts after deletion
+      setIsDeleteModalOpen(false);
+      setDocumentToDelete(null);
+    } catch (err) {
+      setError('Erro ao excluir documento');
+      console.error('Erro ao excluir documento:', err);
+    } finally {
+      setIsDeleting(false);
     }
-  }, [user, loadDocuments, loadTabCounts]);
+  }, [documentToDelete, user, loadDocuments, loadTabCounts]);
+
+  const handleCancelDelete = useCallback(() => {
+    setIsDeleteModalOpen(false);
+    setDocumentToDelete(null);
+  }, []);
 
   const getStatusText = (status: string) => {
     const statusTexts: Record<string, string> = {
@@ -958,6 +969,18 @@ export function Documentos() {
             isResend={isResendMode}
           />
         )}
+
+        <ConfirmationModal
+          isOpen={isDeleteModalOpen}
+          onClose={handleCancelDelete}
+          onConfirm={handleConfirmDelete}
+          title="Excluir Documento"
+          message="Tem certeza que deseja mover este documento para a lixeira? Esta ação pode ser desfeita."
+          confirmText="Excluir"
+          cancelText="Cancelar"
+          type="danger"
+          loading={isDeleting}
+        />
     </div>
   );
 }

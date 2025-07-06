@@ -490,7 +490,7 @@ export const baixarDocumentoAssinado = async (documentId: string, user: User | n
 
 export const arquivarDocumento = async (documentId: string, user: User | null) => {
   try {
-    const response = await apiClient.delete(`/documents/${documentId}`, {
+    const response = await apiClient.post(`/documents/${documentId}/archive`, {}, {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
@@ -503,8 +503,7 @@ export const arquivarDocumento = async (documentId: string, user: User | null) =
 
 export const desarquivarDocumento = async (documentId: string, user: User | null) => {
   try {
-    const response = await apiClient.put(`/documents/${documentId}`, 
-      { is_active: true }, {
+    const response = await apiClient.post(`/documents/${documentId}/unarchive`, {}, {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
@@ -525,6 +524,47 @@ export const excluirDocumento = async (documentId: string, user: User | null) =>
     return response.data;
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Erro ao excluir documento');
+  }
+};
+
+export const buscarDocumentosArquivados = async (user: User | null, filters?: any) => {
+  try {
+    const response = await apiClient.get('/documents/archived', {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+      params: filters,
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao buscar documentos arquivados');
+  }
+};
+
+export const buscarDocumentosLixeira = async (user: User | null, filters?: any) => {
+  try {
+    const response = await apiClient.get('/documents/trashed', {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+      params: filters,
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao buscar documentos na lixeira');
+  }
+};
+
+export const buscarEstatisticasDocumentos = async (user: User | null) => {
+  try {
+    const response = await apiClient.get('/documents/stats', {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao buscar estatísticas');
   }
 };
 
