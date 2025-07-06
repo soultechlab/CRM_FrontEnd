@@ -418,6 +418,20 @@ export const marcarDocumentoAssinado = async (documentId: string, user: User | n
   }
 };
 
+export const sincronizarStatusDocumento = async (documentId: string, user: User | null) => {
+  try {
+    const response = await apiClient.post(`/documents/${documentId}/sync-status`, {}, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao sincronizar status do documento');
+  }
+};
+
 export const verificarStatusDocumento = async (documentId: string, user: User | null): Promise<DocumentStatusResponse> => {
   try {
     const headers = {

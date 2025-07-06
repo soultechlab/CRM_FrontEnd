@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, memo } from 'react';
 import { CheckCircle, Clock, User, RefreshCw } from 'lucide-react';
 import { marcarDocumentoAssinado } from '../../../services/apiService';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -17,54 +17,67 @@ interface SignatureProgressProps {
   documentId?: string;
   documentStatus?: string;
   onStatusUpdate?: () => void;
-  onCheckStatus?: (documentId: string) => void;
+  onSyncStatus?: (documentId: string) => void;
+  onDocumentStatusChange?: (documentId: string, newStatus: string) => void;
 }
 
-export function SignatureProgress({ signers, className = '', documentId, documentStatus, onStatusUpdate, onCheckStatus }: SignatureProgressProps) {
+export const SignatureProgress = memo(function SignatureProgress({ signers, className = '', documentId, documentStatus, onStatusUpdate, onSyncStatus, onDocumentStatusChange }: SignatureProgressProps) {
   const { user } = useAuth();
+  const [syncing, setSyncing] = useState(false);
+  const [processedDocuments, setProcessedDocuments] = useState<Set<string>>(new Set());
   const totalSigners = signers.length;
   const signedCount = signers.filter(s => s.signer_status === 'signed').length;
   const progress = totalSigners > 0 ? (signedCount / totalSigners) * 100 : 0;
   const isFullySigned = progress === 100 && totalSigners > 0;
 
-  // Debug detalhado dos signers
-  console.log(`🔍 DEBUG SIGNATURE PROGRESS - Documento ${documentId}:`, {
-    totalSigners,
-    signedCount,
-    progress,
-    isFullySigned,
-    documentStatus,
-    signers: signers.map(s => ({
-      id: s.id,
-      name: s.signer_name,
-      status: s.signer_status,
-      email: s.signer_email
-    }))
-  });
+  // Logs removidos
 
   useEffect(() => {
     const markDocumentAsSigned = async () => {
       if (isFullySigned && documentId && documentStatus === 'pending_signature' && user) {
+        // Verificar se já processamos este documento para evitar loops
+        if (processedDocuments.has(documentId)) {
+          return;
+        }
+        
         try {
           console.log(`🎉 Todas as assinaturas concluídas! Marcando documento ${documentId} como assinado...`);
+          
+          // Marcar como processado antes de fazer a requisição
+          setProcessedDocuments(prev => new Set(prev).add(documentId));
+          
+          // Atualizar o status local imediatamente
+          if (onDocumentStatusChange) {
+            onDocumentStatusChange(documentId, 'signed');
+          }
+          
           const response = await marcarDocumentoAssinado(documentId, user);
           console.log(`✅ Documento ${documentId} marcado como assinado com sucesso!`, response);
           
-          // Forçar atualização imediata
+          // Forçar atualização após marcar como assinado para sincronizar status
           if (onStatusUpdate) {
-            // Aguardar um pouco para o backend processar
             setTimeout(() => {
               onStatusUpdate();
-            }, 1000);
+            }, 2000); // Aguardar mais tempo para garantir sincronização
           }
         } catch (error) {
           console.error('❌ Erro ao marcar documento como assinado:', error);
+          // Em caso de erro, reverter o status local se possível
+          if (onDocumentStatusChange) {
+            onDocumentStatusChange(documentId, 'pending_signature');
+          }
+          // Remover da lista de processados em caso de erro
+          setProcessedDocuments(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(documentId);
+            return newSet;
+          });
         }
       }
     };
 
     markDocumentAsSigned();
-  }, [isFullySigned, documentId, documentStatus, user, onStatusUpdate]);
+  }, [isFullySigned, documentId, documentStatus, user, onDocumentStatusChange, processedDocuments]);
 
   const getSignerStatusIcon = (status: string) => {
     switch (status) {
@@ -114,13 +127,21 @@ export function SignatureProgress({ signers, className = '', documentId, documen
           <span className="text-gray-700 font-medium">Progresso das Assinaturas</span>
           <div className="flex items-center space-x-2">
             <span className="text-gray-600">{signedCount}/{totalSigners} assinados</span>
-            {documentId && onCheckStatus && documentStatus === 'pending_signature' && (
+            {documentId && onSyncStatus && documentStatus === 'pending_signature' && (
               <button
-                onClick={() => onCheckStatus(documentId)}
-                className="p-1 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700"
-                title="Verificar status das assinaturas"
+                onClick={async () => {
+                  setSyncing(true);
+                  try {
+                    await onSyncStatus(documentId);
+                  } finally {
+                    setSyncing(false);
+                  }
+                }}
+                disabled={syncing}
+                className="p-1 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700 disabled:opacity-50"
+                title={syncing ? "Sincronizando..." : "Sincronizar status com Autentique"}
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
               </button>
             )}
           </div>
@@ -165,4 +186,4 @@ export function SignatureProgress({ signers, className = '', documentId, documen
       )}
     </div>
   );
-}
+});

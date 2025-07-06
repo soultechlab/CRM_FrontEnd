@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Download, ExternalLink, Send, Archive, Trash2, Eye, FileText } from 'lucide-react';
+import { X, Download, ExternalLink, Send, Archive, Trash2, Eye, FileText, RefreshCw } from 'lucide-react';
 import { DocumentStatus } from './DocumentStatus';
 import { SignatureProgress } from './SignatureProgress';
 import { PdfViewer } from './PdfViewer';
@@ -8,7 +8,8 @@ import {
   enviarDocumentoParaAssinatura, 
   baixarDocumentoAssinado, 
   arquivarDocumento, 
-  excluirDocumento 
+  excluirDocumento,
+  sincronizarStatusDocumento
 } from '../../../services/apiService';
 import { useAuth } from '../../../contexts/AuthContext';
 import { BackendDocument } from '../../../types';
@@ -93,9 +94,41 @@ export function DocumentViewer({ document, isOpen, onClose, onDocumentUpdate }: 
     }
   };
 
-  const documentUrl = document.status === 'signed' && document.signed_document_url 
-    ? document.signed_document_url 
-    : document.storage_url;
+  const handleSyncStatus = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log(`🔄 Sincronizando status do documento ${document.id}...`);
+      const response = await sincronizarStatusDocumento(document.id, user);
+      
+      console.log('✅ Resposta da sincronização:', response);
+      
+      if (response.success) {
+        console.log(`📊 Status sincronizado: ${response.data.previous_status} → ${response.data.current_status}`);
+        onDocumentUpdate?.();
+      }
+    } catch (err) {
+      setError('Erro ao sincronizar status do documento');
+      console.error('Erro ao sincronizar status:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Sempre usar o documento original no preview interno do modal
+  const documentUrl = document.storage_url;
+
+  // Debug para verificar URLs disponíveis
+  console.log('🔍 DocumentViewer URLs disponíveis:', {
+    documentId: document.id,
+    status: document.status,
+    storage_url: document.storage_url,
+      signed_document_url: document.signed_document_url,
+    autentique_document_url: document.autentique_document_url,
+    autentique_document_id: document.autentique_document_id,
+    selectedUrl: documentUrl
+  });
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="" maxWidth="max-w-7xl">
@@ -197,11 +230,45 @@ export function DocumentViewer({ document, isOpen, onClose, onDocumentUpdate }: 
                     </button>
                   )}
                   
+                  {/* Botão Ver Assinado - para documentos com URL da Autentique */}
+                  {(document.status === 'signed' && document.signed_document_url) && (
+                    <button
+                      onClick={() => window.open(document.signed_document_url, '_blank')}
+                      className="w-full bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Ver Assinado (Autentique)
+                    </button>
+                  )}
+
+                  {/* Botão Ver Preview - para documentos enviados com URL da Autentique */}
+                  {(document.status === 'pending_signature' && document.autentique_document_url) && (
+                    <button
+                      onClick={() => window.open(document.autentique_document_url, '_blank')}
+                      className="w-full bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Ver Preview (Autentique)
+                    </button>
+                  )}
+
+                  {/* Botão Sincronizar Status - para documentos enviados */}
+                  {(document.status === 'pending_signature' || document.status === 'signed') && document.autentique_document_id && (
+                    <button
+                      onClick={handleSyncStatus}
+                      disabled={loading}
+                      className="w-full bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-700 transition-colors disabled:opacity-50 flex items-center justify-center"
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      {loading ? 'Sincronizando...' : 'Sincronizar Status'}
+                    </button>
+                  )}
+
                   {document.status === 'signed' && document.signed_document_url && (
                     <button
                       onClick={handleDownloadSigned}
                       disabled={loading}
-                      className="w-full bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center"
+                      className="w-full bg-emerald-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center"
                     >
                       <Download className="w-4 h-4 mr-2" />
                       {loading ? 'Baixando...' : 'Download Assinado'}

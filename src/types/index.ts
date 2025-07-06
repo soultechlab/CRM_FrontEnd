@@ -56,10 +56,11 @@ export interface Agendamento {
 export interface BackendDocument {
   id: string | number;
   name: string;
-  status: 'draft' | 'pending_signature' | 'signed' | 'rejected';
+  status: 'draft' | 'pending_signature' | 'signed' | 'rejected' | 'archived';
   storage_url: string;
   signed_document_url?: string;
   autentique_document_id?: string;
+  autentique_document_url?: string;
   created_at: string;
   updated_at: string;
   send_status?: 'success' | 'failed' | 'pending';
@@ -90,7 +91,7 @@ export interface BackendDocument {
 export interface DocumentStatusResponse {
   success: boolean;
   data: {
-    local_status: 'signed' | 'pending_signature' | 'draft' | 'rejected';
+    local_status: 'signed' | 'pending_signature' | 'draft' | 'rejected' | 'archived';
     autentique_status: 'completed' | 'pending' | 'signed' | 'in_progress';
     all_signed: boolean;
     document: BackendDocument;

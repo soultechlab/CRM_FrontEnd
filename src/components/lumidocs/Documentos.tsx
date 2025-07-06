@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, FileText, Send, CheckCircle, Search, Calendar, X, Archive, ChevronLeft, ChevronRight, Trash2, AlertTriangle, Download, Eye, MoreVertical, ExternalLink, RefreshCw } from 'lucide-react';
 import { Modal } from './components/Modal';
 // Importar configuração do PDF logo no início
@@ -9,7 +9,7 @@ import { SignatureProgress } from './components/SignatureProgress';
 import { DocumentViewer } from './components/DocumentViewer';
 import { SendSignatureModal } from './components/SendSignatureModal';
 import { SendStatus, SendStatusIcon } from './components/SendStatus';
-import { obterDocumentos, DocumentListParams, enviarDocumentoParaAssinatura, baixarDocumentoAssinado, arquivarDocumento, desarquivarDocumento, excluirDocumento, restaurarDocumento, verificarStatusDocumento, marcarDocumentoAssinado } from '../../services/apiService';
+import { obterDocumentos, DocumentListParams, enviarDocumentoParaAssinatura, baixarDocumentoAssinado, arquivarDocumento, desarquivarDocumento, excluirDocumento, restaurarDocumento, verificarStatusDocumento, marcarDocumentoAssinado, sincronizarStatusDocumento } from '../../services/apiService';
 import { useAuth } from '../../contexts/AuthContext';
 import { BackendDocument } from '../../types';
 
@@ -19,7 +19,7 @@ const statusMapping: Record<TabType, string | undefined> = {
   'rascunhos': 'draft',
   'enviados': 'pending_signature', 
   'assinados': 'signed',
-  'arquivados': undefined, 
+  'arquivados': 'archived', 
   'lixeira': undefined 
 };
 
@@ -52,57 +52,36 @@ export function Documentos() {
   const [checkingStatus, setCheckingStatus] = useState<Set<string>>(new Set());
   const [autoCheckInProgress, setAutoCheckInProgress] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [syncingAll, setSyncingAll] = useState(false);
 
-  const loadTabCounts = async () => {
+  const loadTabCounts = useCallback(async () => {
     if (!user) return;
     
     try {
-      console.log('🔄 Carregando contagens das abas...');
-      
       const promises = [
         obterDocumentos({ status: 'draft', is_active: true, per_page: 1000 }, user),
         obterDocumentos({ status: 'pending_signature', is_active: true, per_page: 1000 }, user),
         obterDocumentos({ status: 'signed', is_active: true, per_page: 1000 }, user),
-        obterDocumentos({ is_active: false, per_page: 1000 }, user),
+        obterDocumentos({ status: 'archived', is_active: true, per_page: 1000 }, user),
       ];
 
       const [rascunhosRes, enviadosRes, assinadosRes, arquivadosRes] = await Promise.all(promises);
       
-      console.log('📊 CONTAGENS DETALHADAS:', {
-        rascunhos: {
-          total: rascunhosRes.data?.length || 0,
-          documentos: rascunhosRes.data?.map(d => ({ id: d.id, name: d.name, status: d.status }))
-        },
-        enviados: {
-          total: enviadosRes.data?.length || 0,
-          documentos: enviadosRes.data?.map(d => ({ id: d.id, name: d.name, status: d.status }))
-        },
-        assinados: {
-          total: assinadosRes.data?.length || 0,
-          documentos: assinadosRes.data?.map(d => ({ id: d.id, name: d.name, status: d.status }))
-        },
-        arquivados: {
-          total: arquivadosRes.data?.length || 0,
-          documentos: arquivadosRes.data?.map(d => ({ id: d.id, name: d.name, status: d.status }))
-        }
-      });
+      // Logs removidos para parar poluição
       
-      const newTabCounts = {
+      setTabCounts({
         rascunhos: rascunhosRes.data?.length || 0,
         enviados: enviadosRes.data?.length || 0,
         assinados: assinadosRes.data?.length || 0,
         arquivados: arquivadosRes.data?.length || 0,
         lixeira: 0 // Implementar lógica para lixeira se necessário
-      };
-      
-      console.log('📈 ATUALIZANDO CONTADORES:', newTabCounts);
-      setTabCounts(newTabCounts);
+      });
     } catch (err) {
       console.error('Erro ao carregar contagens:', err);
     }
-  };
+  }, [user]);
 
-  const loadDocuments = async () => {
+  const loadDocuments = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -122,21 +101,17 @@ export function Documentos() {
         params.status = statusMapping[activeTab] as any;
       }
 
-      if (activeTab === 'arquivados') {
+      // Para arquivados, usamos status: 'archived'
+      // Para lixeira, usamos is_active: false
+      if (activeTab === 'lixeira') {
         params.is_active = false;
-      } else if (activeTab !== 'lixeira') {
+      } else {
         params.is_active = true;
       }
 
       const response = await obterDocumentos(params, user);
       
-      console.log('📋 RESPOSTA LISTAGEM DE DOCUMENTOS:', {
-        total: response.data?.length,
-        sync_results: response.sync_results,
-        meta: response.meta,
-        activeTab,
-        params
-      });
+      // Log removido
       
       setDocumentos(response.data || []);
       setTotalPages(response.meta?.last_page || 1);
@@ -148,7 +123,7 @@ export function Documentos() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, activeTab, currentPage, perPage]);
 
   useEffect(() => {
     if (user && user.token) {
@@ -157,62 +132,27 @@ export function Documentos() {
       setLoading(false);
       setError('Usuário não autenticado ou token inválido');
     }
-  }, [user, activeTab, currentPage]);
+  }, [user, activeTab, currentPage, loadDocuments]);
 
   // Carregar contagens apenas uma vez quando o usuário é autenticado
   useEffect(() => {
     if (user && user.token) {
       loadTabCounts();
     }
-  }, [user]);
+  }, [user, loadTabCounts]);
 
-  // Verificar status automaticamente de documentos pendentes apenas ao carregar a página (uma única vez)
-  useEffect(() => {
-    let hasChecked = false;
-    
-    const checkPendingDocuments = async () => {
-      if (!user?.token || loading || hasChecked) return;
-      
-      // Aguardar documentos serem carregados
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      const currentDocuments = documentos.filter(doc => doc.status === 'pending_signature');
-      
-      if (currentDocuments.length > 0) {
-        hasChecked = true;
-        setAutoCheckInProgress(true);
-        console.log(`🔄 Verificação inicial de statusSSSSSSSSSSSSSSSSSSSSSSSS: ${currentDocuments.length} documentos pendentes...`);
-        
-        try {
-          for (const doc of currentDocuments) {
-            try {
-              console.log(`📋 Verificando documento: ${doc.name} (ID: ${doc.id})`);
-              await handleCheckDocumentStatus(String(doc.id));
-              await new Promise(resolve => setTimeout(resolve, 300));
-            } catch (error) {
-              console.error(`❌ Erro ao verificar documento ${doc.id}:`, error);
-            }
-          }
-          
-          console.log(`✅ Verificação inicial concluída.`);
-        } finally {
-          setAutoCheckInProgress(false);
-        }
-      }
-    };
-
-    checkPendingDocuments();
-  }, [user?.token]); // Executa apenas uma vez quando user.token está disponível
+  // Remover verificação automática que está causando loop
+  // useEffect removido para parar o loop de reload
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
 
-  const handleDocumentoSubmit = (novoDocumento: BackendDocument) => {
+  const handleDocumentoSubmit = useCallback((novoDocumento: BackendDocument) => {
     setIsModalOpen(false);
     loadDocuments(); // Reload documents after creating new one
     loadTabCounts(); // Reload counts after creating new document
-  };
+  }, [loadDocuments, loadTabCounts]);
 
   const handleSendDocument = async (documentId: string, signers?: Array<{
     id: number;
@@ -257,11 +197,8 @@ export function Documentos() {
         ));
       }
       
-      // Recarregar após um breve delay para pegar dados atualizados do servidor
-      setTimeout(() => {
-        loadDocuments();
-        loadTabCounts();
-      }, 1000);
+      // Atualizar contagens apenas uma vez, sem delay
+      loadTabCounts();
       
     } catch (err: any) {
       // Atualizar status como falha em caso de erro
@@ -293,7 +230,7 @@ export function Documentos() {
     setIsResendMode(false);
   };
 
-  const handleCheckDocumentStatus = async (documentId: string) => {
+  const handleCheckDocumentStatus = useCallback(async (documentId: string) => {
     try {
       setCheckingStatus(prev => new Set(prev).add(documentId));
       
@@ -380,10 +317,9 @@ export function Documentos() {
           loadTabCounts();
           
           // Se o documento foi totalmente assinado, recarregar a lista para movê-lo para a aba correta
-          if (wasCompleted) {
-            setTimeout(() => {
-              loadDocuments();
-            }, 1000);
+          // mas apenas se estamos na aba "enviados" (para evitar reloads desnecessários)
+          if (wasCompleted && activeTab === 'enviados') {
+            loadDocuments();
           }
         } else {
           console.log(`✅ Documento ${documentId} já está sincronizado`);
@@ -410,7 +346,52 @@ export function Documentos() {
         return newSet;
       });
     }
-  };
+  }, [user, loadTabCounts, loadDocuments]);
+
+  const handleSyncAllDocuments = useCallback(async () => {
+    if (!user || syncingAll) return;
+    
+    setSyncingAll(true);
+    setError(null);
+    
+    try {
+      console.log('🔄 Iniciando sincronização de todos os documentos...');
+      
+      // Verificar apenas documentos que podem estar com status incorreto
+      const documentsToCheck = documentos.filter(doc => 
+        doc.status === 'pending_signature' && 
+        doc.signers.every(signer => signer.signer_status === 'signed')
+      );
+      
+      console.log(`📋 Encontrados ${documentsToCheck.length} documentos para verificar`);
+      
+      for (const doc of documentsToCheck) {
+        try {
+          console.log(`🔍 Verificando documento ${doc.id}...`);
+          await handleCheckDocumentStatus(String(doc.id));
+          // Aguardar um pouco entre verificações para não sobrecarregar
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (error) {
+          console.error(`❌ Erro ao verificar documento ${doc.id}:`, error);
+        }
+      }
+      
+      // Recarregar documentos e contadores após sincronização
+      setTimeout(() => {
+        loadDocuments();
+        loadTabCounts();
+      }, 1000);
+      
+      setSuccessMessage(`Sincronização concluída! ${documentsToCheck.length} documentos verificados.`);
+      setTimeout(() => setSuccessMessage(null), 5000);
+      
+    } catch (error) {
+      console.error('❌ Erro na sincronização geral:', error);
+      setError('Erro ao sincronizar documentos');
+    } finally {
+      setSyncingAll(false);
+    }
+  }, [user, documentos, handleCheckDocumentStatus, loadDocuments, loadTabCounts, syncingAll]);
 
   const handleDownloadSigned = async (documentId: string, documentName: string) => {
     try {
@@ -430,7 +411,7 @@ export function Documentos() {
     }
   };
 
-  const handleArchiveDocument = async (documentId: string) => {
+  const handleArchiveDocument = useCallback(async (documentId: string) => {
     try {
       setError(null);
       await arquivarDocumento(documentId, user);
@@ -440,9 +421,9 @@ export function Documentos() {
       setError('Erro ao arquivar documento');
       console.error('Erro ao arquivar documento:', err);
     }
-  };
+  }, [user, loadDocuments, loadTabCounts]);
 
-  const handleDeleteDocument = async (documentId: string) => {
+  const handleDeleteDocument = useCallback(async (documentId: string) => {
     if (confirm('Tem certeza que deseja excluir este documento?')) {
       try {
         setError(null);
@@ -454,7 +435,7 @@ export function Documentos() {
         console.error('Erro ao excluir documento:', err);
       }
     }
-  };
+  }, [user, loadDocuments, loadTabCounts]);
 
   const getStatusText = (status: string) => {
     const statusTexts: Record<string, string> = {
@@ -549,15 +530,19 @@ export function Documentos() {
           signers={document.signers} 
           documentId={String(document.id)}
           documentStatus={document.status}
-          onStatusUpdate={() => {
-            console.log('🔄 Atualizando documentos e contadores após assinatura completa...');
+          onStatusUpdate={useCallback(() => {
             loadDocuments();
             loadTabCounts();
-          }}
-          onCheckStatus={(docId) => {
-            console.log('🔍 Verificação manual de status solicitada para documento:', docId);
-            handleCheckDocumentStatus(docId);
-          }}
+          }, [loadDocuments, loadTabCounts])}
+          onSyncStatus={handleCheckDocumentStatus}
+          onDocumentStatusChange={useCallback((documentId, newStatus) => {
+            // Atualizar o status do documento localmente para feedback imediato
+            setDocumentos(prev => prev.map(doc => 
+              String(doc.id) === documentId 
+                ? { ...doc, status: newStatus as any }
+                : doc
+            ));
+          }, [])}
         />
       </div>
 
@@ -711,14 +696,31 @@ export function Documentos() {
                   Verificando status de assinaturas...
                 </div>
               )}
+              {syncingAll && (
+                <div className="flex items-center text-sm text-green-600">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600 mr-2"></div>
+                  Sincronizando documentos...
+                </div>
+              )}
             </div>
-            <button
-            onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-            >
-            <Plus className="h-5 w-5 mr-2" />
-            Novo Documento
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={handleSyncAllDocuments}
+                disabled={syncingAll}
+                className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Sincronizar status de todos os documentos"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${syncingAll ? 'animate-spin' : ''}`} />
+                Sincronizar
+              </button>
+              <button
+              onClick={() => setIsModalOpen(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+              >
+              <Plus className="h-5 w-5 mr-2" />
+              Novo Documento
+              </button>
+            </div>
         </div>
 
         {/* ERROR MESSAGE */}
