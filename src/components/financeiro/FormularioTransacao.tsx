@@ -24,6 +24,7 @@ export default function FormularioTransacao({ transacaoId, onClose }: Formulario
   const [parcelas, setParcelas] = useState<Parcela[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const { user } = useAuth();
+  const [errors, setErrors] = useState<Record<string, string>>({});
   
   const [form, setForm] = useState<Partial<Transacao>>({
     tipo: 'receita',
@@ -147,41 +148,45 @@ export default function FormularioTransacao({ transacaoId, onClose }: Formulario
     setParcelas(novasParcelas);
   };
 
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (form.tipo === 'receita' && !selectedClient && !transacaoId) {
+      newErrors.cliente = 'Selecione um cliente para registrar uma receita';
+    }
+
+    if (!form.tipo) {
+      newErrors.tipo = 'Selecione o tipo da transação';
+    }
+
+    if (!form.valor || form.valor <= 0) {
+      newErrors.valor = 'Indique o valor da transação';
+    }
+
+    if (!form.data) {
+      newErrors.data = 'Indique a data da transação';
+    }
+
+    if (!form.status) {
+      newErrors.status = 'Indique o status da transação';
+    }
+
+    if (!form.descricao?.trim()) {
+      newErrors.descricao = 'Indique uma descrição para a transação';
+    }
+
+    if (!form.formaPagamento) {
+      newErrors.formaPagamento = 'Indique a forma de pagamento';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (form.tipo === 'receita' && !selectedClient && !transacaoId) {
-      alert('Selecione um cliente para registrar uma receita');
-      return;
-    }
-
-    if(!form.tipo) {
-      alert('Selecione o tipo da transação!');
-      return;
-    }
-
-    if(!form.valor) {
-      alert('Indique o valor da transação!');
-      return;
-    }
-
-    if(!form.data) {
-      alert('Indique a data da transação!');
-      return;
-    }
-
-    if(!form.status) {
-      alert('Indique o status da transação!');
-      return;
-    }
-
-    if(!form.descricao) {
-      alert('Indique uma descrição para a transação!');
-      return;
-    }
-
-    if(!form.formaPagamento) {
-      alert('Indique a forma de pagamento!');
+    if (!validateForm()) {
       return;
     }
 
@@ -265,7 +270,7 @@ export default function FormularioTransacao({ transacaoId, onClose }: Formulario
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Tipo de Transação */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tipo
               </label>
@@ -282,12 +287,22 @@ export default function FormularioTransacao({ transacaoId, onClose }: Formulario
                     setSearchTerm('');
                     setTipoTransacao('unico');
                   }
+                  if (errors.tipo) {
+                    setErrors({ ...errors, tipo: '' });
+                  }
                 }}
-                className="w-full rounded-lg border border-gray-300 px-3 py-3 bg-white"
+                className={`w-full rounded-lg border px-3 py-3 bg-white ${
+                  errors.tipo ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                }`}
               >
                 <option value="receita">Receita</option>
                 <option value="despesa">Despesa</option>
               </select>
+              {errors.tipo && (
+                <div className="absolute -bottom-6 left-0 bg-red-600 text-white text-xs px-2 py-1 rounded shadow-lg z-10">
+                  {errors.tipo}
+                </div>
+              )}
             </div>
 
             {form.tipo === 'receita' && (
@@ -325,7 +340,7 @@ export default function FormularioTransacao({ transacaoId, onClose }: Formulario
 
           {/* Cliente - apenas para receitas */}
           {form.tipo === 'receita' && (
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Cliente
               </label>
@@ -337,10 +352,15 @@ export default function FormularioTransacao({ transacaoId, onClose }: Formulario
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
                     setShowClientList(true);
+                    if (errors.cliente) {
+                      setErrors({ ...errors, cliente: '' });
+                    }
                   }}
                   onFocus={() => setShowClientList(true)}
                   placeholder="Buscar por nome, email, Instagram ou telefone..."
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg"
+                  className={`w-full pl-10 pr-4 py-2 border rounded-lg ${
+                    errors.cliente ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                  }`}
                 />
                 
                 {showClientList && searchTerm && (
@@ -353,6 +373,9 @@ export default function FormularioTransacao({ transacaoId, onClose }: Formulario
                           setSelectedClient(cliente.id);
                           setSearchTerm(cliente.nome);
                           setShowClientList(false);
+                          if (errors.cliente) {
+                            setErrors({ ...errors, cliente: '' });
+                          }
                         }}
                         className="w-full text-left px-4 py-2 hover:bg-gray-100"
                       >
@@ -367,6 +390,11 @@ export default function FormularioTransacao({ transacaoId, onClose }: Formulario
                   </div>
                 )}
               </div>
+              {errors.cliente && (
+                <div className="absolute -bottom-6 left-0 bg-red-600 text-white text-xs px-2 py-1 rounded shadow-lg z-10">
+                  {errors.cliente}
+                </div>
+              )}
             </div>
           )}
 
@@ -398,42 +426,78 @@ export default function FormularioTransacao({ transacaoId, onClose }: Formulario
           </div>
 
           {/* Descrição */}
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Descrição
             </label>
             <input
               type="text"
               value={form.descricao}
-              onChange={(e) => setForm({ ...form, descricao: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2"
+              onChange={(e) => {
+                setForm({ ...form, descricao: e.target.value });
+                if (errors.descricao) {
+                  setErrors({ ...errors, descricao: '' });
+                }
+              }}
+              className={`w-full rounded-lg border px-3 py-2 ${
+                errors.descricao ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              }`}
             />
+            {errors.descricao && (
+              <div className="absolute -bottom-6 left-0 bg-red-600 text-white text-xs px-2 py-1 rounded shadow-lg z-10">
+                {errors.descricao}
+              </div>
+            )}
           </div>
 
           {/* Valor e Data */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Valor Total
               </label>
               <input
                 type="number"
                 value={form.valor}
-                onChange={(e) => setForm({ ...form, valor: Number(e.target.value) })}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                onChange={(e) => {
+                  setForm({ ...form, valor: Number(e.target.value) });
+                  if (errors.valor) {
+                    setErrors({ ...errors, valor: '' });
+                  }
+                }}
+                className={`w-full rounded-lg border px-3 py-2 ${
+                  errors.valor ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                }`}
               />
+              {errors.valor && (
+                <div className="absolute -bottom-6 left-0 bg-red-600 text-white text-xs px-2 py-1 rounded shadow-lg z-10">
+                  {errors.valor}
+                </div>
+              )}
             </div>
 
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Data
               </label>
               <input
                 type="date"
                 value={form.data}
-                onChange={(e) => setForm({ ...form, data: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                onChange={(e) => {
+                  setForm({ ...form, data: e.target.value });
+                  if (errors.data) {
+                    setErrors({ ...errors, data: '' });
+                  }
+                }}
+                className={`w-full rounded-lg border px-3 py-2 ${
+                  errors.data ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                }`}
               />
+              {errors.data && (
+                <div className="absolute -bottom-6 left-0 bg-red-600 text-white text-xs px-2 py-1 rounded shadow-lg z-10">
+                  {errors.data}
+                </div>
+              )}
             </div>
           </div>
 
@@ -532,14 +596,21 @@ export default function FormularioTransacao({ transacaoId, onClose }: Formulario
           )}
 
           {/* Forma de Pagamento */}
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Forma de Pagamento
             </label>
             <select
               value={form.formaPagamento}
-              onChange={(e) => setForm({ ...form, formaPagamento: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-3 py-3 bg-white"
+              onChange={(e) => {
+                setForm({ ...form, formaPagamento: e.target.value });
+                if (errors.formaPagamento) {
+                  setErrors({ ...errors, formaPagamento: '' });
+                }
+              }}
+              className={`w-full rounded-lg border px-3 py-3 bg-white ${
+                errors.formaPagamento ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              }`}
             >
               <option value="">Selecione...</option>
               <option value="dinheiro">Dinheiro</option>
@@ -547,22 +618,39 @@ export default function FormularioTransacao({ transacaoId, onClose }: Formulario
               <option value="cartao">Cartão</option>
               <option value="transferencia">Transferência</option>
             </select>
+            {errors.formaPagamento && (
+              <div className="absolute -bottom-6 left-0 bg-red-600 text-white text-xs px-2 py-1 rounded shadow-lg z-10">
+                {errors.formaPagamento}
+              </div>
+            )}
           </div>
 
           {/* Status - apenas para pagamento único */}
           {tipoTransacao === 'unico' && (
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Status
               </label>
               <select
                 value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value as 'pendente' | 'pago' })}
-                className="w-full rounded-lg border border-gray-300 px-3 py-3 bg-white"
+                onChange={(e) => {
+                  setForm({ ...form, status: e.target.value as 'pendente' | 'pago' });
+                  if (errors.status) {
+                    setErrors({ ...errors, status: '' });
+                  }
+                }}
+                className={`w-full rounded-lg border px-3 py-3 bg-white ${
+                  errors.status ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                }`}
               >
                 <option value="pendente">Pendente</option>
                 <option value="pago">Pago</option>
               </select>
+              {errors.status && (
+                <div className="absolute -bottom-6 left-0 bg-red-600 text-white text-xs px-2 py-1 rounded shadow-lg z-10">
+                  {errors.status}
+                </div>
+              )}
             </div>
           )}
 

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(cat:*)",
+      "WebFetch(domain:localhost)",
+      "Bash(grep:*)",
+      "Bash(npm run copy-pdf-worker:*)",
+      "Bash(cp:*)",
+      "Bash(find:*)",
+      "Bash(rg:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}

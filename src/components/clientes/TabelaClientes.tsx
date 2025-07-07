@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Edit2, Trash2, ArrowUp, ArrowDown, Gift } from 'lucide-react';
+import { Edit2, Trash2, ArrowUp, ArrowDown, Gift, Users } from 'lucide-react';
 import { Cliente } from '../../types';
 import { formatarMoeda, formatarData } from '../../utils/formatters';
 import SocialButtons from './social/SocialButtons';
@@ -212,9 +212,26 @@ export default function TabelaClientes({
 
       {/* Mobile View */}
       <div className="md:hidden p-4 space-y-4">
-        {clientesPaginados.map(cliente => (
-          <ClienteCard key={cliente.id} cliente={cliente} />
-        ))}
+        {clientesPaginados.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+            <Users className="w-12 h-12 mb-4 text-gray-400" />
+            <p className="text-lg font-medium">
+              {clientes.length === 0 
+                ? 'Nenhum cliente cadastrado'
+                : 'Nenhum cliente encontrado com os filtros aplicados'
+              }
+            </p>
+            {clientes.length === 0 && (
+              <p className="text-sm text-gray-400 mt-2">
+                Clique em "Novo Cliente" para começar
+              </p>
+            )}
+          </div>
+        ) : (
+          clientesPaginados.map(cliente => (
+            <ClienteCard key={cliente.id} cliente={cliente} />
+          ))
+        )}
       </div>
 
       {/* Desktop View */}
@@ -279,7 +296,27 @@ export default function TabelaClientes({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {clientesPaginados.map((cliente) => (
+            {clientesPaginados.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-6 py-12 text-center">
+                  <div className="flex flex-col items-center justify-center text-gray-500">
+                    <Users className="w-12 h-12 mb-4 text-gray-400" />
+                    <p className="text-lg font-medium">
+                      {clientes.length === 0 
+                        ? 'Nenhum cliente cadastrado'
+                        : 'Nenhum cliente encontrado com os filtros aplicados'
+                      }
+                    </p>
+                    {clientes.length === 0 && (
+                      <p className="text-sm text-gray-400 mt-2">
+                        Clique em "Novo Cliente" para começar
+                      </p>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              clientesPaginados.map((cliente) => (
               <tr 
                 key={cliente.id} 
                 className="hover:bg-gray-50 cursor-pointer"
@@ -357,7 +394,8 @@ export default function TabelaClientes({
                   </div>
                 </td>
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </div>

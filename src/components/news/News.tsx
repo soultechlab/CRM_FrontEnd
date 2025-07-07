@@ -3,12 +3,20 @@ import React from 'react';
 export default function News() {
   const novidades = [
     {
+      id: 6,
+      titulo: 'LumiDocs - Assinatura Digital (Versão Beta)',
+      descricao: "<b>Envie documentos para assinatura digital de forma simples e segura!</b><br>Com o LumiDocs, você pode criar, personalizar e enviar contratos, propostas e outros documentos importantes diretamente para seus clientes assinarem pela plataforma da Lumi. Seus clientes recebem um link personalizado e podem assinar digitalmente de qualquer dispositivo, sem necessidade de impressão ou digitalização. Acompanhe em tempo real o status das assinaturas, receba notificações quando os documentos forem assinados e mantenha tudo organizado em um local seguro. Elimine a burocracia e acelere seus processos de negócio com assinaturas digitais válidas juridicamente.",
+      data: '06/07/2025',
+      imagem: 'https://lumi-docs.nyc3.cdn.digitaloceanspaces.com/pictures/ChatGPT%20Image%206%20de%20jul.%20de%202025,%2018_58_47.png',
+      futuro: false
+    },
+    {
       id: 5,
       titulo: 'Integração Google Agenda',
       descricao: "<b>Organize e gerencie sua agenda de forma mais eficiente com a integração com o Google Agenda!</b><br>com a nova funcionalidade de integração com o Google Agenda, você poderá sincronizar automaticamente os compromissos e sessões de fotos diretamente no seu sistema de gerenciamento. Isso garante que sua agenda esteja sempre atualizada e acessível, tanto no sistema quanto no Google Agenda. Diga adeus ao risco de perder eventos importantes e mantenha todos os seus agendamentos sincronizados, proporcionando mais organização e praticidade no seu dia a dia como fotógrafo.",
-      data: 'Em Breve',
+      data: '06/07/2025',
       imagem: 'https://i.imgur.com/8chmsek.png',
-      futuro: true
+      futuro: false
     },
     {
       id: 4,

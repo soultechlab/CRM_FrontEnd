@@ -1,0 +1,45 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+.pnpm-debug.log
+
+# Vite
+dist/
+.vite/
+*.local
+
+# Logs
+logs
+*.log
+log.txt
+*.log.*
+
+# dotenv
+.env
+.env.*
+
+# Editor configs
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache/
+*.tsbuildinfo
+
+# Optional: se usar testing ou coverage
+coverage/
+test-results/
+
+# TypeScript
+*.tsbuildinfo

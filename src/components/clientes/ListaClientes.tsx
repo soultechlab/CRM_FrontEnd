@@ -86,55 +86,50 @@ export default function ListaClientes() {
   }
 
   const handleSalvarCliente = async (dadosCliente: Partial<Cliente>) => {
-    try {
-      const dadosMapeados = mapearDadosCliente(dadosCliente, user);
-      let cliente;
+    const dadosMapeados = mapearDadosCliente(dadosCliente, user);
+    let cliente;
 
-      if(clienteEmEdicao) {
-        cliente = await atualizarCliente(dadosMapeados, clienteEmEdicao.id, user);
-      } else {
-        let userClientLimit = user?.limits?.maxClients;
+    if(clienteEmEdicao) {
+      cliente = await atualizarCliente(dadosMapeados, clienteEmEdicao.id, user);
+    } else {
+      let userClientLimit = user?.limits?.maxClients;
 
-        if (userClientLimit !== Infinity) {
-          const clientesDoMes = getClientesNoMes(clientes);
-        
-          if (clientesDoMes.length >= (userClientLimit ?? 0)) {
-            notifyError("Você chegou ao limite de clientes deste mês!");
-            return;
-          }
+      if (userClientLimit !== Infinity) {
+        const clientesDoMes = getClientesNoMes(clientes);
+      
+        if (clientesDoMes.length >= (userClientLimit ?? 0)) {
+          throw new Error("Você chegou ao limite de clientes deste mês!");
         }
-        
-        cliente = await salvarCliente(dadosMapeados, user);
       }
-  
-      if (!clienteEmEdicao) {
-        setClientes(prev => [
-          ...prev,
-          {
-            ...cliente,
-            dataCadastro: new Date().toISOString().split('T')[0],
-            status: cliente.status || 'prospecto',
-          },
-        ]);
-
-        notifySuccess('Cliente cadastrado com sucesso');
-      } else {
-        setClientes(prev =>
-          prev.map(c =>
-            c.id === cliente.id
-              ? { ...c, ...cliente }
-              : c
-          )
-        );
-
-        notifySuccess('Cliente atualizado com sucesso');
-      }
-
-      setMostrarFormulario(false);
-      setClienteEmEdicao(null);
-    } catch (error) {
-      notifyError('Erro ao salvar cliente');
+      
+      cliente = await salvarCliente(dadosMapeados, user);
     }
+
+    if (!clienteEmEdicao) {
+      setClientes(prev => [
+        ...prev,
+        {
+          ...cliente,
+          dataCadastro: new Date().toISOString().split('T')[0],
+          status: cliente.status || 'prospecto',
+        },
+      ]);
+
+      notifySuccess('Cliente cadastrado com sucesso');
+    } else {
+      setClientes(prev =>
+        prev.map(c =>
+          c.id === cliente.id
+            ? { ...c, ...cliente }
+            : c
+        )
+      );
+
+      notifySuccess('Cliente atualizado com sucesso');
+    }
+
+    setMostrarFormulario(false);
+    setClienteEmEdicao(null);
   };
 
   const handleDeleteCliente = async (id: string) => {

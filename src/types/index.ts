@@ -52,3 +52,51 @@ export interface Agendamento {
   observacoes: string | null;
   dataCadastro: string | null;
 }
+
+export interface BackendDocument {
+  id: string | number;
+  name: string;
+  status: 'draft' | 'pending_signature' | 'signed' | 'rejected' | 'archived';
+  storage_url: string;
+  signed_document_url?: string;
+  autentique_document_id?: string;
+  autentique_document_url?: string;
+  created_at: string;
+  updated_at: string;
+  send_status?: 'success' | 'failed' | 'pending';
+  send_error_message?: string;
+  last_send_attempt?: string;
+  user: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  client?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  signers: Array<{
+    id: number;
+    signer_name: string;
+    signer_email: string;
+    signer_cpf?: string;
+    signer_status: 'signed' | 'pending' | 'rejected';
+    signature_url?: string;
+    autentique_signer_id?: string;
+    signed_at?: string | null;
+  }>;
+}
+
+export interface DocumentStatusResponse {
+  success: boolean;
+  data: {
+    local_status: 'signed' | 'pending_signature' | 'draft' | 'rejected' | 'archived';
+    autentique_status: 'completed' | 'pending' | 'signed' | 'in_progress';
+    all_signed: boolean;
+    document: BackendDocument;
+    updated_signers: number;
+    autentique_data: any;
+  };
+  message: string;
+}

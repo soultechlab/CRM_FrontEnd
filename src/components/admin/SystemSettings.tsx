@@ -22,7 +22,6 @@ export default function SystemSettings() {
 
       <div className="bg-white rounded-lg shadow p-6">
         <div className="space-y-6">
-          {/* Personalização */}
           <div>
             <h3 className="text-lg font-medium text-gray-900 mb-4">Personalização</h3>
             <div className="grid grid-cols-1 gap-4">
