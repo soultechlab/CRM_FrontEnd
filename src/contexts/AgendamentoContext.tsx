@@ -25,16 +25,20 @@ export function AgendamentoProvider({ children }: { children: React.ReactNode })
 
     useEffect(() => {
       const fetchAgendamentos = async () => {
-        try {
-          const dadosAgendamento = await obterAgendamentos(user);
-          setAgendamentos(dadosAgendamento);
-        } catch (err) {
-          console.error(err);
+        if (user) { // Só busca se o usuário estiver autenticado
+          try {
+            const dadosAgendamento = await obterAgendamentos(user);
+            setAgendamentos(dadosAgendamento);
+          } catch (err) {
+            console.error(err);
+          }
+        } else {
+          setAgendamentos([]); // Limpa agendamentos se não houver usuário
         }
       };
   
       fetchAgendamentos();
-    }, []);
+    }, [user]); // Adiciona 'user' como dependência
 
   const mapearDadosAgendamento = (agendamento: Agendamento) => {
     return {
