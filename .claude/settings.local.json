@@ -11,7 +11,8 @@
       "Bash(cp:*)",
       "Bash(find:*)",
       "Bash(rg:*)",
-      "Bash(npm run typecheck:*)"
+      "Bash(npm run typecheck:*)",
+      "Bash(git merge:*)"
     ],
     "deny": []
   }
