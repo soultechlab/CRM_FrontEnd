@@ -1,22 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm install:*)",
-      "Bash(npm run dev:*)",
-      "Bash(npm uninstall:*)",
-      "Bash(cat:*)",
-      "WebFetch(domain:localhost)",
-      "Bash(grep:*)",
-      "Bash(npm run copy-pdf-worker:*)",
-      "Bash(cp:*)",
-      "Bash(find:*)",
-      "Bash(rg:*)",
-      "Bash(npm run typecheck:*)",
-<<<<<<< HEAD
-      "Bash(git merge:*)"
-=======
-      "Bash(git add:*)"
->>>>>>> main
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }
