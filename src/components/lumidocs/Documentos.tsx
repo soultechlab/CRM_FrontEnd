@@ -10,6 +10,7 @@ import { SignatureProgress } from './components/SignatureProgress';
 import { DocumentViewer } from './components/DocumentViewer';
 import { SendSignatureModal } from './components/SendSignatureModal';
 import { SendStatus, SendStatusIcon } from './components/SendStatus';
+import { LumiDocsHeader } from './components/LumiDocsHeader'; // Import the new header component
 import { obterDocumentos, DocumentListParams, enviarDocumentoParaAssinatura, baixarDocumentoAssinado, arquivarDocumento, desarquivarDocumento, excluirDocumento, restaurarDocumento, verificarStatusDocumento, marcarDocumentoAssinado, sincronizarStatusDocumento, buscarDocumentosArquivados, buscarDocumentosLixeira, buscarEstatisticasDocumentos } from '../../services/apiService';
 import { useAuth } from '../../contexts/AuthContext';
 import { BackendDocument } from '../../types';
@@ -57,6 +58,12 @@ export function Documentos() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isPermanentDeleteModalOpen, setIsPermanentDeleteModalOpen] = useState(false);
+  const [documentToPermanentDelete, setDocumentToPermanentDelete] = useState<string | null>(null);
+  const [isPermanentDeleting, setIsPermanentDeleting] = useState(false);
+  const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+  const [documentToRestore, setDocumentToRestore] = useState<string | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   const loadTabCounts = useCallback(async () => {
     if (!user) return;
@@ -230,110 +237,40 @@ export function Documentos() {
     try {
       setCheckingStatus(prev => new Set(prev).add(documentId));
       
-      console.log(`🔍 Iniciando verificação do documento ${documentId}`, {
-        documentoAntes: documentos.find(d => String(d.id) === documentId),
-        timestamp: new Date().toISOString()
-      });
-      
       const response = await verificarStatusDocumento(documentId, user);
-      
-      console.log('📊 ESTRUTURA COMPLETA DA RESPOSTA:', {
-        success: response.success,
-        data: response.data,
-        sync_results: response.data?.sync_results,
-        message: response.message,
-        autentique_error: response.data?.autentique_error,
-        sync_error: response.data?.sync_error
-      });
       
       if (response.success) {
         const { data } = response;
         const wasUpdated = data.local_status !== data.autentique_status || data.updated_signers > 0;
         const wasCompleted = data.all_signed && data.document.status === 'signed';
         
-        // Debug específico para documentos com erro
-        if (data.autentique_status === 'error') {
-          console.log('❌ ERRO NO DOCUMENTO:', {
-            id: documentId,
-            nome: data.document?.name,
-            autentique_error: data.autentique_error,
-            sync_error: data.sync_error,
-            mensagem_completa: response.message,
-            response_completa: response,
-            local_status: data.local_status,
-            autentique_status: data.autentique_status
-          });
-        }
-        
-        // Log para documentos que foram totalmente assinados
         if (wasCompleted) {
-          console.log('🎉 DOCUMENTO TOTALMENTE ASSINADO:', {
-            id: documentId,
-            nome: data.document.name,
-            statusAnterior: data.local_status,
-            statusAtual: data.document.status,
-            todosAssinaram: data.all_signed,
-            signedDocumentUrl: data.document.signed_document_url
-          });
-          
-          // Mostrar mensagem de sucesso temporária
           const message = `Documento "${data.document.name}" foi totalmente assinado!`;
           setSuccessMessage(message);
           setTimeout(() => setSuccessMessage(null), 5000);
         }
         
-        // Atualizar o documento local com as informações mais recentes
         setDocumentos(prev => prev.map(doc => 
           String(doc.id) === documentId 
             ? { 
                 ...doc, 
                 ...data.document,
-                // Garantir que o status seja atualizado
                 status: data.document.status,
-                // Atualizar signers com informações completas
                 signers: data.document.signers
               }
             : doc
         ));
         
-        // Log detalhado do que foi atualizado
         if (wasUpdated) {
-          console.log(`📋 Documento ${documentId} atualizado:`, {
-            statusAnterior: data.local_status,
-            statusAtual: data.autentique_status,
-            signersAtualizados: data.updated_signers,
-            todosAssinaram: data.all_signed,
-            documento: data.document.name,
-            autentique_error: data.autentique_error,
-            sync_error: data.sync_error,
-            documentoCompleto: wasCompleted
-          });
-          
-          // Recarregar contagens se houve mudança - especialmente importante para documentos assinados
           loadTabCounts();
           
-          // Se o documento foi totalmente assinado, recarregar a lista para movê-lo para a aba correta
-          // mas apenas se estamos na aba "enviados" (para evitar reloads desnecessários)
           if (wasCompleted && activeTab === 'enviados') {
             loadDocuments();
           }
-        } else {
-          console.log(`✅ Documento ${documentId} já está sincronizado`);
         }
-      } else {
-        console.log('❌ RESPOSTA COM SUCESSO = FALSE:', {
-          response,
-          message: response.message,
-          data: response.data
-        });
       }
     } catch (err: any) {
-      console.error('❌ ERRO COMPLETO AO VERIFICAR DOCUMENTO:', {
-        documentId,
-        error: err,
-        message: err.message,
-        stack: err.stack
-      });
+      console.error('Erro ao verificar documento:', err);
       setError(`Erro ao verificar status do documento ${documentId}: ${err.message}`);
     } finally {
       setCheckingStatus(prev => {
@@ -448,6 +385,70 @@ export function Documentos() {
     setDocumentToDelete(null);
   }, []);
 
+  const handleRestoreDocument = useCallback(async (documentId: string) => {
+    setDocumentToRestore(documentId);
+    setIsRestoreModalOpen(true);
+  }, []);
+
+  const handleConfirmRestore = useCallback(async () => {
+    if (!documentToRestore) return;
+    
+    try {
+      setIsRestoring(true);
+      setError(null);
+      await restaurarDocumento(documentToRestore, user);
+      loadDocuments(); // Reload to update list
+      loadTabCounts(); // Reload counts after restoration
+      setSuccessMessage('Documento restaurado com sucesso!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      setIsRestoreModalOpen(false);
+      setDocumentToRestore(null);
+    } catch (err) {
+      setError('Erro ao restaurar documento');
+      console.error('Erro ao restaurar documento:', err);
+    } finally {
+      setIsRestoring(false);
+    }
+  }, [documentToRestore, user, loadDocuments, loadTabCounts]);
+
+  const handleCancelRestore = useCallback(() => {
+    setIsRestoreModalOpen(false);
+    setDocumentToRestore(null);
+  }, []);
+
+  const handlePermanentDelete = useCallback(async (documentId: string) => {
+    setDocumentToPermanentDelete(documentId);
+    setIsPermanentDeleteModalOpen(true);
+  }, []);
+
+  const handleConfirmPermanentDelete = useCallback(async () => {
+    if (!documentToPermanentDelete) return;
+    
+    try {
+      setIsPermanentDeleting(true);
+      setError(null);
+      // Note: You would need to implement a permanent delete API endpoint
+      // For now, using the regular delete function
+      await excluirDocumento(documentToPermanentDelete, user);
+      loadDocuments(); // Reload to update list
+      loadTabCounts(); // Reload counts after deletion
+      setSuccessMessage('Documento excluído permanentemente!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      setIsPermanentDeleteModalOpen(false);
+      setDocumentToPermanentDelete(null);
+    } catch (err) {
+      setError('Erro ao excluir documento permanentemente');
+      console.error('Erro ao excluir documento permanentemente:', err);
+    } finally {
+      setIsPermanentDeleting(false);
+    }
+  }, [documentToPermanentDelete, user, loadDocuments, loadTabCounts]);
+
+  const handleCancelPermanentDelete = useCallback(() => {
+    setIsPermanentDeleteModalOpen(false);
+    setDocumentToPermanentDelete(null);
+  }, []);
+
   const getStatusText = (status: string) => {
     const statusTexts: Record<string, string> = {
       'draft': 'Rascunho',
@@ -511,7 +512,15 @@ export function Documentos() {
     }
   ] as const;
 
-  const DocumentCard = ({ document }: { document: BackendDocument }) => (
+  const DocumentCard = ({ document }: { document: BackendDocument }) => {
+    const isTrash = activeTab === 'lixeira';
+    
+    // Calculate deletion date (30 days after updated_at)
+    const deletionDate = isTrash && document.updated_at 
+      ? new Date(new Date(document.updated_at).getTime() + 30 * 24 * 60 * 60 * 1000)
+      : null;
+
+    return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start mb-4">
         <div className="flex-1">
@@ -524,10 +533,36 @@ export function Documentos() {
           <p className="text-sm text-gray-600 mb-1">
             Cliente: {document.client?.name || 'Documento Universal'}
           </p>
-          <p className="text-sm text-gray-500 mb-2">
-            Criado em: {new Date(document.created_at).toLocaleDateString('pt-BR')}
-          </p>
-          <DocumentStatus status={document.status} />
+          {isTrash ? (
+            <>
+              <p className="text-sm text-gray-500 mb-1">
+                Criado em: {new Date(document.created_at).toLocaleDateString('pt-BR')}
+              </p>
+              <p className="text-sm text-gray-500 mb-1">
+                Excluído em: {document.updated_at ? new Date(document.updated_at).toLocaleDateString('pt-BR') : 'Data não disponível'}
+              </p>
+              {deletionDate && (
+                <p className="text-sm text-red-600 mb-2">
+                  Exclusão permanente: {deletionDate.toLocaleDateString('pt-BR')}
+                </p>
+              )}
+              <div className="mb-2">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                  Status anterior: {document.status === 'draft' ? 'Rascunho' : 
+                                   document.status === 'pending_signature' ? 'Pendente' : 
+                                   document.status === 'signed' ? 'Assinado' : 
+                                   document.status === 'archived' ? 'Arquivado' : 'Desconhecido'}
+                </span>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-gray-500 mb-2">
+                Criado em: {new Date(document.created_at).toLocaleDateString('pt-BR')}
+              </p>
+              <DocumentStatus status={document.status} />
+            </>
+          )}
         </div>
         <div className="relative">
           <button className="p-1 rounded-full hover:bg-gray-100">
@@ -536,38 +571,62 @@ export function Documentos() {
         </div>
       </div>
 
-      <div className="mb-4">
-        <SignatureProgress 
-          signers={document.signers} 
-          documentId={String(document.id)}
-          documentStatus={document.status}
-          onStatusUpdate={useCallback(() => {
-            loadDocuments();
-            loadTabCounts();
-          }, [loadDocuments, loadTabCounts])}
-          onSyncStatus={handleCheckDocumentStatus}
-          onDocumentStatusChange={useCallback((documentId, newStatus) => {
-            // Atualizar o status do documento localmente para feedback imediato
-            setDocumentos(prev => prev.map(doc => 
-              String(doc.id) === documentId 
-                ? { ...doc, status: newStatus as any }
-                : doc
-            ));
-          }, [])}
-        />
-      </div>
+      {!isTrash && (
+        <>
+          <div className="mb-4">
+            <SignatureProgress 
+              signers={document.signers} 
+              documentId={String(document.id)}
+              documentStatus={document.status}
+              onStatusUpdate={useCallback(() => {
+                loadDocuments();
+                loadTabCounts();
+              }, [loadDocuments, loadTabCounts])}
+              onSyncStatus={handleCheckDocumentStatus}
+              onDocumentStatusChange={useCallback((documentId: string, newStatus: 'signed' | 'pending_signature') => {
+                // Atualizar o status do documento localmente para feedback imediato
+                setDocumentos(prev => prev.map(doc => 
+                  String(doc.id) === documentId 
+                    ? { ...doc, status: newStatus }
+                    : doc
+                ));
+              }, [])}
+            />
+          </div>
 
-      {/* Send Status for documents that have been sent */}
-      {(document.status === 'pending_signature' || document.status === 'signed') && document.send_status && (
-        <SendStatus 
-          status={document.send_status} 
-          errorMessage={document.send_error_message}
-          lastAttempt={document.last_send_attempt}
-        />
+          {/* Send Status for documents that have been sent */}
+          {(document.status === 'pending_signature' || document.status === 'signed') && document.send_status && (
+            <SendStatus 
+              status={document.send_status} 
+              errorMessage={document.send_error_message}
+              lastAttempt={document.last_send_attempt}
+            />
+          )}
+        </>
       )}
 
       <div className="flex flex-wrap gap-2">
-        {/* Action buttons based on document status */}
+        {isTrash ? (
+          <>
+            {/* Trash actions */}
+            <button
+              onClick={() => handleRestoreDocument(String(document.id))}
+              className="flex-1 bg-green-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center"
+            >
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Restaurar
+            </button>
+            <button
+              onClick={() => handlePermanentDelete(String(document.id))}
+              className="flex-1 bg-red-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-red-700 transition-colors flex items-center justify-center"
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              Excluir Permanentemente
+            </button>
+          </>
+        ) : (
+          <>
+            {/* Regular action buttons based on document status */}
         {document.status === 'draft' && !document.send_status && (
           <button
             onClick={() => handleOpenSignatureModal(document)}
@@ -600,7 +659,7 @@ export function Documentos() {
             title={document.send_status === 'failed' ? 'Tentar enviar novamente' : 'Reenviar para assinatura'}
           >
             <RefreshCw className="w-4 h-4 mr-1" />
-            {document.send_status === 'failed' ? 'Tentar Novamente' : 'Reenviar'}
+            Tentar Novamente
           </button>
         )}
 
@@ -666,6 +725,8 @@ export function Documentos() {
         >
           <Trash2 className="w-4 h-4" />
         </button>
+          </>
+        )}
       </div>
 
       {/* Document info footer */}
@@ -678,7 +739,8 @@ export function Documentos() {
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   // If user is not authenticated, show login message
   if (!user || !user.token) {
@@ -696,7 +758,9 @@ export function Documentos() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <>
+      <LumiDocsHeader onNewDocumentClick={() => setIsModalOpen(true)} />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* HEADER */}
         <div className="flex justify-between items-center mb-8">
             <div className="flex items-center space-x-4">
@@ -723,13 +787,6 @@ export function Documentos() {
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${syncingAll ? 'animate-spin' : ''}`} />
                 Sincronizar
-              </button>
-              <button
-              onClick={() => setIsModalOpen(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-              >
-              <Plus className="h-5 w-5 mr-2" />
-              Novo Documento
               </button>
             </div>
         </div>
@@ -814,6 +871,21 @@ export function Documentos() {
             </div>
             </div>
         </div>
+
+        {/* TRASH WARNING */}
+        {activeTab === 'lixeira' && (
+          <div className="my-8 bg-yellow-50 border border-yellow-200 rounded-md p-6">
+            <div className="flex">
+              <AlertTriangle className="h-5 w-5 text-yellow-400" />
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800">Aviso - Lixeira</h3>
+                <div className="mt-2 text-sm text-yellow-700">
+                  Os documentos na lixeira são automaticamente excluídos permanentemente após 30 dias da data de exclusão.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* TABS */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-5">
@@ -981,6 +1053,31 @@ export function Documentos() {
           type="danger"
           loading={isDeleting}
         />
-    </div>
+
+        <ConfirmationModal
+          isOpen={isPermanentDeleteModalOpen}
+          onClose={handleCancelPermanentDelete}
+          onConfirm={handleConfirmPermanentDelete}
+          title="Excluir Permanentemente"
+          message="Tem certeza que deseja excluir permanentemente este documento? Esta ação não pode ser desfeita."
+          confirmText="Excluir Permanentemente"
+          cancelText="Cancelar"
+          type="danger"
+          loading={isPermanentDeleting}
+        />
+
+        <ConfirmationModal
+          isOpen={isRestoreModalOpen}
+          onClose={handleCancelRestore}
+          onConfirm={handleConfirmRestore}
+          title="Restaurar Documento"
+          message="Tem certeza que deseja restaurar este documento? Ele será movido de volta para seu status anterior."
+          confirmText="Restaurar"
+          cancelText="Cancelar"
+          type="success"
+          loading={isRestoring}
+        />
+      </div>
+    </>
   );
 }

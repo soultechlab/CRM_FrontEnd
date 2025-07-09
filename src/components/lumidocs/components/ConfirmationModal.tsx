@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle, X, CheckCircle } from 'lucide-react';
 
 interface ConfirmationModalProps {
   isOpen: boolean;
@@ -9,7 +9,7 @@ interface ConfirmationModalProps {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  type?: 'danger' | 'warning' | 'info';
+  type?: 'danger' | 'warning' | 'info' | 'success';
   loading?: boolean;
 }
 
@@ -32,30 +32,42 @@ export function ConfirmationModal({
         return {
           icon: 'text-red-500',
           confirmButton: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
-          iconBg: 'bg-red-100'
+          iconBg: 'bg-red-100',
+          iconComponent: AlertTriangle
         };
       case 'warning':
         return {
           icon: 'text-yellow-500',
           confirmButton: 'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500',
-          iconBg: 'bg-yellow-100'
+          iconBg: 'bg-yellow-100',
+          iconComponent: AlertTriangle
         };
       case 'info':
         return {
           icon: 'text-blue-500',
           confirmButton: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
-          iconBg: 'bg-blue-100'
+          iconBg: 'bg-blue-100',
+          iconComponent: AlertTriangle
+        };
+      case 'success':
+        return {
+          icon: 'text-green-500',
+          confirmButton: 'bg-green-600 hover:bg-green-700 focus:ring-green-500',
+          iconBg: 'bg-green-100',
+          iconComponent: CheckCircle
         };
       default:
         return {
           icon: 'text-red-500',
           confirmButton: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
-          iconBg: 'bg-red-100'
+          iconBg: 'bg-red-100',
+          iconComponent: AlertTriangle
         };
     }
   };
 
   const colors = getTypeColors();
+  const IconComponent = colors.iconComponent;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -68,7 +80,7 @@ export function ConfirmationModal({
           <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
             <div className="sm:flex sm:items-start">
               <div className={`mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full ${colors.iconBg} sm:mx-0 sm:h-10 sm:w-10`}>
-                <AlertTriangle className={`h-6 w-6 ${colors.icon}`} />
+                <IconComponent className={`h-6 w-6 ${colors.icon}`} />
               </div>
               
               <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
