@@ -92,11 +92,13 @@ export interface DocumentStatusResponse {
   success: boolean;
   data: {
     local_status: 'signed' | 'pending_signature' | 'draft' | 'rejected' | 'archived';
-    autentique_status: 'completed' | 'pending' | 'signed' | 'in_progress';
+    autentique_status: 'completed' | 'pending' | 'signed' | 'in_progress' | 'error'; 
     all_signed: boolean;
     document: BackendDocument;
     updated_signers: number;
     autentique_data: any;
+    autentique_error?: any; // Added
+    sync_error?: any; // Added
   };
   message: string;
 }

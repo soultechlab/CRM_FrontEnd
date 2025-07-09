@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, X, FileText } from 'lucide-react';
+import { Search, X, FileText, Plus } from 'lucide-react';
 import { Cliente as LocalCliente, SignatureField } from '../utils/localStorage';
 import { BackendDocument } from '../../../types';
 // Importar configuração do PDF antes do PdfViewer
@@ -7,6 +7,7 @@ import '../utils/pdfConfig';
 import { PdfViewer } from './PdfViewer';
 import { criarDocumento, CreateDocumentData, SignerData, obterClientes } from '../../../services/apiService';
 import { useAuth } from '../../../contexts/AuthContext';
+import { AddClientInline } from './AddClientInline';
 
 
 interface DocumentoFormProps {
@@ -32,6 +33,7 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
   const [isUniversal, setIsUniversal] = useState(!initialData?.client);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAddClientForm, setShowAddClientForm] = useState(false);
 
   useEffect(() => {
     const loadClientes = async () => {
@@ -161,7 +163,22 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
 
     } catch (error) {
       console.error('Erro ao salvar documento:', error);
-      setError(error instanceof Error ? error.message : 'Erro ao salvar documento. Tente novamente.');
+      
+      if (error instanceof Error) {
+        if (error.message.includes('network') || error.message.includes('fetch')) {
+          setError('Erro de conexão. Verifique sua internet e tente novamente.');
+        } else if (error.message.includes('401') || error.message.includes('unauthorized')) {
+          setError('Sessão expirada. Faça login novamente.');
+        } else if (error.message.includes('400') || error.message.includes('validation')) {
+          setError('Dados inválidos. Verifique os campos e tente novamente.');
+        } else if (error.message.includes('413') || error.message.includes('size')) {
+          setError('Arquivo muito grande. Tamanho máximo: 5MB.');
+        } else {
+          setError(`Erro ao salvar documento: ${error.message}`);
+        }
+      } else {
+        setError('Erro inesperado ao salvar documento. Tente novamente.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -191,6 +208,24 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
   const handleAddCliente = (cliente: Cliente) => {
     setSelectedClientes([...selectedClientes, { cliente, fields: [] }]);
     setSearchTerm('');
+  };
+
+  const handleClientAdded = async (novoCliente: LocalCliente) => {
+    // Recarregar lista de clientes do servidor para garantir dados atualizados
+    try {
+      const clientesAtualizados = await obterClientes(user);
+      setClientes(clientesAtualizados);
+    } catch (error) {
+      console.error('Erro ao recarregar clientes:', error);
+      // Fallback: adicionar manualmente à lista existente
+      setClientes(prev => [...prev, novoCliente]);
+    }
+    
+    // Adicionar cliente automaticamente como assinante
+    handleAddCliente(novoCliente);
+    
+    // Fechar formulário
+    setShowAddClientForm(false);
   };
 
   const handleRemoveCliente = (clienteId: string) => {
@@ -438,42 +473,73 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
         )}
 
         <div className="space-y-4">
-          <label className="block text-sm font-medium text-gray-700">Adicionar Assinantes</label>
-          <div className="relative">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por nome, email ou CPF..."
-              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-blue-500"
-            />
-            <Search className="absolute left-3 top-2.5 text-gray-400" size={20} />
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium text-gray-700">Adicionar Assinantes</label>
+            {!showAddClientForm && (
+              <button
+                type="button"
+                onClick={() => setShowAddClientForm(true)}
+                className="inline-flex items-center px-3 py-1 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Novo Cliente
+              </button>
+            )}
           </div>
           
-          {searchTerm && (
-            <div className="mt-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md bg-white shadow-sm">
-              {filteredClientes.map((cliente) => (
-                <button
-                  key={cliente.id}
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleAddCliente(cliente);
-                  }}
-                  className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-                >
-                  <div className="font-medium text-gray-900">{cliente.nome}</div>
-                  <div className="text-sm text-gray-500">{cliente.email}</div>
-                  <div className="text-sm text-gray-500">CPF: {cliente.cpf}</div>
-                </button>
-              ))}
-              {filteredClientes.length === 0 && (
-                <div className="p-4 text-center text-gray-500">
-                  Nenhum cliente encontrado
+          {!showAddClientForm && (
+            <>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar por nome, email ou CPF..."
+                  className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-blue-500"
+                />
+                <Search className="absolute left-3 top-2.5 text-gray-400" size={20} />
+              </div>
+              
+              {searchTerm && (
+                <div className="mt-2 max-h-40 overflow-y-auto border border-gray-300 rounded-md bg-white shadow-sm">
+                  {filteredClientes.map((cliente) => (
+                    <button
+                      key={cliente.id}
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleAddCliente(cliente);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                    >
+                      <div className="font-medium text-gray-900">{cliente.nome}</div>
+                      <div className="text-sm text-gray-500">{cliente.email}</div>
+                      <div className="text-sm text-gray-500">CPF: {cliente.cpf}</div>
+                    </button>
+                  ))}
+                  {filteredClientes.length === 0 && (
+                    <div className="p-4 text-center text-gray-500">
+                      Nenhum cliente encontrado
+                      <button
+                        type="button"
+                        onClick={() => setShowAddClientForm(true)}
+                        className="block mt-2 text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        + Adicionar novo cliente
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
+            </>
+          )}
+          
+          {showAddClientForm && (
+            <AddClientInline
+              onClientAdded={handleClientAdded}
+              onCancel={() => setShowAddClientForm(false)}
+            />
           )}
         </div>
 
