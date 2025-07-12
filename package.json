@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "npm run copy-pdf-worker && vite",
     "build": "npm run copy-pdf-worker && tsc && vite build",
-    "copy-pdf-worker": "mkdir -p public && cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.js",
+    "copy-pdf-worker": "node -e \"const isWindows = process.env.AMBIENTE === 'desenvolvimento' || process.platform === 'win32'; if (isWindows) { const fs = require('fs'); if (!fs.existsSync('public')) fs.mkdirSync('public'); fs.copyFileSync('node_modules/pdfjs-dist/build/pdf.worker.min.mjs', 'public/pdf.worker.min.js'); } else { require('child_process').execSync('mkdir -p public && cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.js'); }\"",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },

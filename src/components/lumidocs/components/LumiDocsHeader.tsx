@@ -28,13 +28,10 @@ export function LumiDocsHeader({ onNewDocumentClick, onNewModelClick }: LumiDocs
 
   return (
     <div className="bg-white shadow-sm py-4 px-8 flex items-center justify-between">
-      {/* Left section: Logo and App Name */}
       <div className="flex items-center gap-3">
         <FileSignature className="w-8 h-8 text-blue-600" />
         <h1 className="text-xl font-bold text-gray-800">lumi.doc</h1>
       </div>
-
-      {/* Right section: Navigation and Dynamic Button */}
       <div className="flex items-center space-x-6">
         <nav className="hidden md:flex space-x-6">
           <Link 

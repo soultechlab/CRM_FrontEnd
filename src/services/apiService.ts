@@ -570,8 +570,8 @@ export const buscarEstatisticasDocumentos = async (user: User | null) => {
 
 export const restaurarDocumento = async (documentId: string, user: User | null) => {
   try {
-    const response = await apiClient.put(`/documents/${documentId}`, 
-      { is_active: true }, {
+    const response = await apiClient.post(`/documents/${documentId}/restore`, 
+      {}, {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
