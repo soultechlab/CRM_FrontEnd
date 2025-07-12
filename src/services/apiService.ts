@@ -439,37 +439,12 @@ export const verificarStatusDocumento = async (documentId: string, user: User | 
       'Content-Type': 'application/json',
     };
 
-    console.log('📤 HEADERS ENVIADOS:', headers);
-    console.log('🔗 URL REQUISIÇÃO:', `/documents/${documentId}/status`);
-
     const response = await apiClient.get(`/documents/${documentId}/status`, {
       headers,
     });
 
-    console.log('📡 STATUS HTTP:', response.status);
-    console.log('📡 STATUS TEXT:', response.statusText);
-    console.log('🔍 RESPOSTA COMPLETA DA API:', JSON.stringify(response.data, null, 2));
-
-    // Debug específico para documentos com erro
-    if (response.data?.data?.autentique_status === 'error') {
-      console.log('❌ ERRO NO DOCUMENTO:', {
-        id: documentId,
-        autentique_error: response.data.data?.autentique_error,
-        sync_error: response.data.data?.sync_error,
-        mensagem_completa: response.data.message,
-        response_completa: response.data
-      });
-    }
-
     return response.data;
   } catch (error: any) {
-    console.log('❌ ERRO NA REQUISIÇÃO:', {
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      message: error.response?.data?.message,
-      errorCompleto: error.response?.data,
-      documentId
-    });
     throw new Error(error.response?.data?.message || 'Erro ao verificar status do documento');
   }
 };
@@ -579,5 +554,32 @@ export const restaurarDocumento = async (documentId: string, user: User | null) 
     return response.data;
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Erro ao restaurar documento');
+  }
+};
+
+export const limparDocumentosAntigosLixeira = async (user: User | null) => {
+  try {
+    const response = await apiClient.delete('/documents/cleanup-old-trashed', {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao limpar documentos antigos');
+  }
+};
+
+export const marcarDocumentoPermanentementeExcluido = async (documentId: string, user: User | null) => {
+  try {
+    const response = await apiClient.put(`/documents/${documentId}/mark-permanently-deleted`, 
+      {}, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao marcar documento como permanentemente excluído');
   }
 };
