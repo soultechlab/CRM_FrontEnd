@@ -29,8 +29,7 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
   const [fieldType, setFieldType] = useState<'assinatura' | 'nome' | 'email' | 'cpf'>('assinatura');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<string>(initialData?.client?.id?.toString() || '');
-  const [isUniversal, setIsUniversal] = useState(!initialData?.client);
+  const [isUniversal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddClientForm, setShowAddClientForm] = useState(false);
@@ -48,10 +47,8 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
         }
         
         const clientesData = await obterClientes(user);
-        console.log('Clients loaded successfully:', clientesData?.length);
         setClientes(clientesData);
         
-        // Initialize signers if editing existing document
         if (initialData?.signers) {
           const initialSigners = initialData.signers.map(signer => ({
             cliente: {
@@ -59,7 +56,6 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
               nome: signer.signer_name,
               email: signer.signer_email,
               cpf: signer.signer_cpf || '',
-              // Add other required Cliente fields with defaults
               telefone: '',
               endereco: '',
               observacoes: '',
@@ -69,7 +65,7 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
               valor_sessao: 0,
               created_at: ''
             },
-            fields: [] // Fields will be loaded from backend if needed
+            fields: []
           }));
           setSelectedClientes(initialSigners);
         }
@@ -105,7 +101,6 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
     setIsSubmitting(true);
     
     try {
-      // Validate required fields
       if (!nome.trim()) {
         setError('Por favor, insira o nome do documento');
         return;
@@ -126,7 +121,6 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
         return;
       }
 
-      // Prepare signers data for backend
       const signersData: SignerData[] = selectedClientes.map(sc => ({
         name: sc.cliente.nome,
         email: sc.cliente.email,
@@ -141,18 +135,16 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
         }))
       }));
 
-      // Prepare document data
       const documentData: CreateDocumentData = {
         name: nome.trim(),
-        client_id: isUniversal ? undefined : (selectedClientId || selectedClientes[0]?.cliente?.id),
+        client_id: selectedClientes[0]?.cliente?.id,
         file: arquivo!,
         is_active: true,
-        is_universal: isUniversal,
+        is_universal: false,
         signers: signersData
       };
       
 
-      // Call backend API to create document
       if (arquivo) {
         const createdDocument = await criarDocumento(documentData, user);
         onSubmit(createdDocument);
@@ -211,20 +203,24 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
   };
 
   const handleClientAdded = async (novoCliente: LocalCliente) => {
-    // Recarregar lista de clientes do servidor para garantir dados atualizados
-    try {
-      const clientesAtualizados = await obterClientes(user);
-      setClientes(clientesAtualizados);
-    } catch (error) {
-      console.error('Erro ao recarregar clientes:', error);
-      // Fallback: adicionar manualmente à lista existente
-      setClientes(prev => [...prev, novoCliente]);
-    }
+    setClientes(prev => {
+      const clienteExiste = prev.some(c => c.id === novoCliente.id);
+      if (clienteExiste) {
+        return prev;
+      }
+      return [...prev, novoCliente];
+    });
     
-    // Adicionar cliente automaticamente como assinante
+    setTimeout(async () => {
+      try {
+        const clientesAtualizados = await obterClientes(user);
+        setClientes(clientesAtualizados);
+      } catch (error) {
+        console.error('Erro ao recarregar clientes:', error);
+      }
+    }, 1000);
+    
     handleAddCliente(novoCliente);
-    
-    // Fechar formulário
     setShowAddClientForm(false);
   };
 
@@ -247,8 +243,7 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
     const fieldWidth = fieldType === 'assinatura' ? 30 : 20;
     const fieldHeight = fieldType === 'assinatura' ? 10 : 5;
     
-    // Check for overlapping fields with a margin
-    const margin = 3; // 3% margin around fields
+    const margin = 3;
     const allFields = newSelectedClientes.flatMap((sc, index) => 
       sc.fields.map(field => ({ ...field, signerIndex: index }))
     );
@@ -276,7 +271,6 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
       return;
     }
 
-    // Add field with adjusted position if needed
     let adjustedPosition = { ...position };
     if (position.x + fieldWidth > 100) {
       adjustedPosition.x = 100 - fieldWidth;
@@ -285,7 +279,6 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
       adjustedPosition.y = 100 - fieldHeight;
     }
 
-    // If this is a signature field, suggest positions for auto-filled fields
     if (fieldType === 'assinatura') {
       const autoFields = ['nome', 'email', 'cpf'] as const;
       autoFields.forEach((type, index) => {
@@ -320,10 +313,10 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
   const getSuggestedPosition = (basePosition: { x: number; y: number }, index: number, fieldWidth: number, fieldHeight: number) => {
     const margin = 3;
     const positions = [
-      { x: basePosition.x, y: basePosition.y + fieldHeight + margin }, // below
-      { x: basePosition.x + fieldWidth + margin, y: basePosition.y }, // right
-      { x: basePosition.x, y: basePosition.y - 5 - margin }, // above
-      { x: basePosition.x - 20 - margin, y: basePosition.y }, // left
+      { x: basePosition.x, y: basePosition.y + fieldHeight + margin },
+      { x: basePosition.x + fieldWidth + margin, y: basePosition.y },
+      { x: basePosition.x, y: basePosition.y - 5 - margin },
+      { x: basePosition.x - 20 - margin, y: basePosition.y }
     ];
 
     return positions[index % positions.length];
@@ -368,14 +361,14 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
 
   const getFieldColor = (clienteIndex: number) => {
     const colors = [
-      'rgb(239 68 68)', // red
-      'rgb(34 197 94)', // green
-      'rgb(59 130 246)', // blue
-      'rgb(168 85 247)', // purple
-      'rgb(234 179 8)', // yellow
-      'rgb(236 72 153)', // pink
-      'rgb(14 165 233)', // sky
-      'rgb(99 102 241)', // indigo
+      'rgb(239 68 68)',
+      'rgb(34 197 94)',
+      'rgb(59 130 246)',
+      'rgb(168 85 247)',
+      'rgb(234 179 8)',
+      'rgb(236 72 153)',
+      'rgb(14 165 233)',
+      'rgb(99 102 241)'
     ];
     return colors[clienteIndex % colors.length];
   };
@@ -425,39 +418,6 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
           />
         </div>
 
-        <div className="space-y-4">
-          <div className="flex items-center space-x-4">
-            <input
-              type="checkbox"
-              id="isUniversal"
-              checked={isUniversal}
-              onChange={(e) => setIsUniversal(e.target.checked)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label htmlFor="isUniversal" className="text-sm font-medium text-gray-700">
-              Documento Universal (sem cliente específico)
-            </label>
-          </div>
-
-          {!isUniversal && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
-              <select
-                value={selectedClientId}
-                onChange={(e) => setSelectedClientId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                required={!isUniversal}
-              >
-                <option value="">Selecione um cliente</option>
-                {clientes.map((cliente) => (
-                  <option key={cliente.id} value={cliente.id}>
-                    {cliente.nome} - {cliente.email}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
 
         {!initialData && (
           <div>

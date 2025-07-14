@@ -173,7 +173,7 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="Novo Modelo" maxWidth="max-w-lg">
+    <Modal isOpen={isOpen} onClose={handleClose} title="Novo Modelo" maxWidth="max-w-6xl">
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Nome do modelo */}
         <div>
