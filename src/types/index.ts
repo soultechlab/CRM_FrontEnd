@@ -102,3 +102,63 @@ export interface DocumentStatusResponse {
   };
   message: string;
 }
+
+export interface DocumentTemplate {
+  id: number;
+  user_id?: number;
+  name: string;
+  description?: string;
+  file_path: string; // API usa file_path, não storage_url
+  default_fields?: any[]; // API retorna como array simples
+  is_active: boolean;
+  is_default: boolean;
+  type: 'default' | 'custom';
+  category?: string; // API inclui categoria
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+}
+
+export interface DocumentTemplateFilters {
+  name?: string;
+  type?: 'default' | 'custom';
+  is_active?: boolean;
+  is_default?: boolean;
+  include_trashed?: boolean;
+  per_page?: number;
+  page?: number;
+}
+
+export interface CreateDocumentTemplateData {
+  name: string;
+  category: string; // Obrigatório conforme API
+  description?: string;
+  file: File;
+  default_fields?: string; // JSON stringificado
+  is_active?: boolean;
+  is_default?: boolean; // Apenas para admins
+  type?: 'default' | 'custom'; // Apenas para admins
+}
+
+export interface CreateDocumentFromTemplateData {
+  client_id: number;
+  name?: string;
+  signers: Array<{
+    name: string;
+    email: string;
+    cpf?: string;
+    fields?: Array<{
+      type: string;
+      page: number;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }>;
+  }>;
+}

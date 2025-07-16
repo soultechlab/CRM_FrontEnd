@@ -20,6 +20,9 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import DOMPurify from 'dompurify';
+import { criarTemplateDocumentoFromHtml } from '../../services/apiService';
+import { useAuth } from '../../contexts/AuthContext';
+import { mapCategoryToApi } from '../../utils/categoryMapping';
 
 type ModelCategory = 'contratos' | 'permuta' | 'eventos' | 'ensaios' | 'outros';
 
@@ -27,6 +30,7 @@ export function DocumentEditor() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editorRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
   
   // Parâmetros do modelo
   const [modelName] = useState(searchParams.get('name') || 'Novo Modelo');
@@ -353,36 +357,50 @@ export function DocumentEditor() {
     setIsSaving(true);
     
     try {
-      // Converter HTML para PDF (simulação)
-      const htmlToPdf = async (htmlContent: string) => {
-        // Aqui você implementaria a conversão HTML para PDF
-        // Por exemplo, usando jsPDF ou similar
-        const blob = new Blob([htmlContent], { type: 'text/html' });
-        return new File([blob], `${modelName}.html`, { type: 'text/html' });
-      };
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <title>${modelName}</title>
+            <style>
+              body { 
+                font-family: ${selectedFont}, sans-serif; 
+                font-size: ${selectedSize}px; 
+                color: ${selectedColor};
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+                line-height: 1.6;
+              }
+            </style>
+          </head>
+          <body>
+            ${sanitizeContent(content)}
+          </body>
+        </html>
+      `;
       
-      // Criar arquivo a partir do conteúdo
-      const file = await htmlToPdf(content);
-      
-      // Salvar o modelo usando a mesma estrutura do modal
-      const modelData = {
+      const templateData = {
         name: modelName,
-        category: modelCategory,
+        category: mapCategoryToApi(modelCategory),
+        html_content: htmlContent,
         description: modelDescription || `Modelo criado com o editor em ${new Date().toLocaleDateString()}`,
-        file: file
+        default_fields: '[]',
+        is_active: true,
+        is_default: false,
+        type: 'custom' as const,
+        styles: {
+          font_family: selectedFont,
+          font_size: parseInt(selectedSize),
+          color: selectedColor
+        }
       };
       
-      // Aqui você chamaria a função de salvar modelo
-      // Por exemplo: await salvarModelo(modelData);
-      console.log('Salvando modelo:', modelData);
-      
-      // Mostrar notificação de sucesso
+      await criarTemplateDocumentoFromHtml(templateData, user);
       toast.success('Modelo salvo com sucesso!');
-      
-      // Redirecionar para a página de modelos
       navigate('/modelos');
     } catch (error) {
-      console.error('Erro ao salvar modelo:', error);
       toast.error('Erro ao salvar modelo. Tente novamente.');
     } finally {
       setIsSaving(false);
@@ -390,7 +408,6 @@ export function DocumentEditor() {
   };
 
   const handleDownload = () => {
-    // Criar um blob com o conteúdo HTML
     const htmlContent = `
       <!DOCTYPE html>
       <html>

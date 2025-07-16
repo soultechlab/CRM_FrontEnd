@@ -41,32 +41,25 @@ export const SignatureProgress = memo(function SignatureProgress({ signers, clas
         }
         
         try {
-          console.log(`🎉 Todas as assinaturas concluídas! Marcando documento ${documentId} como assinado...`);
           
-          // Marcar como processado antes de fazer a requisição
           setProcessedDocuments(prev => new Set(prev).add(documentId));
           
-          // Atualizar o status local imediatamente
           if (onDocumentStatusChange) {
             onDocumentStatusChange(documentId, 'signed');
           }
           
           const response = await marcarDocumentoAssinado(documentId, user);
-          console.log(`✅ Documento ${documentId} marcado como assinado com sucesso!`, response);
           
-          // Forçar atualização após marcar como assinado para sincronizar status
           if (onStatusUpdate) {
             setTimeout(() => {
               onStatusUpdate();
-            }, 2000); // Aguardar mais tempo para garantir sincronização
+            }, 2000);
           }
         } catch (error) {
           console.error('❌ Erro ao marcar documento como assinado:', error);
-          // Em caso de erro, reverter o status local se possível
           if (onDocumentStatusChange) {
             onDocumentStatusChange(documentId, 'pending_signature');
           }
-          // Remover da lista de processados em caso de erro
           setProcessedDocuments(prev => {
             const newSet = new Set(prev);
             newSet.delete(documentId);

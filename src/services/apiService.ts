@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Agendamento, Cliente, DocumentStatusResponse } from '../types';
+import { Agendamento, Cliente, DocumentStatusResponse, DocumentTemplate, DocumentTemplateFilters, CreateDocumentTemplateData, CreateDocumentFromTemplateData } from '../types';
 import { User } from './auth/types';
 import { Transacao } from '../types/financeiro';
 
@@ -581,5 +581,275 @@ export const marcarDocumentoPermanentementeExcluido = async (documentId: string,
     return response.data;
   } catch (error: any) {
     throw new Error(error.response?.data?.message || 'Erro ao marcar documento como permanentemente excluído');
+  }
+};
+
+// Document Templates
+
+export const obterTemplatesDocumentos = async (filters: DocumentTemplateFilters, user: User | null) => {
+  try {
+    const response = await apiClient.get('/document-templates', {
+      params: filters,
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao obter templates de documentos');
+  }
+};
+
+export const obterTemplatesDisponiveis = async (user: User | null) => {
+  try {
+    const response = await apiClient.get('/document-templates/available', {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    console.error('Erro detalhado na API de templates:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message,
+      url: error.config?.url
+    });
+    
+    throw new Error(error.response?.data?.message || `Server Error (${error.response?.status})`);
+  }
+};
+
+export const criarTemplateDocumento = async (data: CreateDocumentTemplateData, user: User | null) => {
+  try {
+    const formData = new FormData();
+    
+    formData.append('file', data.file);
+    formData.append('name', data.name);
+    formData.append('category', data.category); // Obrigatório
+    
+    if (data.description) {
+      formData.append('description', data.description);
+    }
+    
+    if (data.default_fields) {
+      formData.append('default_fields', data.default_fields);
+    }
+    
+    formData.append('is_active', data.is_active !== false ? 'true' : 'false');
+    
+    // Apenas enviar is_default e type se o usuário for admin
+    if (data.is_default !== undefined) {
+      formData.append('is_default', data.is_default ? 'true' : 'false');
+    }
+    
+    if (data.type) {
+      formData.append('type', data.type);
+    }
+
+    if (!data.file || !(data.file instanceof File) || data.file.size === 0) {
+      throw new Error('Arquivo PDF inválido ou corrompido');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/document-templates`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP ${response.status}`);
+    }
+
+    const responseData = await response.json();
+    return responseData;
+  } catch (error: any) {
+    throw new Error(error.message || 'Erro ao criar template de documento');
+  }
+};
+
+export const obterTemplateDocumento = async (templateId: number, user: User | null) => {
+  try {
+    const response = await apiClient.get(`/document-templates/${templateId}`, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao obter template de documento');
+  }
+};
+
+export const atualizarTemplateDocumento = async (templateId: number, data: Partial<CreateDocumentTemplateData>, user: User | null) => {
+  try {
+    const formData = new FormData();
+    
+    // Obrigatório para multipart/form-data com PUT
+    formData.append('_method', 'PUT');
+    
+    if (data.file) {
+      formData.append('file', data.file);
+    }
+    
+    if (data.name) {
+      formData.append('name', data.name);
+    }
+    
+    if (data.category) {
+      formData.append('category', data.category);
+    }
+    
+    if (data.description !== undefined) {
+      formData.append('description', data.description);
+    }
+    
+    if (data.default_fields) {
+      formData.append('default_fields', data.default_fields);
+    }
+    
+    if (data.is_active !== undefined) {
+      formData.append('is_active', data.is_active ? 'true' : 'false');
+    }
+    
+    if (data.is_default !== undefined) {
+      formData.append('is_default', data.is_default ? 'true' : 'false');
+    }
+    
+    if (data.type) {
+      formData.append('type', data.type);
+    }
+
+    const response = await fetch(`${API_BASE_URL}/document-templates/${templateId}`, {
+      method: 'POST', // Usar POST com _method=PUT conforme especificação
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP ${response.status}`);
+    }
+
+    const responseData = await response.json();
+    return responseData;
+  } catch (error: any) {
+    throw new Error(error.message || 'Erro ao atualizar template de documento');
+  }
+};
+
+export const excluirTemplateDocumento = async (templateId: number, user: User | null) => {
+  try {
+    const response = await apiClient.delete(`/document-templates/${templateId}`, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao excluir template de documento');
+  }
+};
+
+export const alternarStatusTemplateDocumento = async (templateId: number, user: User | null) => {
+  try {
+    const response = await apiClient.put(`/document-templates/${templateId}/toggle-active`, {}, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao alterar status do template');
+  }
+};
+
+export const criarDocumentoAPartirDoTemplate = async (templateId: number, data: CreateDocumentFromTemplateData, user: User | null) => {
+  try {
+    const response = await apiClient.post(`/document-templates/${templateId}/create-document`, data, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao criar documento a partir do template');
+  }
+};
+
+export const obterEstatisticasTemplates = async (user: User | null) => {
+  try {
+    const response = await apiClient.get('/document-templates/stats', {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao obter estatísticas dos templates');
+  }
+};
+
+export const obterTemplatesLixeira = async (user: User | null) => {
+  try {
+    const response = await apiClient.get('/document-templates/trashed', {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao obter templates na lixeira');
+  }
+};
+
+export const restaurarTemplateDocumento = async (templateId: number, user: User | null) => {
+  try {
+    const response = await apiClient.post('/document-templates/restore', {
+      template_id: templateId // API espera template_id, não template_ids
+    }, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao restaurar template de documento');
+  }
+};
+
+export interface CreateTemplateFromHtmlData {
+  name: string;
+  category: string;
+  html_content: string;
+  description?: string;
+  default_fields?: string;
+  is_active?: boolean;
+  is_default?: boolean;
+  type?: 'default' | 'custom';
+  styles: {
+    font_family: string;
+    font_size: number;
+    color: string;
+  };
+}
+
+export const criarTemplateDocumentoFromHtml = async (data: CreateTemplateFromHtmlData, user: User | null) => {
+  try {
+    const response = await apiClient.post('/document-templates/from-html', data, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao criar template de documento a partir do HTML');
   }
 };

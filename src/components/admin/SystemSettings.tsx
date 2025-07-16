@@ -13,7 +13,6 @@ export default function SystemSettings() {
 
   const handleSave = () => {
     // Implement settings save logic
-    console.log('Settings saved:', settings);
   };
 
   return (

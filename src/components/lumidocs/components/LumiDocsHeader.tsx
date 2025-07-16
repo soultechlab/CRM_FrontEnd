@@ -54,16 +54,6 @@ export function LumiDocsHeader({ onNewDocumentClick, onNewModelClick }: LumiDocs
           >
             Modelos
           </Link>
-          <Link 
-            to="/clientes" 
-            className={`font-medium transition-colors ${
-              location.pathname === '/clientes' 
-                ? 'text-blue-600' 
-                : 'text-gray-600 hover:text-blue-600'
-            }`}
-          >
-            Clientes
-          </Link>
         </nav>
         {buttonConfig.onClick && (
           <button
