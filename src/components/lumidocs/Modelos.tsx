@@ -1,8 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Search, Calendar, X, RefreshCw, AlertTriangle, CheckCircle, ScrollText, ArrowLeftRight, CalendarDays, Camera, Archive, Download, Trash2, Eye, ToggleLeft, ToggleRight } from 'lucide-react';
+import { FileText, Search, Calendar, X, RefreshCw, AlertTriangle, CheckCircle, ScrollText, ArrowLeftRight, CalendarDays, Camera, Archive, Trash2, Eye } from 'lucide-react';
 import { LumiDocsHeader } from './components/LumiDocsHeader';
 import { NewModelModal } from './components/NewModelModal';
-import { DocumentTemplate, CreateDocumentTemplateData } from '../../types';
+import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
+import { UseTemplateModal } from './components/UseTemplateModal';
+import { ViewTemplateModal } from './components/ViewTemplateModal';
+import { Lixeira } from './Lixeira';
+import { TestSoftDelete } from './TestSoftDelete';
+import { DocumentTemplate, CreateDocumentTemplateData, BackendDocument } from '../../types';
+import { criarDocumentoAPartirDoTemplate } from '../../services/apiService'; // Importar a nova função da API
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext'; // Adicionar importação do useAuth
 import { useTemplates } from '../../hooks/useTemplates';
 import { mapApiToCategory, mapCategoryToApi, detectCategoryFromText, type ModelCategory } from '../../utils/categoryMapping';
 
@@ -21,6 +29,8 @@ const categories: { key: ModelCategory; label: string; icon: React.ElementType }
 ];
 
 export function Modelos() {
+  const navigate = useNavigate();
+  const { user } = useAuth(); // Obter o usuário autenticado
   const {
     loading,
     error,
@@ -28,7 +38,8 @@ export function Modelos() {
     criar,
     excluir,
     alternarStatus,
-    clearError
+    clearError,
+    setError // Adicionar setError aqui
   } = useTemplates();
   
   const [templates, setTemplates] = useState<TemplateWithCategory[]>([]);
@@ -40,6 +51,21 @@ export function Modelos() {
   const [activeFilter, setActiveFilter] = useState<'todos' | ModelCategory>('todos'); // Unificado
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    templateId: number | null;
+    templateName: string;
+  }>({
+    isOpen: false,
+    templateId: null,
+    templateName: ''
+  });
+  const [showTrash, setShowTrash] = useState(false);
+  const [showTest, setShowTest] = useState(false);
+  const [isUseTemplateModalOpen, setIsUseTemplateModalOpen] = useState(false); // Novo estado
+  const [selectedTemplateForUse, setSelectedTemplateForUse] = useState<TemplateWithCategory | null>(null); // Novo estado
+  const [isViewTemplateModalOpen, setIsViewTemplateModalOpen] = useState(false); // Modal de visualização
+  const [selectedTemplateForView, setSelectedTemplateForView] = useState<TemplateWithCategory | null>(null); // Template para visualização
 
   useEffect(() => {
     carregarTemplates();
@@ -126,11 +152,19 @@ export function Modelos() {
     setTimeout(() => setSuccessMessage(null), 3000);
   };
   
-  const handleDeleteTemplate = async (templateId: number) => {
-    if (!confirm('Tem certeza que deseja excluir este template?')) return;
+  const handleDeleteTemplate = (templateId: number, templateName: string) => {
+    setDeleteModal({
+      isOpen: true,
+      templateId,
+      templateName
+    });
+  };
+  
+  const confirmDeleteTemplate = async () => {
+    if (!deleteModal.templateId) return;
     
     try {
-      const success = await excluir(templateId);
+      const success = await excluir(deleteModal.templateId);
       if (success) {
         await carregarTemplates();
         setSuccessMessage('Template excluído com sucesso!');
@@ -138,7 +172,22 @@ export function Modelos() {
       }
     } catch (error: any) {
       console.error('Erro ao excluir template:', error);
+    } finally {
+      setDeleteModal({
+        isOpen: false,
+        templateId: null,
+        templateName: ''
+      });
     }
+  };
+  
+  const closeDeleteModal = () => {
+    if (loading) return; // Impedir fechamento durante loading
+    setDeleteModal({
+      isOpen: false,
+      templateId: null,
+      templateName: ''
+    });
   };
   
   const handleToggleStatus = async (templateId: number) => {
@@ -155,19 +204,28 @@ export function Modelos() {
   };
   
   const handleUseTemplate = (template: TemplateWithCategory) => {
-    // Aqui você pode implementar a lógica para usar o template
-    // Por exemplo, redirecionar para criação de documento ou abrir modal
-    console.log('Usar template:', template);
-    alert(`Funcionalidade "Usar template ${template.name}" será implementada em breve!`);
+    setSelectedTemplateForUse(template);
+    setIsUseTemplateModalOpen(true);
+  };
+
+  const handleCreateDocumentFromTemplate = async (documento: any) => {
+    try {
+      clearError();
+      setSuccessMessage('Documento criado com sucesso a partir do modelo!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      setIsUseTemplateModalOpen(false);
+      setSelectedTemplateForUse(null);
+      
+      // Opcionalmente redirecionar para a lista de documentos ou página de edição
+      // navigate('/documentos');
+    } catch (err: any) {
+      setError(err.message || 'Erro ao criar documento a partir do modelo.');
+    }
   };
   
   const handleViewTemplate = (template: TemplateWithCategory) => {
-    // Abrir o PDF do template em nova aba
-    if (template.file_path && template.file_path !== '#demo') {
-      window.open(template.file_path, '_blank');
-    } else {
-      alert('Preview não disponível em modo demonstração');
-    }
+    setSelectedTemplateForView(template);
+    setIsViewTemplateModalOpen(true);
   };
 
   const clearFilters = () => {
@@ -195,6 +253,30 @@ export function Modelos() {
     
     return matchesFilter && matchesSearch && matchesDate;
   });
+
+  // Se estiver mostrando a lixeira, renderizar o componente Lixeira
+  if (showTrash) {
+    return <Lixeira onBack={() => setShowTrash(false)} />;
+  }
+
+  // Se estiver mostrando o teste, renderizar o componente de teste
+  if (showTest) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-6">
+            <button
+              onClick={() => setShowTest(false)}
+              className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+            >
+              ← Voltar aos Modelos
+            </button>
+          </div>
+          <TestSoftDelete />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -480,25 +562,14 @@ export function Modelos() {
                         </button>
                         
                         {template.type === 'custom' && (
-                          <>
-                            <button
-                              onClick={() => handleToggleStatus(template.id)}
-                              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title={template.is_active ? 'Desativar' : 'Ativar'}
-                              disabled={loading}
-                            >
-                              {template.is_active ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
-                            </button>
-                            
-                            <button
-                              onClick={() => handleDeleteTemplate(template.id)}
-                              className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Excluir template"
-                              disabled={loading}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </>
+                          <button
+                            onClick={() => handleDeleteTemplate(template.id, template.name)}
+                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Excluir template"
+                            disabled={loading}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         )}
                       </div>
                       
@@ -527,6 +598,36 @@ export function Modelos() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleModelSubmit}
+      />
+
+      {/* Modal de confirmação de exclusão */}
+      <ConfirmDeleteModal
+        isOpen={deleteModal.isOpen}
+        onClose={closeDeleteModal}
+        onConfirm={confirmDeleteTemplate}
+        title="Excluir Template"
+        message={`Tem certeza que deseja excluir o template "${deleteModal.templateName}"? Esta ação não pode ser desfeita.`}
+        loading={loading}
+      />
+
+      {/* Novo Modal para usar template */}
+      {selectedTemplateForUse && (
+        <UseTemplateModal
+          template={selectedTemplateForUse}
+          isOpen={isUseTemplateModalOpen}
+          onClose={() => setIsUseTemplateModalOpen(false)}
+          onConfirm={handleCreateDocumentFromTemplate}
+        />
+      )}
+
+      {/* Modal para visualizar template */}
+      <ViewTemplateModal
+        template={selectedTemplateForView}
+        isOpen={isViewTemplateModalOpen}
+        onClose={() => {
+          setIsViewTemplateModalOpen(false);
+          setSelectedTemplateForView(null);
+        }}
       />
     </>
   );

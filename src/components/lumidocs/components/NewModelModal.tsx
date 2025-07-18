@@ -1,7 +1,10 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileText, X, AlertCircle, Edit3, FilePlus } from 'lucide-react';
+import { Upload, FileText, X, AlertCircle, Edit3, FilePlus, Plus, Users } from 'lucide-react';
 import { Modal } from './Modal';
 import { useNavigate } from 'react-router-dom';
+import { AddClientInline } from './AddClientInline';
+import { obterClientes, Cliente } from '../../../services/apiService';
+import { useAuth } from '../../../contexts/AuthContext';
 
 type ModelCategory = 'contratos' | 'permuta' | 'eventos' | 'ensaios' | 'outros';
 
@@ -26,6 +29,7 @@ const categories: { key: ModelCategory; label: string }[] = [
 
 export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [name, setName] = useState('');
   const [category, setCategory] = useState<ModelCategory>('contratos');
   const [description, setDescription] = useState('');
@@ -39,7 +43,51 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
   }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // Estados para clientes e campos
+  const [selectedClientes, setSelectedClientes] = useState<Cliente[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showAddClientForm, setShowAddClientForm] = useState(false);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [loadingClientes, setLoadingClientes] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Carregar clientes quando necessário
+  const loadClientes = async () => {
+    if (clientes.length > 0) return;
+    
+    setLoadingClientes(true);
+    try {
+      const response = await obterClientes(user);
+      setClientes(response);
+    } catch (error) {
+      console.error('Erro ao carregar clientes:', error);
+    } finally {
+      setLoadingClientes(false);
+    }
+  };
+
+  const handleAddCliente = (cliente: Cliente) => {
+    if (!selectedClientes.find(c => c.id === cliente.id)) {
+      setSelectedClientes([...selectedClientes, cliente]);
+    }
+    setSearchTerm('');
+  };
+
+  const handleRemoveCliente = (clienteId: number) => {
+    setSelectedClientes(selectedClientes.filter(c => c.id !== clienteId));
+  };
+
+  const handleClientAdded = (cliente: Cliente) => {
+    setClientes([...clientes, cliente]);
+    handleAddCliente(cliente);
+    setShowAddClientForm(false);
+  };
+
+  const filteredClientes = clientes.filter(cliente =>
+    cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    cliente.email.toLowerCase().includes(searchTerm.toLowerCase())
+  ).filter(cliente => !selectedClientes.find(sc => sc.id === cliente.id));
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -119,6 +167,11 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
       isModel: 'true'
     });
     
+    // Adicionar clientes selecionados se houver
+    if (selectedClientes.length > 0) {
+      queryParams.set('clientes', JSON.stringify(selectedClientes.map(c => c.id)));
+    }
+    
     navigate(`/criar-modelo?${queryParams.toString()}`);
   };
 
@@ -168,6 +221,9 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
       setFile(null);
       setCreationMethod(null);
       setErrors({});
+      setSelectedClientes([]);
+      setSearchTerm('');
+      setShowAddClientForm(false);
       onClose();
     }
   };
@@ -280,6 +336,108 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
             </button>
           </div>
         </div>
+
+        {/* Seleção de clientes - apenas se método create for selecionado */}
+        {creationMethod === 'create' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Assinantes do modelo (opcional)
+            </label>
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Buscar clientes..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onFocus={loadClientes}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={isSubmitting}
+                  />
+                  {loadingClientes && (
+                    <div className="text-sm text-gray-500 mt-1">Carregando clientes...</div>
+                  )}
+                  {searchTerm && filteredClientes.length > 0 && (
+                    <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg">
+                      {filteredClientes.slice(0, 5).map((cliente) => (
+                        <button
+                          key={cliente.id}
+                          type="button"
+                          onClick={() => handleAddCliente(cliente)}
+                          className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b last:border-b-0"
+                          disabled={isSubmitting}
+                        >
+                          <div className="font-medium text-gray-900">{cliente.nome}</div>
+                          <div className="text-sm text-gray-500">{cliente.email}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddClientForm(true)}
+                  className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                  disabled={isSubmitting}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Novo
+                </button>
+              </div>
+
+              {showAddClientForm && (
+                <AddClientInline
+                  onClientAdded={handleClientAdded}
+                  onCancel={() => setShowAddClientForm(false)}
+                />
+              )}
+
+              {selectedClientes.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-medium text-gray-900 flex items-center">
+                    <Users className="h-4 w-4 mr-2" />
+                    Assinantes Selecionados ({selectedClientes.length})
+                  </h4>
+                  {selectedClientes.map((cliente) => (
+                    <div
+                      key={cliente.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    >
+                      <div>
+                        <div className="font-medium text-gray-900">{cliente.nome}</div>
+                        <div className="text-sm text-gray-500">{cliente.email}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCliente(cliente.id)}
+                        className="text-red-500 hover:text-red-700 p-1"
+                        disabled={isSubmitting}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {selectedClientes.length > 0 && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-start">
+                    <AlertCircle className="h-5 w-5 text-blue-600 mr-2 mt-0.5" />
+                    <div className="text-sm text-blue-800">
+                      <p className="font-medium mb-1">Definição de campos</p>
+                      <p>
+                        Após criar o modelo, você poderá definir os campos de assinatura para cada assinante 
+                        diretamente no editor de documentos.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Upload de arquivo - apenas se método upload for selecionado */}
         {creationMethod === 'upload' && (

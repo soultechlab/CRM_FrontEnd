@@ -15,7 +15,8 @@ import {
   criarDocumentoAPartirDoTemplate,
   obterEstatisticasTemplates,
   obterTemplatesLixeira,
-  restaurarTemplateDocumento
+  restaurarTemplateDocumento,
+  debugTemplateDocumento
 } from '../services/apiService';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -35,9 +36,11 @@ interface UseTemplatesReturn {
   obterEstatisticas: () => Promise<any>;
   obterLixeira: () => Promise<DocumentTemplate[]>;
   restaurar: (id: number) => Promise<boolean>;
+  debug: (id: number) => Promise<any>;
   
   // Utilities
   clearError: () => void;
+  setError: React.Dispatch<React.SetStateAction<string | null>>; // Adicionar setError aqui
 }
 
 export function useTemplates(): UseTemplatesReturn {
@@ -346,6 +349,27 @@ export function useTemplates(): UseTemplatesReturn {
     }
   }, [user]);
 
+  const debug = useCallback(async (id: number): Promise<any> => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await debugTemplateDocumento(id, user);
+      
+      if (response.success) {
+        return response.data;
+      }
+      
+      return null;
+    } catch (err: any) {
+      setError(err.message || 'Erro ao obter debug do template');
+      console.error('Erro ao obter debug do template:', err);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
   return {
     templates,
     loading,
@@ -360,6 +384,8 @@ export function useTemplates(): UseTemplatesReturn {
     obterEstatisticas,
     obterLixeira,
     restaurar,
-    clearError
+    debug,
+    clearError,
+    setError
   };
 }

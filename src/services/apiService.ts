@@ -824,6 +824,19 @@ export const restaurarTemplateDocumento = async (templateId: number, user: User 
   }
 };
 
+export const debugTemplateDocumento = async (templateId: number, user: User | null) => {
+  try {
+    const response = await apiClient.get(`/document-templates/debug/${templateId}`, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao obter debug do template');
+  }
+};
+
 export interface CreateTemplateFromHtmlData {
   name: string;
   category: string;

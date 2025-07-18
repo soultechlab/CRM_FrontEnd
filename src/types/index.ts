@@ -108,12 +108,13 @@ export interface DocumentTemplate {
   user_id?: number;
   name: string;
   description?: string;
-  file_path: string; // API usa file_path, não storage_url
-  default_fields?: any[]; // API retorna como array simples
+  file_path?: string;
+  storage_url?: string;
+  default_fields?: any[];
   is_active: boolean;
   is_default: boolean;
   type: 'default' | 'custom';
-  category?: string; // API inclui categoria
+  category?: string;
   created_at: string;
   updated_at: string;
   deleted_at?: string;
@@ -136,13 +137,13 @@ export interface DocumentTemplateFilters {
 
 export interface CreateDocumentTemplateData {
   name: string;
-  category: string; // Obrigatório conforme API
+  category: string;
   description?: string;
   file: File;
-  default_fields?: string; // JSON stringificado
+  default_fields?: string;
   is_active?: boolean;
-  is_default?: boolean; // Apenas para admins
-  type?: 'default' | 'custom'; // Apenas para admins
+  is_default?: boolean;
+  type?: 'default' | 'custom';
 }
 
 export interface CreateDocumentFromTemplateData {

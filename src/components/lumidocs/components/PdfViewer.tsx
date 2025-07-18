@@ -52,6 +52,7 @@ export function PdfViewer({
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [draggingField, setDraggingField] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
   const [showAllFields, setShowAllFields] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +62,11 @@ export function PdfViewer({
     cMapUrl: 'https://unpkg.com/pdfjs-dist@4.8.69/cmaps/',
     cMapPacked: true,
     standardFontDataUrl: 'https://unpkg.com/pdfjs-dist@4.8.69/standard_fonts/',
-  }), []);
+    httpHeaders: pdfUrl.includes('localhost:8080') || pdfUrl.includes('api') ? {
+      'Authorization': localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : undefined
+    } : undefined,
+    withCredentials: pdfUrl.includes('localhost:8080') || pdfUrl.includes('api')
+  }), [pdfUrl]);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
@@ -71,14 +76,14 @@ export function PdfViewer({
 
   function onDocumentLoadError(error: any) {
     console.error('Error loading PDF:', error);
-    console.error('PDF URL:', pdfUrl);
-    console.error('Error details:', error.message, error.name, error.stack);
     setError(`Falha ao carregar o arquivo PDF: ${error.message || 'Arquivo inválido ou corrompido'}`);
     setLoading(false);
   }
 
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (draggingField !== null || readOnly || !onPositionSelect) return;
+    if (draggingField !== null || isDragging || readOnly || !onPositionSelect) return;
+    
+    if ((event.target as HTMLElement).closest('[data-field]')) return;
     
     const target = event.currentTarget;
     const rect = target.getBoundingClientRect();
@@ -90,6 +95,7 @@ export function PdfViewer({
 
   const handleDragStart = (event: React.MouseEvent, index: number) => {
     event.stopPropagation();
+    event.preventDefault();
     const fieldElement = event.currentTarget as HTMLDivElement;
     const rect = fieldElement.getBoundingClientRect();
     setDragOffset({
@@ -97,6 +103,7 @@ export function PdfViewer({
       y: event.clientY - rect.top
     });
     setDraggingField(index);
+    setIsDragging(true);
   };
 
   const handleDrag = (event: React.MouseEvent) => {
@@ -116,6 +123,7 @@ export function PdfViewer({
 
   const handleDragEnd = () => {
     setDraggingField(null);
+    setTimeout(() => setIsDragging(false), 100);
   };
 
   const getFieldPreview = (field: Field, assinanteIndex: number) => {
@@ -153,6 +161,7 @@ export function PdfViewer({
   const renderField = (field: Field, index: number, color: string, assinanteIndex: number, isActive: boolean = false) => (
     <div
       key={`${index}-${assinanteIndex}`}
+      data-field="true"
       style={{
         position: 'absolute',
         left: `${field.position.x}%`,
@@ -221,16 +230,6 @@ export function PdfViewer({
               Próxima
             </button>
           </div>
-          <button
-            onClick={() => setShowAllFields(!showAllFields)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              showAllFields
-                ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
-            }`}
-          >
-            {showAllFields ? 'Ocultar Outros Assinantes' : 'Mostrar Todos Assinantes'}
-          </button>
         </div>
 
         {showAllFields && allSignerFields.length > 0 && (
