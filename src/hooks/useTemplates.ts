@@ -138,35 +138,17 @@ export function useTemplates(): UseTemplatesReturn {
       const response = await criarTemplateDocumento(data, user);
       
       if (response.success) {
-        // Atualizar a lista local
         if (response.data) {
           setTemplates(prev => [...prev, response.data]);
         }
         return true;
+      } else {
+        setError(response.message || 'Erro ao criar template');
+        return false;
       }
-      
-      return false;
     } catch (err: any) {
-      console.warn('API de criação não disponível, simulando criação:', err.message);
-      
-      // Modo demo - simular criação
-      const novoTemplate = {
-        id: Date.now(),
-        name: data.name,
-        description: data.description,
-        file_path: '#demo',
-        category: data.category,
-        is_default: data.is_default || false,
-        is_active: data.is_active || true,
-        type: data.type || 'custom' as const,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      
-      setTemplates(prev => [...prev, novoTemplate]);
-      setError('⚠️ Modo demonstração - Template criado localmente');
-      
-      return true;
+      setError(err.message || 'Erro ao criar template de documento');
+      return false;
     } finally {
       setLoading(false);
     }

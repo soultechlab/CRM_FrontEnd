@@ -140,6 +140,9 @@ export function Modelos() {
         
         // Limpar mensagem de sucesso após 3 segundos
         setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        // Erro já foi setado no hook useTemplates
+        console.error('Falha ao criar template - verifique os logs do console');
       }
     } catch (error: any) {
       console.error('Erro ao criar modelo:', error);

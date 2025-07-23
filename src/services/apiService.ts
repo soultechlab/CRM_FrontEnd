@@ -627,7 +627,7 @@ export const criarTemplateDocumento = async (data: CreateDocumentTemplateData, u
     
     formData.append('file', data.file);
     formData.append('name', data.name);
-    formData.append('category', data.category); // Obrigatório
+    formData.append('category', data.category);
     
     if (data.description) {
       formData.append('description', data.description);
@@ -639,7 +639,6 @@ export const criarTemplateDocumento = async (data: CreateDocumentTemplateData, u
     
     formData.append('is_active', data.is_active !== false ? 'true' : 'false');
     
-    // Apenas enviar is_default e type se o usuário for admin
     if (data.is_default !== undefined) {
       formData.append('is_default', data.is_default ? 'true' : 'false');
     }
@@ -652,22 +651,18 @@ export const criarTemplateDocumento = async (data: CreateDocumentTemplateData, u
       throw new Error('Arquivo PDF inválido ou corrompido');
     }
 
-    const response = await fetch(`${API_BASE_URL}/document-templates`, {
-      method: 'POST',
+    const response = await apiClient.post('/document-templates', formData, {
       headers: {
         Authorization: `Bearer ${user?.token}`,
+        'Content-Type': 'multipart/form-data',
       },
-      body: formData
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP ${response.status}`);
-    }
-
-    const responseData = await response.json();
-    return responseData;
+    return response.data;
   } catch (error: any) {
+    if (error.response) {
+      throw new Error(error.response.data?.message || `HTTP ${error.response.status}`);
+    }
     throw new Error(error.message || 'Erro ao criar template de documento');
   }
 };

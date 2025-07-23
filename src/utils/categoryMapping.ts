@@ -1,43 +1,45 @@
-// Mapeamento de categorias do frontend para API
 export const categoryToApiCategory = {
-  'contratos': 'Contratos',
-  'permuta': 'Permuta',
-  'eventos': 'Eventos',
-  'ensaios': 'Ensaios',
-  'outros': 'Outros'
+  'contratos': 'contratos',
+  'permuta': 'permuta',
+  'eventos': 'eventos',
+  'ensaios': 'ensaios',
+  'outros': 'outros'
 } as const;
 
-// Mapeamento de categorias da API para frontend
 export const apiCategoryToCategory = {
-  'Contratos': 'contratos',
-  'Permuta': 'permuta',
-  'Eventos': 'eventos',
-  'Ensaios': 'ensaios',
-  'Outros': 'outros'
+  'contratos': 'contratos',
+  'permuta': 'permuta',
+  'eventos': 'eventos',
+  'ensaios': 'ensaios',
+  'outros': 'outros'
 } as const;
 
 export type ModelCategory = 'contratos' | 'permuta' | 'eventos' | 'ensaios' | 'outros';
-export type ApiCategory = 'Contratos' | 'Permuta' | 'Eventos' | 'Ensaios' | 'Outros';
+export type ApiCategory = 'contratos' | 'permuta' | 'eventos' | 'ensaios' | 'outros';
 
-// Função para mapear categoria do frontend para API
 export function mapCategoryToApi(category: ModelCategory): ApiCategory {
   return categoryToApiCategory[category];
 }
 
-// Função para mapear categoria da API para frontend
 export function mapApiToCategory(apiCategory: string): ModelCategory {
-  const normalized = apiCategory as keyof typeof apiCategoryToCategory;
+  if (!apiCategory) return 'outros';
+  
+  const trimmed = apiCategory.trim().toLowerCase();
+  const normalized = trimmed as keyof typeof apiCategoryToCategory;
   return apiCategoryToCategory[normalized] || 'outros';
 }
 
-// Função para detectar categoria baseada no nome/conteúdo
 export function detectCategoryFromText(text: string): ModelCategory {
+  if (!text) return 'outros';
+  
   const lowerText = text.toLowerCase();
   
-  if (lowerText.includes('contrato')) return 'contratos';
-  if (lowerText.includes('permuta') || lowerText.includes('troca')) return 'permuta';
-  if (lowerText.includes('evento') || lowerText.includes('casamento') || lowerText.includes('festa')) return 'eventos';
-  if (lowerText.includes('ensaio') || lowerText.includes('book') || lowerText.includes('sessão')) return 'ensaios';
+  if (lowerText.includes('contrato') || lowerText.includes('acordo') || lowerText.includes('termo')) return 'contratos';
+  if (lowerText.includes('permuta') || lowerText.includes('troca') || lowerText.includes('intercâmbio')) return 'permuta';
+  if (lowerText.includes('evento') || lowerText.includes('casamento') || lowerText.includes('festa') || 
+      lowerText.includes('celebração') || lowerText.includes('aniversário') || lowerText.includes('formatura')) return 'eventos';
+  if (lowerText.includes('ensaio') || lowerText.includes('book') || lowerText.includes('sessão') || 
+      lowerText.includes('fotografia') || lowerText.includes('fotos')) return 'ensaios';
   
   return 'outros';
 }
