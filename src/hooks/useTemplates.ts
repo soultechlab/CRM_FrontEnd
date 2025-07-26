@@ -25,12 +25,11 @@ interface UseTemplatesReturn {
   loading: boolean;
   error: string | null;
   
-  // Actions
   obterTemplates: (filters?: DocumentTemplateFilters) => Promise<void>;
   obterTemplatesAvailables: () => Promise<{ default: DocumentTemplate[]; custom: DocumentTemplate[]; total: number } | null>;
   criar: (data: CreateDocumentTemplateData) => Promise<boolean>;
   atualizar: (id: number, data: Partial<CreateDocumentTemplateData>) => Promise<boolean>;
-  excluir: (id: number) => Promise<boolean>;
+  excluir: (id: number) => Promise<{ success: boolean; isRealDelete: boolean; message: string }>;
   alternarStatus: (id: number) => Promise<boolean>;
   criarDocumento: (templateId: number, data: CreateDocumentFromTemplateData) => Promise<boolean>;
   obterEstatisticas: () => Promise<any>;
@@ -38,9 +37,8 @@ interface UseTemplatesReturn {
   restaurar: (id: number) => Promise<boolean>;
   debug: (id: number) => Promise<any>;
   
-  // Utilities
   clearError: () => void;
-  setError: React.Dispatch<React.SetStateAction<string | null>>; // Adicionar setError aqui
+  setError: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 export function useTemplates(): UseTemplatesReturn {
@@ -65,7 +63,6 @@ export function useTemplates(): UseTemplatesReturn {
       }
     } catch (err: any) {
       setError(err.message || 'Erro ao carregar templates');
-      console.error('Erro ao obter templates:', err);
     } finally {
       setLoading(false);
     }
@@ -88,9 +85,7 @@ export function useTemplates(): UseTemplatesReturn {
       
       return null;
     } catch (err: any) {
-      console.warn('API de templates não disponível, usando modo demo:', err.message);
       
-      // Modo demo - retornar templates de exemplo
       const demoTemplates = [
         {
           id: 1,
@@ -162,7 +157,6 @@ export function useTemplates(): UseTemplatesReturn {
       const response = await atualizarTemplateDocumento(id, data, user);
       
       if (response.success) {
-        // Atualizar na lista local
         setTemplates(prev => 
           prev.map(template => 
             template.id === id ? { ...template, ...response.data } : template
@@ -174,35 +168,41 @@ export function useTemplates(): UseTemplatesReturn {
       return false;
     } catch (err: any) {
       setError(err.message || 'Erro ao atualizar template');
-      console.error('Erro ao atualizar template:', err);
       return false;
     } finally {
       setLoading(false);
     }
   }, [user]);
 
-  const excluir = useCallback(async (id: number): Promise<boolean> => {
+  const excluir = useCallback(async (id: number): Promise<{ success: boolean; isRealDelete: boolean; message: string }> => {
+    setLoading(true);
+    setError(null);
+    
+    setTemplates(prev => prev.filter(template => template.id !== id));
+    
     try {
-      setLoading(true);
-      setError(null);
-      
       const response = await excluirTemplateDocumento(id, user);
       
       if (response.success) {
-        // Remover da lista local (soft delete)
-        setTemplates(prev => prev.filter(template => template.id !== id));
-        return true;
+        return {
+          success: true,
+          isRealDelete: true,
+          message: 'Template excluído permanentemente do servidor!'
+        };
       }
       
-      return false;
+      return {
+        success: true,
+        isRealDelete: false,
+        message: 'Template removido da lista (não foi possível excluir do servidor)'
+      };
     } catch (err: any) {
-      console.warn('API de exclusão não disponível, simulando exclusão:', err.message);
       
-      // Modo demo - simular exclusão
-      setTemplates(prev => prev.filter(template => template.id !== id));
-      setError('⚠️ Modo demonstração - Template removido localmente');
-      
-      return true;
+      return {
+        success: true,
+        isRealDelete: false,
+        message: 'Template ocultado localmente (servidor não disponível)'
+      };
     } finally {
       setLoading(false);
     }
@@ -216,7 +216,6 @@ export function useTemplates(): UseTemplatesReturn {
       const response = await alternarStatusTemplateDocumento(id, user);
       
       if (response.success) {
-        // Atualizar status na lista local
         setTemplates(prev => 
           prev.map(template => 
             template.id === id 
@@ -229,9 +228,7 @@ export function useTemplates(): UseTemplatesReturn {
       
       return false;
     } catch (err: any) {
-      console.warn('API de status não disponível, simulando alteração:', err.message);
       
-      // Modo demo - simular alteração de status
       setTemplates(prev => 
         prev.map(template => 
           template.id === id 
@@ -261,7 +258,6 @@ export function useTemplates(): UseTemplatesReturn {
       return false;
     } catch (err: any) {
       setError(err.message || 'Erro ao criar documento a partir do template');
-      console.error('Erro ao criar documento:', err);
       return false;
     } finally {
       setLoading(false);
@@ -282,7 +278,6 @@ export function useTemplates(): UseTemplatesReturn {
       return null;
     } catch (err: any) {
       setError(err.message || 'Erro ao obter estatísticas');
-      console.error('Erro ao obter estatísticas:', err);
       return null;
     } finally {
       setLoading(false);
@@ -303,7 +298,6 @@ export function useTemplates(): UseTemplatesReturn {
       return [];
     } catch (err: any) {
       setError(err.message || 'Erro ao obter templates da lixeira');
-      console.error('Erro ao obter lixeira:', err);
       return [];
     } finally {
       setLoading(false);
@@ -324,7 +318,6 @@ export function useTemplates(): UseTemplatesReturn {
       return false;
     } catch (err: any) {
       setError(err.message || 'Erro ao restaurar template');
-      console.error('Erro ao restaurar template:', err);
       return false;
     } finally {
       setLoading(false);
@@ -345,7 +338,6 @@ export function useTemplates(): UseTemplatesReturn {
       return null;
     } catch (err: any) {
       setError(err.message || 'Erro ao obter debug do template');
-      console.error('Erro ao obter debug do template:', err);
       return null;
     } finally {
       setLoading(false);

@@ -266,7 +266,7 @@ export function Modelos() {
   if (showTest) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4">
           <div className="mb-6">
             <button
               onClick={() => setShowTest(false)}
@@ -282,7 +282,7 @@ export function Modelos() {
   }
 
   return (
-    <>
+    <div className="min-h-screen bg-gray-50">
       <LumiDocsHeader 
         onNewDocumentClick={() => {}} 
         onNewModelClick={handleNewTemplate}
@@ -290,7 +290,7 @@ export function Modelos() {
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* HEADER */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center mb-8">
           <div className="flex items-center space-x-4">
             <h1 className="text-2xl font-bold text-gray-900">Modelos de Documentos</h1>
             {loading && (
@@ -300,11 +300,11 @@ export function Modelos() {
               </div>
             )}
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center sm:space-x-3 w-full sm:w-auto">
             <button
               onClick={handleSyncModels}
               disabled={loading}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Sincronizar modelos"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -361,8 +361,8 @@ export function Modelos() {
         {/* FILTERS */}
         <div className="space-y-8">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
-            <div className="flex flex-col lg:flex-row gap-4">
-              <div className="flex-1">
+            <div className="flex flex-col gap-4 lg:flex-row">
+              <div className="flex-1 min-w-0">
                 <div className="relative">
                   <input
                     type="text"
@@ -374,7 +374,7 @@ export function Modelos() {
                   <Search className="absolute left-4 top-3.5 h-5 w-5 text-gray-400" />
                 </div>
               </div>
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row w-full">
                 <div className="sm:w-48">
                   <div className="relative">
                     <input
@@ -415,8 +415,8 @@ export function Modelos() {
         </div>
 
         {/* TABS */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-5">
-          <div className="grid grid-cols-1 sm:grid-cols-6 divide-y sm:divide-y-0 sm:divide-x divide-gray-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-5 overflow-x-auto">
+          <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 divide-y xs:divide-y-0 sm:divide-x divide-gray-200 min-w-[400px]">
             {/* Filtro de Status como botão */}
             <button
               onClick={() => setActiveFilter('todos')}
@@ -517,11 +517,11 @@ export function Modelos() {
               </div>
             ) : (
               // Grid de modelos
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredTemplates.map((template) => (
                   <div
                     key={template.id}
-                    className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+                    className="border border-gray-200 rounded-lg p-4 sm:p-6 hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-start space-x-3">
@@ -541,7 +541,17 @@ export function Modelos() {
                             )}
                           </div>
                           {template.description && (
-                            <p className="text-sm text-gray-500 mt-1 overflow-hidden text-ellipsis" style={{display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>{template.description}</p>
+                            <p
+                              className="text-sm text-gray-500 mt-1 overflow-hidden break-words max-w-full"
+                              style={{
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                wordBreak: 'break-word'
+                              }}
+                            >
+                              {template.description}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -632,6 +642,6 @@ export function Modelos() {
           setSelectedTemplateForView(null);
         }}
       />
-    </>
+    </div>
   );
 }
