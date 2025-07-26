@@ -3,18 +3,17 @@ import { FileText, Search, Calendar, X, RefreshCw, AlertTriangle, CheckCircle, S
 import { LumiDocsHeader } from './components/LumiDocsHeader';
 import { NewModelModal } from './components/NewModelModal';
 import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
-import { UseTemplateModal } from './components/UseTemplateModal';
+import { DocumentoForm } from './components/DocumentoForm';
+import { Modal } from './components/Modal';
 import { ViewTemplateModal } from './components/ViewTemplateModal';
 import { Lixeira } from './Lixeira';
 import { TestSoftDelete } from './TestSoftDelete';
 import { DocumentTemplate, CreateDocumentTemplateData, BackendDocument } from '../../types';
-import { criarDocumentoAPartirDoTemplate } from '../../services/apiService'; // Importar a nova função da API
+import { Cliente as LocalCliente } from '../../services/apiService'; 
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext'; // Adicionar importação do useAuth
+import { useAuth } from '../../contexts/AuthContext';
 import { useTemplates } from '../../hooks/useTemplates';
 import { mapApiToCategory, mapCategoryToApi, detectCategoryFromText, type ModelCategory } from '../../utils/categoryMapping';
-
-// ModelCategory já está sendo importado de categoryMapping.ts
 
 interface TemplateWithCategory extends DocumentTemplate {
   category?: ModelCategory;
@@ -30,7 +29,7 @@ const categories: { key: ModelCategory; label: string; icon: React.ElementType }
 
 export function Modelos() {
   const navigate = useNavigate();
-  const { user } = useAuth(); // Obter o usuário autenticado
+  const { user } = useAuth(); 
   const {
     loading,
     error,
@@ -39,7 +38,7 @@ export function Modelos() {
     excluir,
     alternarStatus,
     clearError,
-    setError // Adicionar setError aqui
+    setError 
   } = useTemplates();
   
   const [templates, setTemplates] = useState<TemplateWithCategory[]>([]);
@@ -48,7 +47,7 @@ export function Modelos() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
-  const [activeFilter, setActiveFilter] = useState<'todos' | ModelCategory>('todos'); // Unificado
+  const [activeFilter, setActiveFilter] = useState<'todos' | ModelCategory>('todos'); 
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [deleteModal, setDeleteModal] = useState<{
@@ -62,10 +61,11 @@ export function Modelos() {
   });
   const [showTrash, setShowTrash] = useState(false);
   const [showTest, setShowTest] = useState(false);
-  const [isUseTemplateModalOpen, setIsUseTemplateModalOpen] = useState(false); // Novo estado
-  const [selectedTemplateForUse, setSelectedTemplateForUse] = useState<TemplateWithCategory | null>(null); // Novo estado
-  const [isViewTemplateModalOpen, setIsViewTemplateModalOpen] = useState(false); // Modal de visualização
-  const [selectedTemplateForView, setSelectedTemplateForView] = useState<TemplateWithCategory | null>(null); // Template para visualização
+  const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false); 
+  const [selectedTemplateForUse, setSelectedTemplateForUse] = useState<TemplateWithCategory | null>(null); 
+  const [templatePdfUrl, setTemplatePdfUrl] = useState<string | null>(null); 
+  const [isViewTemplateModalOpen, setIsViewTemplateModalOpen] = useState(false); 
+  const [selectedTemplateForView, setSelectedTemplateForView] = useState<TemplateWithCategory | null>(null);
 
   useEffect(() => {
     carregarTemplates();
@@ -81,15 +81,12 @@ export function Modelos() {
         const defaultTpls = response.default || [];
         const customTpls = response.custom || [];
         
-        // Mapear categoria da API para categorias do frontend
         const mapearCategoria = (template: DocumentTemplate): TemplateWithCategory => {
           let category: ModelCategory = 'outros';
           
-          // Se a API já tem categoria, usar ela como base
           if (template.category) {
             category = mapApiToCategory(template.category);
           } else {
-            // Fallback: detectar categoria baseada no nome
             category = detectCategoryFromText(template.name);
           }
           
@@ -123,7 +120,7 @@ export function Modelos() {
       
       const templateData: CreateDocumentTemplateData = {
         name: modelData.name,
-        category: mapCategoryToApi(modelData.category), // Converter para formato da API
+        category: mapCategoryToApi(modelData.category),
         description: modelData.description,
         file: modelData.file,
         is_active: true,
@@ -134,14 +131,12 @@ export function Modelos() {
       const success = await criar(templateData);
       
       if (success) {
-        await carregarTemplates(); // Recarregar lista
+        await carregarTemplates();
         setSuccessMessage('Modelo criado com sucesso!');
         setIsModalOpen(false);
         
-        // Limpar mensagem de sucesso após 3 segundos
         setTimeout(() => setSuccessMessage(null), 3000);
       } else {
-        // Erro já foi setado no hook useTemplates
         console.error('Falha ao criar template - verifique os logs do console');
       }
     } catch (error: any) {
@@ -185,7 +180,7 @@ export function Modelos() {
   };
   
   const closeDeleteModal = () => {
-    if (loading) return; // Impedir fechamento durante loading
+    if (loading) return; 
     setDeleteModal({
       isOpen: false,
       templateId: null,
@@ -205,22 +200,34 @@ export function Modelos() {
       console.error('Erro ao alterar status:', error);
     }
   };
-  
-  const handleUseTemplate = (template: TemplateWithCategory) => {
+
+  const handleUseTemplate = async (template: TemplateWithCategory) => {
     setSelectedTemplateForUse(template);
-    setIsUseTemplateModalOpen(true);
+    const pdfUrl = template.storage_url || template.file_path || '';
+    
+    if (!pdfUrl) {
+      setError('URL do PDF do template não encontrada');
+      return;
+    }
+
+    let fullUrl = pdfUrl;
+    if (!fullUrl.startsWith('http')) {
+      const baseUrl = import.meta.env.VITE_KODA_DESENVOLVIMENTO || 'http://localhost:8080';
+      fullUrl = `${baseUrl}${fullUrl.startsWith('/') ? '' : '/'}${fullUrl}`;
+    }
+
+    setTemplatePdfUrl(fullUrl);
+    setIsDocumentModalOpen(true);
   };
 
-  const handleCreateDocumentFromTemplate = async (documento: any) => {
+  const handleDocumentSubmit = async (documento: BackendDocument) => {
     try {
       clearError();
       setSuccessMessage('Documento criado com sucesso a partir do modelo!');
       setTimeout(() => setSuccessMessage(null), 3000);
-      setIsUseTemplateModalOpen(false);
+      setIsDocumentModalOpen(false);
       setSelectedTemplateForUse(null);
-      
-      // Opcionalmente redirecionar para a lista de documentos ou página de edição
-      // navigate('/documentos');
+      setTemplatePdfUrl(null);
     } catch (err: any) {
       setError(err.message || 'Erro ao criar documento a partir do modelo.');
     }
@@ -234,7 +241,7 @@ export function Modelos() {
   const clearFilters = () => {
     setSearchTerm('');
     setDateRange({ start: '', end: '' });
-    setActiveFilter('todos'); // Resetar para "Todos"
+    setActiveFilter('todos'); 
   };
 
   const filteredTemplates = templates.filter(template => {
@@ -257,12 +264,10 @@ export function Modelos() {
     return matchesFilter && matchesSearch && matchesDate;
   });
 
-  // Se estiver mostrando a lixeira, renderizar o componente Lixeira
   if (showTrash) {
     return <Lixeira onBack={() => setShowTrash(false)} />;
   }
 
-  // Se estiver mostrando o teste, renderizar o componente de teste
   if (showTest) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -289,7 +294,6 @@ export function Modelos() {
       />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* HEADER */}
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center mb-8">
           <div className="flex items-center space-x-4">
             <h1 className="text-2xl font-bold text-gray-900">Modelos de Documentos</h1>
@@ -313,7 +317,6 @@ export function Modelos() {
           </div>
         </div>
 
-        {/* ERROR/WARNING MESSAGE */}
         {error && (
           <div className={`mb-6 rounded-md p-4 ${
             error.includes('Modo demonstração') 
@@ -345,7 +348,6 @@ export function Modelos() {
           </div>
         )}
 
-        {/* SUCCESS MESSAGE */}
         {successMessage && (
           <div className="mb-6 bg-green-50 border border-green-200 rounded-md p-4">
             <div className="flex">
@@ -358,7 +360,6 @@ export function Modelos() {
           </div>
         )}
 
-        {/* FILTERS */}
         <div className="space-y-8">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
             <div className="flex flex-col gap-4 lg:flex-row">
@@ -414,109 +415,44 @@ export function Modelos() {
           </div>
         </div>
 
-        {/* TABS */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-5 overflow-x-auto">
           <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 divide-y xs:divide-y-0 sm:divide-x divide-gray-200 min-w-[400px]">
-            {/* Filtro de Status como botão */}
             <button
               onClick={() => setActiveFilter('todos')}
-              className={`
-                flex flex-col items-center justify-center p-4 transition-all
-                ${activeFilter === 'todos'
-                  ? 'bg-blue-50'
-                  : 'hover:bg-gray-50'
-                }
-              `}
+              className={`flex flex-col items-center justify-center p-4 transition-all ${activeFilter === 'todos' ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
             >
-              <div className={`
-                p-2 rounded-lg mb-2
-                ${activeFilter === 'todos'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-gray-100 text-gray-500'
-                }
-              `}>
-                <FileText className="h-5 w-5" /> {/* Ícone genérico para "Todos" */}
+              <div className={`p-2 rounded-lg mb-2 ${activeFilter === 'todos' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                <FileText className="h-5 w-5" />
               </div>
-              <span className={`
-                text-sm font-medium
-                ${activeFilter === 'todos'
-                  ? 'text-blue-700'
-                  : 'text-gray-700'
-                }
-              `}>
-                Todos
-              </span>
-              <span className={`
-                text-xs mt-1
-                ${activeFilter === 'todos'
-                  ? 'text-blue-600'
-                  : 'text-gray-500'
-                }
-              `}>
-                {templates.length}
-              </span>
+              <span className={`text-sm font-medium ${activeFilter === 'todos' ? 'text-blue-700' : 'text-gray-700'}`}>Todos</span>
+              <span className={`text-xs mt-1 ${activeFilter === 'todos' ? 'text-blue-600' : 'text-gray-500'}`}>{templates.length}</span>
             </button>
 
             {categories.map((category) => (
               <button
                 key={category.key}
                 onClick={() => setActiveFilter(category.key)}
-                className={`
-                  flex flex-col items-center justify-center p-4 transition-all
-                  ${activeFilter === category.key
-                    ? 'bg-blue-50'
-                    : 'hover:bg-gray-50'
-                  }
-                `}
+                className={`flex flex-col items-center justify-center p-4 transition-all ${activeFilter === category.key ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
               >
-                <div className={`
-                  p-2 rounded-lg mb-2
-                  ${activeFilter === category.key
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-100 text-gray-500'
-                  }
-                `}>
+                <div className={`p-2 rounded-lg mb-2 ${activeFilter === category.key ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                   <category.icon className="h-5 w-5" />
                 </div>
-                <span className={`
-                  text-sm font-medium
-                  ${activeFilter === category.key
-                    ? 'text-blue-700'
-                    : 'text-gray-700'
-                  }
-                `}>
-                  {category.label}
-                </span>
-                <span className={`
-                  text-xs mt-1
-                  ${activeFilter === category.key
-                    ? 'text-blue-600'
-                    : 'text-gray-500'
-                  }
-                `}>
-                  {templates.filter(t => t.category === category.key).length}
-                </span>
+                <span className={`text-sm font-medium ${activeFilter === category.key ? 'text-blue-700' : 'text-gray-700'}`}>{category.label}</span>
+                <span className={`text-xs mt-1 ${activeFilter === category.key ? 'text-blue-600' : 'text-gray-500'}`}>{templates.filter(t => t.category === category.key).length}</span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* CONTENT */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-5">
           <div className="p-6">
             {filteredTemplates.length === 0 ? (
-              // Estado vazio
               <div className="text-center py-12">
                 <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 text-lg">
-                  Nenhum modelo encontrado nesta categoria
-                </p>
-                <p className="text-gray-400 text-sm mt-2">
-                  Clique em "Novo Modelo" para criar seu primeiro modelo
-                </p>
+                <p className="text-gray-500 text-lg">Nenhum modelo encontrado nesta categoria</p>
+                <p className="text-gray-400 text-sm mt-2">Clique em "Novo Modelo" para criar seu primeiro modelo</p>
               </div>
             ) : (
-              // Grid de modelos
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredTemplates.map((template) => (
                   <div
@@ -599,49 +535,40 @@ export function Modelos() {
                       </button>
                     </div>
                   </div>
-                ))}
+                ))} 
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Modal para novo modelo */}
-      <NewModelModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handleModelSubmit}
-      />
-
-      {/* Modal de confirmação de exclusão */}
-      <ConfirmDeleteModal
-        isOpen={deleteModal.isOpen}
-        onClose={closeDeleteModal}
-        onConfirm={confirmDeleteTemplate}
-        title="Excluir Template"
-        message={`Tem certeza que deseja excluir o template "${deleteModal.templateName}"? Esta ação não pode ser desfeita.`}
-        loading={loading}
-      />
-
-      {/* Novo Modal para usar template */}
-      {selectedTemplateForUse && (
-        <UseTemplateModal
-          template={selectedTemplateForUse}
-          isOpen={isUseTemplateModalOpen}
-          onClose={() => setIsUseTemplateModalOpen(false)}
-          onConfirm={handleCreateDocumentFromTemplate}
-        />
-      )}
-
-      {/* Modal para visualizar template */}
-      <ViewTemplateModal
-        template={selectedTemplateForView}
-        isOpen={isViewTemplateModalOpen}
+      <NewModelModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSubmit={handleModelSubmit} />
+      <ConfirmDeleteModal isOpen={deleteModal.isOpen} onClose={closeDeleteModal} onConfirm={confirmDeleteTemplate} title="Excluir Template" message={`Tem certeza que deseja excluir o template "${deleteModal.templateName}"? Esta ação não pode ser desfeita.`} loading={loading} />
+      <Modal
+        isOpen={isDocumentModalOpen}
         onClose={() => {
-          setIsViewTemplateModalOpen(false);
-          setSelectedTemplateForView(null);
+          setIsDocumentModalOpen(false);
+          setSelectedTemplateForUse(null);
+          setTemplatePdfUrl(null);
         }}
-      />
+        title={`Criar Documento - ${selectedTemplateForUse?.name || ''}`}
+        maxWidth="max-w-7xl"
+      >
+        <DocumentoForm
+initialData={selectedTemplateForUse ? {
+            id: `template-${selectedTemplateForUse.id}`,
+            name: `${selectedTemplateForUse.name} - ${new Date().toLocaleDateString()}`,
+            storage_url: templatePdfUrl || '',
+            status: 'draft' as const,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            signers: [],
+user: user ? { id: Number(user.id), name: user.name, email: user.email } : { id: 0, name: '', email: '' }
+          } : undefined}
+          onSubmit={handleDocumentSubmit}
+        />
+      </Modal>
+      <ViewTemplateModal template={selectedTemplateForView} isOpen={isViewTemplateModalOpen} onClose={() => { setIsViewTemplateModalOpen(false); setSelectedTemplateForView(null); }} />
     </div>
   );
 }

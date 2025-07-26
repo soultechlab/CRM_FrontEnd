@@ -2,23 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { Search, X, FileText, Plus } from 'lucide-react';
 import { Cliente as LocalCliente, SignatureField } from '../utils/localStorage';
 import { BackendDocument } from '../../../types';
-// Importar configuração do PDF antes do PdfViewer
 import '../utils/pdfConfig';
 import { PdfViewer } from './PdfViewer';
-import { criarDocumento, CreateDocumentData, SignerData, obterClientes } from '../../../services/apiService';
+import { criarDocumento, CreateDocumentData, SignerData, obterClientes, Cliente } from '../../../services/apiService';
+
+interface TemplateFile extends File {
+  isTemplate?: boolean;
+  templateUrl?: string;
+}
 import { useAuth } from '../../../contexts/AuthContext';
 import { AddClientInline } from './AddClientInline';
 
-
 interface DocumentoFormProps {
   initialData?: BackendDocument;
+  initialFile?: File;
   onSubmit: (documento: BackendDocument) => void;
 }
 
-export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
+export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoFormProps) {
   const { user } = useAuth();
   const [nome, setNome] = useState(initialData?.name || '');
-  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [arquivo, setArquivo] = useState<TemplateFile | null>(initialFile || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClientes, setSelectedClientes] = useState<Array<{
     cliente: Cliente;
@@ -39,7 +43,6 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
       try {
         setLoading(true);
         setError(null);
-        
         
         if (!user) {
           setError('Usuário não autenticado');
@@ -72,7 +75,6 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar clientes';
         setError(errorMessage);
-        console.error('Erro ao carregar clientes:', err);
       } finally {
         setLoading(false);
       }
@@ -85,6 +87,22 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
       setError('Aguardando autenticação...');
     }
   }, [user, initialData]);
+
+  useEffect(() => {
+    if (initialFile) {
+      setArquivo(initialFile);
+    }
+  }, [initialFile]);
+
+  useEffect(() => {
+    if (initialData?.storage_url && !initialFile && !arquivo) {
+      const fileName = `${initialData.name.replace(/[^a-zA-Z0-9\s]/g, '_')}.pdf`;
+      const mockFile = new File([''], fileName, { type: 'application/pdf' }) as TemplateFile;
+      mockFile.isTemplate = true;
+      mockFile.templateUrl = initialData.storage_url;
+      setArquivo(mockFile);
+    }
+  }, [initialData, initialFile, arquivo]);
 
   const filteredClientes = clientes.filter(cliente => 
     !selectedClientes.find(sc => sc.cliente.id === cliente.id) &&
@@ -106,7 +124,7 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
         return;
       }
 
-      if (!initialData && !arquivo) {
+      if (!arquivo && !previewUrl) {
         setError('Por favor, selecione um arquivo PDF');
         return;
       }
@@ -135,17 +153,35 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
         }))
       }));
 
+      let finalFile = arquivo;
+      if (arquivo && arquivo.isTemplate && arquivo.templateUrl) {
+        try {
+          const response = await fetch(arquivo.templateUrl, {
+            method: 'GET'
+          });
+          
+          if (response.ok) {
+            const blob = await response.blob();
+            finalFile = new File([blob], arquivo.name, { type: 'application/pdf' });
+          } else {
+            throw new Error(`HTTP ${response.status}`);
+          }
+        } catch (error) {
+          setError('Erro ao processar PDF do template. Tente novamente.');
+          return;
+        }
+      }
+
       const documentData: CreateDocumentData = {
         name: nome.trim(),
         client_id: selectedClientes[0]?.cliente?.id,
-        file: arquivo!,
+        file: finalFile!,
         is_active: true,
         is_universal: false,
         signers: signersData
       };
       
-
-      if (arquivo) {
+      if (finalFile) {
         const createdDocument = await criarDocumento(documentData, user);
         onSubmit(createdDocument);
       } else {
@@ -154,8 +190,6 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
       }
 
     } catch (error) {
-      console.error('Erro ao salvar documento:', error);
-      
       if (error instanceof Error) {
         if (error.message.includes('network') || error.message.includes('fetch')) {
           setError('Erro de conexão. Verifique sua internet e tente novamente.');
@@ -417,7 +451,6 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
             required
           />
         </div>
-
 
         {!initialData && (
           <div>
