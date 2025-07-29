@@ -115,6 +115,17 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
     e.preventDefault();
     e.stopPropagation();
     
+    // Verificar se o evento veio do botão de submit correto
+    const submitter = (e.nativeEvent as SubmitEvent)?.submitter as HTMLButtonElement;
+    
+    // BLOQUEAR qualquer submit que não venha do botão específico
+    if (!submitter || submitter.id !== 'submit-document-button') {
+      console.log('🚫 Submit bloqueado - não veio do botão de salvar correto');
+      return;
+    }
+    
+    console.log('✅ Submit autorizado - veio do botão correto');
+    
     if (isSubmitting) return;
     setIsSubmitting(true);
     
@@ -663,7 +674,16 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
               </div>
             </div>
 
-            <div className="relative bg-gray-50 rounded-lg p-4">
+            <div 
+              className="relative bg-gray-50 rounded-lg p-4"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+              }}
+            >
               <PdfViewer
                 pdfUrl={previewUrl}
                 onPositionSelect={handleAddField}
@@ -688,6 +708,7 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
 
         <div className="flex justify-end space-x-3 pt-6 border-t">
           <button
+            id="submit-document-button"
             type="submit"
             disabled={isSubmitting}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"

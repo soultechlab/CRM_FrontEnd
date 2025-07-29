@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Document, Page } from 'react-pdf';
 import { X, GripHorizontal, UserCircle } from 'lucide-react';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
@@ -56,6 +56,7 @@ export function PdfViewer({
   const [showAllFields, setShowAllFields] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
 
   // Memoizar as opções do Document para evitar reloads desnecessários
   const documentOptions = useMemo(() => ({
@@ -81,16 +82,28 @@ export function PdfViewer({
   }
 
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    // SEMPRE prevenir propagação e comportamento padrão
+    event.preventDefault();
+    event.stopPropagation();
+    
     if (draggingField !== null || isDragging || readOnly || !onPositionSelect) return;
     
     if ((event.target as HTMLElement).closest('[data-field]')) return;
     
-    const target = event.currentTarget;
-    const rect = target.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * 100;
-    const y = ((event.clientY - rect.top) / rect.height) * 100;
+    // Encontrar o elemento da página PDF usando o ref
+    const pdfPageElement = pdfContainerRef.current?.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement;
+    if (!pdfPageElement) return;
     
-    onPositionSelect({ x, y, page: pageNumber });
+    const pdfRect = pdfPageElement.getBoundingClientRect();
+    
+    // Calcular posição relativa à página PDF real
+    const x = ((event.clientX - pdfRect.left) / pdfRect.width) * 100;
+    const y = ((event.clientY - pdfRect.top) / pdfRect.height) * 100;
+    
+    // Verificar se o clique foi dentro da área da página PDF
+    if (x >= 0 && x <= 100 && y >= 0 && y <= 100) {
+      onPositionSelect({ x, y, page: pageNumber });
+    }
   };
 
   const handleDragStart = (event: React.MouseEvent, index: number) => {
@@ -107,21 +120,29 @@ export function PdfViewer({
   };
 
   const handleDrag = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    
     if (draggingField === null) return;
 
-    const container = event.currentTarget.parentElement;
-    if (!container) return;
+    // Encontrar o elemento da página PDF usando o ref
+    const pdfPageElement = pdfContainerRef.current?.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement;
+    if (!pdfPageElement) return;
 
-    const rect = container.getBoundingClientRect();
-    const x = ((event.clientX - rect.left - dragOffset.x) / rect.width) * 100;
-    const y = ((event.clientY - rect.top - dragOffset.y) / rect.height) * 100;
+    const pdfRect = pdfPageElement.getBoundingClientRect();
+    const x = ((event.clientX - pdfRect.left - dragOffset.x) / pdfRect.width) * 100;
+    const y = ((event.clientY - pdfRect.top - dragOffset.y) / pdfRect.height) * 100;
 
     if (onMoveField) {
       onMoveField(draggingField, { x: Math.max(0, Math.min(x, 100)), y: Math.max(0, Math.min(y, 100)) });
     }
   };
 
-  const handleDragEnd = () => {
+  const handleDragEnd = (event?: React.MouseEvent) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     setDraggingField(null);
     setTimeout(() => setIsDragging(false), 100);
   };
@@ -158,54 +179,57 @@ export function PdfViewer({
     }
   };
 
-  const renderField = (field: Field, index: number, color: string, assinanteIndex: number, isActive: boolean = false) => (
-    <div
-      key={`${index}-${assinanteIndex}`}
-      data-field="true"
-      style={{
-        position: 'absolute',
-        left: `${field.position.x}%`,
-        top: `${field.position.y}%`,
-        width: `${field.width}%`,
-        height: `${field.height}%`,
-        border: `2px solid ${color}`,
-        backgroundColor: `${color}20`,
-        borderRadius: '4px',
-        cursor: isActive ? (draggingField === index ? 'grabbing' : 'grab') : 'default',
-        userSelect: 'none',
-        opacity: isActive ? 1 : 0.7,
-        zIndex: isActive ? 10 : 5
-      }}
-      onMouseDown={isActive ? (e) => handleDragStart(e, index) : undefined}
-    >
-      <div className="absolute -top-8 left-0 flex items-center space-x-1 z-20">
-        <div
-          className="text-xs font-medium px-2 py-1 rounded flex items-center space-x-1 shadow-sm"
-          style={{ backgroundColor: color, color: 'white' }}
-        >
-          {isActive && <GripHorizontal className="w-3 h-3" />}
-          <span>{getFieldLabel(field)}</span>
-          <span className="ml-1">
-            (A{assinanteIndex + 1})
-          </span>
-        </div>
-        {isActive && onDeleteField && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDeleteField(index);
-            }}
-            className="bg-red-500 text-white rounded p-1 hover:bg-red-600 shadow-sm"
+  const renderField = (field: Field, index: number, color: string, assinanteIndex: number, isActive: boolean = false) => {
+    return (
+      <div
+        key={`${index}-${assinanteIndex}`}
+        data-field="true"
+        style={{
+          position: 'absolute',
+          left: `${field.position.x}%`,
+          top: `${field.position.y}%`,
+          width: `${field.width}%`,
+          height: `${field.height}%`,
+          border: `2px solid ${color}`,
+          backgroundColor: `${color}20`,
+          borderRadius: '4px',
+          cursor: isActive ? (draggingField === index ? 'grabbing' : 'grab') : 'default',
+          userSelect: 'none',
+          opacity: isActive ? 1 : 0.7,
+          zIndex: isActive ? 10 : 5,
+          transform: 'translate(0, 0)' // Força compositing para melhor performance
+        }}
+        onMouseDown={isActive ? (e) => handleDragStart(e, index) : undefined}
+      >
+        <div className="absolute -top-8 left-0 flex items-center space-x-1 z-20">
+          <div
+            className="text-xs font-medium px-2 py-1 rounded flex items-center space-x-1 shadow-sm"
+            style={{ backgroundColor: color, color: 'white' }}
           >
-            <X className="w-3 h-3" />
-          </button>
-        )}
+            {isActive && <GripHorizontal className="w-3 h-3" />}
+            <span>{getFieldLabel(field)}</span>
+            <span className="ml-1">
+              (A{assinanteIndex + 1})
+            </span>
+          </div>
+          {isActive && onDeleteField && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteField(index);
+              }}
+              className="bg-red-500 text-white rounded p-1 hover:bg-red-600 shadow-sm"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+        <div className="w-full h-full flex items-center justify-center text-xs text-gray-700 overflow-hidden p-1 font-medium">
+          {getFieldPreview(field, assinanteIndex)}
+        </div>
       </div>
-      <div className="w-full h-full flex items-center justify-center text-xs text-gray-700 overflow-hidden p-1 font-medium">
-        {getFieldPreview(field, assinanteIndex)}
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="pdf-viewer">
@@ -264,10 +288,12 @@ export function PdfViewer({
       </div>
       
       <div 
+        ref={pdfContainerRef}
         className="relative cursor-crosshair border-2 border-dashed border-gray-300 rounded-lg overflow-hidden" 
         onClick={handleClick}
         onMouseMove={handleDrag}
-        onMouseUp={handleDragEnd}
+        onMouseUp={(e) => handleDragEnd(e)}
+        style={{ display: 'flex', justifyContent: 'center' }}
       >
         {error ? (
           <div className="flex flex-col items-center justify-center h-96 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg">
@@ -300,28 +326,50 @@ export function PdfViewer({
               renderAnnotationLayer={false}
               className="pdf-page w-full"
               width={800}
+              onLoadSuccess={({ width, height }) => {
+                // Garantir que as dimensões da página estão disponíveis
+                console.log('Página carregada com dimensões:', width, height);
+              }}
             />
           </Document>
         )}
 
-        {/* Current signer's fields */}
-        {fields.filter(f => f.position.page === pageNumber).map((field, index) => (
-          renderField(
-            field, 
-            index, 
-            previewData?.assinanteIndex !== undefined ? allSignerFields[previewData.assinanteIndex]?.color || 'rgb(59 130 246)' : 'rgb(59 130 246)', 
-            previewData?.assinanteIndex || 0, 
-            true
-          )
-        ))}
+        {/* Fields overlay positioned absolutely */}
+        <div 
+          className="absolute top-0 left-0 w-full h-full pointer-events-none"
+          style={{ 
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%'
+          }}
+        >
+          {/* Current signer's fields */}
+          {fields.filter(f => f.position.page === pageNumber).map((field, index) => (
+            <div key={`current-${index}`} className="pointer-events-auto">
+              {renderField(
+                field, 
+                index, 
+                previewData?.assinanteIndex !== undefined ? allSignerFields[previewData.assinanteIndex]?.color || 'rgb(59 130 246)' : 'rgb(59 130 246)', 
+                previewData?.assinanteIndex || 0, 
+                true
+              )}
+            </div>
+          ))}
 
-        {/* Other signers' fields */}
-        {showAllFields && allSignerFields.map((signer) => (
-          signer.assinanteIndex !== previewData?.assinanteIndex &&
-          signer.fields
-            .filter(f => f.position.page === pageNumber)
-            .map((field, index) => renderField(field, index, signer.color, signer.assinanteIndex))
-        ))}
+          {/* Other signers' fields */}
+          {showAllFields && allSignerFields.map((signer) => (
+            signer.assinanteIndex !== previewData?.assinanteIndex &&
+            signer.fields
+              .filter(f => f.position.page === pageNumber)
+              .map((field, index) => (
+                <div key={`signer-${signer.assinanteIndex}-${index}`} className="pointer-events-none">
+                  {renderField(field, index, signer.color, signer.assinanteIndex)}
+                </div>
+              ))
+          ))}
+        </div>
       </div>
       
       {!readOnly && (
