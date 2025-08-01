@@ -299,12 +299,12 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full max-h-[95vh] overflow-hidden flex">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-xs sm:max-w-2xl md:max-w-4xl lg:max-w-7xl max-h-[95vh] overflow-hidden flex flex-col sm:flex-row">
         {/* PDF Preview Side */}
-        <div className="w-1/2 bg-gray-100 flex flex-col">
-          <div className="p-4 border-b border-gray-200">
-            <h4 className="text-sm font-medium text-gray-900">Preview do Template</h4>
+        <div className="w-full sm:w-1/2 bg-gray-100 flex flex-col">
+          <div className="p-2 sm:p-4 border-b border-gray-200">
+            <h4 className="text-xs sm:text-sm font-medium text-gray-900">Preview do Template</h4>
             <p className="text-xs text-gray-500 mt-1">{template.name}</p>
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -329,16 +329,16 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
         </div>
 
         {/* Form Side */}
-        <div className="w-1/2 flex flex-col">
+        <div className="w-full sm:w-1/2 flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between p-3 sm:p-6 border-b border-gray-200">
             <div className="flex items-center">
-              <FileText className="w-6 h-6 text-blue-600 mr-3" />
+              <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 mr-2 sm:mr-3" />
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">
                   Criar Documento
                 </h3>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">
                   A partir do modelo: {template.name}
                 </p>
               </div>
@@ -347,12 +347,12 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 transition-colors"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
           </div>
 
           {/* Content */}
-          <div className="p-6 flex-1 overflow-y-auto">
+          <div className="p-3 sm:p-6 flex-1 overflow-y-auto">
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
                 <div className="flex items-center">
@@ -373,7 +373,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 placeholder="Digite o nome do documento"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-2 py-1 sm:px-3 sm:py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-base"
                 disabled={isSubmitting}
               />
             </div>
@@ -384,7 +384,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                 Assinantes <span className="text-red-500">*</span>
               </label>
               
-              <div className="flex gap-2 mb-4">
+              <div className="flex flex-col sm:flex-row gap-2 mb-4">
                 <div className="flex-1 relative">
                   <input
                     type="text"
@@ -393,7 +393,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onFocus={() => setShowClientList(true)}
                     onBlur={() => setTimeout(() => setShowClientList(false), 200)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-2 py-1 sm:px-3 sm:py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-base"
                     disabled={isSubmitting || loading}
                   />
                   {loading && (
@@ -427,7 +427,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                 <button
                   type="button"
                   onClick={() => setShowAddClientForm(true)}
-                  className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                  className="px-2 py-1 sm:px-3 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center text-xs sm:text-base"
                   disabled={isSubmitting}
                 >
                   <Plus className="h-4 w-4 mr-1" />
@@ -449,7 +449,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                 {selectedClientes.map((sc, index) => (
                   <div
                     key={sc.cliente.id}
-                    className={`p-4 rounded-lg border-2 transition-colors ${
+                    className={`p-2 sm:p-4 rounded-lg border-2 transition-colors ${
                       currentClienteIndex === index
                         ? 'border-blue-500 bg-blue-50'
                         : 'border-gray-200 bg-white'
@@ -458,13 +458,13 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                     <div className="flex justify-between items-start">
                       <div className="flex items-center space-x-3">
                         <div
-                          className="w-4 h-4 rounded-full flex-shrink-0"
+                          className="w-3 h-3 sm:w-4 sm:h-4 rounded-full flex-shrink-0"
                           style={{ backgroundColor: getFieldColor(index) }}
                         />
                         <div>
-                          <div className="font-medium text-gray-900">{sc.cliente.nome}</div>
-                          <div className="text-sm text-gray-500">{sc.cliente.email}</div>
-                          <div className="text-sm text-gray-500">
+                          <div className="font-medium text-gray-900 text-xs sm:text-base">{sc.cliente.nome}</div>
+                          <div className="text-xs sm:text-sm text-gray-500">{sc.cliente.email}</div>
+                          <div className="text-xs sm:text-sm text-gray-500">
                             Campos definidos: {sc.fields.length}
                             {sc.fields.length > 0 && (
                               <span className="ml-2 text-green-600">✓</span>
@@ -482,7 +482,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                               currentClienteIndex === index ? null : index
                             );
                           }}
-                          className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                          className={`px-2 py-1 sm:px-3 sm:py-1 rounded text-xs sm:text-sm font-medium transition-colors ${
                             currentClienteIndex === index
                               ? 'bg-blue-600 text-white'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -499,7 +499,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                           }}
                           className="text-red-500 hover:text-red-700 p-1"
                         >
-                          <X size={20} />
+                          <X size={16} className="sm:w-5 sm:h-5" />
                         </button>
                       </div>
                     </div>
@@ -511,17 +511,17 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
             {previewUrl && currentClienteIndex !== null && (
               <div className="border-t pt-6">
                 <div className="mb-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
                     Definir campos para{' '}
                     <span style={{ color: getFieldColor(currentClienteIndex) }}>
                       {selectedClientes[currentClienteIndex].cliente.nome}
                     </span>
                   </h3>
-                  <div className="flex flex-wrap gap-2 mb-4">
+                  <div className="flex flex-wrap gap-1 sm:gap-2 mb-2 sm:mb-4">
                     <button
                       type="button"
                       onClick={() => setFieldType('assinatura')}
-                      className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
+                      className={`px-2 py-1 sm:px-3 sm:py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
                         fieldType === 'assinatura'
                           ? 'bg-blue-600 text-white'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -532,7 +532,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                     <button
                       type="button"
                       onClick={() => setFieldType('nome')}
-                      className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
+                      className={`px-2 py-1 sm:px-3 sm:py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
                         fieldType === 'nome'
                           ? 'bg-blue-600 text-white'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -543,7 +543,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                     <button
                       type="button"
                       onClick={() => setFieldType('email')}
-                      className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
+                      className={`px-2 py-1 sm:px-3 sm:py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
                         fieldType === 'email'
                           ? 'bg-blue-600 text-white'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -554,7 +554,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                     <button
                       type="button"
                       onClick={() => setFieldType('cpf')}
-                      className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
+                      className={`px-2 py-1 sm:px-3 sm:py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
                         fieldType === 'cpf'
                           ? 'bg-blue-600 text-white'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -563,7 +563,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                       CPF
                     </button>
                   </div>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-xs sm:text-sm text-gray-600">
                     Clique no PDF à esquerda para posicionar os campos de{' '}
                     <span className="font-medium">{fieldType}</span> para{' '}
                     <span className="font-medium">{selectedClientes[currentClienteIndex].cliente.nome}</span>
@@ -574,10 +574,10 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
           </div>
 
           {/* Footer */}
-          <div className="bg-gray-50 px-6 py-4 flex items-center justify-end space-x-3 border-t border-gray-200">
+          <div className="bg-gray-50 px-2 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-end gap-2 sm:gap-3 border-t border-gray-200">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors w-full sm:w-auto"
               disabled={isSubmitting}
             >
               Cancelar
@@ -585,7 +585,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
             <button
               onClick={handleSubmit}
               disabled={isSubmitting || !nome.trim() || selectedClientes.length === 0}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center"
+              className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center w-full sm:w-auto"
             >
               {isSubmitting ? (
                 <>

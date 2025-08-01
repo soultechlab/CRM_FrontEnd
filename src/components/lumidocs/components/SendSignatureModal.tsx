@@ -62,17 +62,17 @@ export function SendSignatureModal({ document, isOpen, onClose, onConfirm, isRes
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-xs sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-3 sm:p-6 border-b border-gray-200">
           <div className="flex items-center">
-            <Mail className="w-6 h-6 text-blue-600 mr-3" />
+            <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 mr-2 sm:mr-3" />
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">
                 {isResend ? 'Reenviar para Assinatura' : 'Confirmar Envio para Assinatura'}
               </h3>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-xs sm:text-sm text-gray-500 mt-1">
                 {document.name}
               </p>
             </div>
@@ -81,59 +81,59 @@ export function SendSignatureModal({ document, isOpen, onClose, onConfirm, isRes
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-3 sm:p-6">
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="text-md font-medium text-gray-900">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-4 gap-2">
+              <h4 className="text-sm sm:text-md font-medium text-gray-900">
                 Destinatários ({editableSigners.length})
               </h4>
               <button
                 onClick={() => setIsEditing(!isEditing)}
-                className="flex items-center px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+                className="flex items-center px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm text-blue-600 hover:text-blue-700 transition-colors"
               >
                 <Edit3 className="w-4 h-4 mr-1" />
                 {isEditing ? 'Concluir Edição' : 'Editar'}
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {editableSigners.map((signer, index) => (
-                <div key={signer.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <span className="text-sm font-medium text-blue-600">
+                <div key={signer.id} className="bg-gray-50 rounded-lg p-2 sm:p-4 border border-gray-200">
+                  <div className="flex items-start space-x-2 sm:space-x-3">
+                    <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <span className="text-xs sm:text-sm font-medium text-blue-600">
                         {index + 1}
                       </span>
                     </div>
-                    <div className="flex-1 space-y-2">
+                    <div className="flex-1 space-y-1 sm:space-y-2">
                       {isEditing ? (
                         <>
                           <input
                             type="text"
                             value={signer.signer_name}
                             onChange={(e) => handleNameChange(index, e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-2 py-1 sm:px-3 sm:py-2 border border-gray-300 rounded-md text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             placeholder="Nome do signatário"
                           />
                           <input
                             type="email"
                             value={signer.signer_email}
                             onChange={(e) => handleEmailChange(index, e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-2 py-1 sm:px-3 sm:py-2 border border-gray-300 rounded-md text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             placeholder="email@exemplo.com"
                           />
                         </>
                       ) : (
                         <>
-                          <div className="font-medium text-gray-900">
+                          <div className="font-medium text-gray-900 text-xs sm:text-base">
                             {signer.signer_name}
                           </div>
-                          <div className="text-sm text-gray-600 flex items-center">
+                          <div className="text-xs sm:text-sm text-gray-600 flex items-center">
                             <Mail className="w-4 h-4 mr-1" />
                             {signer.signer_email}
                           </div>
@@ -146,10 +146,10 @@ export function SendSignatureModal({ document, isOpen, onClose, onConfirm, isRes
             </div>
 
             {!hasValidEmails && (
-              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+              <div className="mt-3 sm:mt-4 p-2 sm:p-3 bg-red-50 border border-red-200 rounded-md">
                 <div className="flex items-center">
                   <AlertCircle className="w-4 h-4 text-red-500 mr-2" />
-                  <span className="text-sm text-red-700">
+                  <span className="text-xs sm:text-sm text-red-700">
                     Todos os emails devem ser válidos para enviar o documento
                   </span>
                 </div>
@@ -157,9 +157,9 @@ export function SendSignatureModal({ document, isOpen, onClose, onConfirm, isRes
             )}
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h5 className="font-medium text-blue-900 mb-2">O que acontecerá:</h5>
-            <ul className="text-sm text-blue-800 space-y-1">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-4 mb-4 sm:mb-6">
+            <h5 className="font-medium text-blue-900 mb-1 sm:mb-2 text-xs sm:text-base">O que acontecerá:</h5>
+            <ul className="text-xs sm:text-sm text-blue-800 space-y-1">
               <li>• Cada destinatário receberá {isResend ? 'um novo' : 'um'} email com o link de assinatura</li>
               {isResend && <li>• Os links de assinatura anteriores continuarão válidos</li>}
               <li>• O documento {isResend ? 'continuará' : 'ficará'} com status "Aguardando Assinatura"</li>
@@ -169,10 +169,10 @@ export function SendSignatureModal({ document, isOpen, onClose, onConfirm, isRes
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 px-6 py-4 flex items-center justify-end space-x-3">
+        <div className="bg-gray-50 px-2 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-end gap-2 sm:gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors w-full sm:w-auto"
             disabled={isSubmitting}
           >
             Cancelar
@@ -180,7 +180,7 @@ export function SendSignatureModal({ document, isOpen, onClose, onConfirm, isRes
           <button
             onClick={handleConfirm}
             disabled={!hasValidEmails || isSubmitting}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center"
+            className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center w-full sm:w-auto"
           >
             {isSubmitting ? (
               <>

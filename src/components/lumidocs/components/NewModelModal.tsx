@@ -230,7 +230,7 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Novo Modelo" maxWidth="max-w-6xl">
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 px-2 sm:px-0">
         {/* Nome do modelo */}
         <div>
           <label htmlFor="modelName" className="block text-sm font-medium text-gray-700 mb-2">
@@ -242,9 +242,9 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Digite o nome do modelo"
-            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+            className={`w-full px-2 py-1 sm:px-3 sm:py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               errors.name ? 'border-red-500' : 'border-gray-300'
-            }`}
+            } text-sm sm:text-base`}
             disabled={isSubmitting}
           />
           {errors.name && (
@@ -264,7 +264,7 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
             id="modelCategory"
             value={category}
             onChange={(e) => setCategory(e.target.value as ModelCategory)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-2 py-1 sm:px-3 sm:py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
             disabled={isSubmitting}
           >
             {categories.map((cat) => (
@@ -286,7 +286,7 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Descreva o modelo e quando utilizá-lo"
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-2 py-1 sm:px-3 sm:py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
             disabled={isSubmitting}
           />
         </div>
@@ -296,11 +296,11 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
           <label className="block text-sm font-medium text-gray-700 mb-3">
             Como você quer criar o modelo? *
           </label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-2 sm:gap-3 md:grid-cols-2">
             <button
               type="button"
               onClick={() => setCreationMethod('upload')}
-              className={`p-4 border-2 rounded-lg text-left transition-all ${
+              className={`p-2 sm:p-4 border-2 rounded-lg text-left transition-all ${
                 creationMethod === 'upload'
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-300 hover:border-gray-400'
@@ -319,7 +319,7 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
             <button
               type="button"
               onClick={() => setCreationMethod('create')}
-              className={`p-4 border-2 rounded-lg text-left transition-all ${
+              className={`p-2 sm:p-4 border-2 rounded-lg text-left transition-all ${
                 creationMethod === 'create'
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-300 hover:border-gray-400'
@@ -352,7 +352,7 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onFocus={loadClientes}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-2 py-1 sm:px-3 sm:py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                     disabled={isSubmitting}
                   />
                   {loadingClientes && (
@@ -378,7 +378,7 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
                 <button
                   type="button"
                   onClick={() => setShowAddClientForm(true)}
-                  className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                  className="px-2 py-1 sm:px-3 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center text-sm sm:text-base"
                   disabled={isSubmitting}
                 >
                   <Plus className="h-4 w-4 mr-1" />
@@ -402,7 +402,7 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
                   {selectedClientes.map((cliente) => (
                     <div
                       key={cliente.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg"
                     >
                       <div>
                         <div className="font-medium text-gray-900">{cliente.nome}</div>
@@ -422,7 +422,7 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
               )}
 
               {selectedClientes.length > 0 && (
-                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="mt-2 sm:mt-4 p-2 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-start">
                     <AlertCircle className="h-5 w-5 text-blue-600 mr-2 mt-0.5" />
                     <div className="text-sm text-blue-800">
@@ -446,7 +446,7 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
               Arquivo do modelo *
             </label>
           <div
-            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+            className={`border-2 border-dashed rounded-lg p-3 sm:p-6 text-center transition-colors ${
               dragActive
                 ? 'border-blue-500 bg-blue-50'
                 : errors.file
@@ -469,9 +469,9 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
             
             {file ? (
               <div className="flex items-center justify-center space-x-2">
-                <FileText className="h-8 w-8 text-green-600" />
+                <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{file.name}</p>
+                  <p className="text-xs sm:text-sm font-medium text-gray-900">{file.name}</p>
                   <p className="text-xs text-gray-500">
                     {(file.size / 1024 / 1024).toFixed(2)} MB
                   </p>
@@ -487,8 +487,8 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
               </div>
             ) : (
               <div>
-                <Upload className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">
+                <Upload className="h-8 w-8 sm:h-12 sm:w-12 text-gray-400 mx-auto mb-2" />
+                <p className="text-xs sm:text-sm text-gray-600">
                   Arraste um arquivo PDF aqui ou{' '}
                   <button
                     type="button"
@@ -516,8 +516,8 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
 
         {/* Erro geral */}
         {errors.general && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-600 flex items-center">
+          <div className="p-2 sm:p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-xs sm:text-sm text-red-600 flex items-center">
               <AlertCircle className="h-4 w-4 mr-1" />
               {errors.general}
             </p>
@@ -525,18 +525,18 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
         )}
 
         {/* Botões */}
-        <div className="flex justify-end space-x-3 pt-4">
+        <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-2 sm:pt-4">
           <button
             type="button"
             onClick={handleClose}
-            className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-3 py-1 sm:px-4 sm:py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm sm:text-base"
             disabled={isSubmitting}
           >
             Cancelar
           </button>
           <button
             type="submit"
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
             disabled={isSubmitting || !name.trim() || !creationMethod || (creationMethod === 'upload' && !file)}
           >
             {isSubmitting ? 'Processando...' : 

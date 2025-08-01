@@ -488,25 +488,25 @@ export function DocumentEditor() {
       }} />
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between h-auto sm:h-16 gap-2 sm:gap-0 py-2 sm:py-0">
             <div className="flex items-center">
               <button
                 onClick={() => navigate('/modelos')}
-                className="mr-4 p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
+                className="mr-2 sm:mr-4 p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div>
-                <h1 className="text-xl font-semibold text-gray-900">{modelName}</h1>
-                <p className="text-sm text-gray-500">Editor de Modelo</p>
+                <h1 className="text-lg sm:text-xl font-semibold text-gray-900">{modelName}</h1>
+                <p className="text-xs sm:text-sm text-gray-500">Editor de Modelo</p>
               </div>
             </div>
             
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto">
               <button
                 onClick={handleDownload}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 border border-gray-300 rounded-lg text-xs sm:text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
               >
                 <Download className="h-4 w-4 mr-2" />
                 Baixar
@@ -514,7 +514,7 @@ export function DocumentEditor() {
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 w-full sm:w-auto"
               >
                 <Save className="h-4 w-4 mr-2" />
                 {isSaving ? 'Salvando...' : 'Salvar Modelo'}
@@ -526,8 +526,8 @@ export function DocumentEditor() {
 
       {/* Toolbar */}
       <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-center py-3 space-x-1">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+          <div className="flex flex-wrap items-center py-2 sm:py-3 gap-1 sm:space-x-1">
             {/* Font and Size */}
             <div className="flex items-center space-x-2 mr-4">
               <Type className="h-4 w-4 text-gray-500" />
@@ -657,9 +657,9 @@ export function DocumentEditor() {
       </div>
 
       {/* Editor */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="p-8">
+      <div className="max-w-full sm:max-w-4xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-8">
+        <div className="bg-white rounded-md sm:rounded-lg shadow-sm border">
+          <div className="p-3 sm:p-8">
             <div
               ref={editorRef}
               contentEditable
@@ -697,7 +697,7 @@ export function DocumentEditor() {
                   }
                 }
               }}
-              className="min-h-[600px] outline-none prose prose-sm max-w-none document-editor"
+              className="min-h-[300px] sm:min-h-[600px] outline-none prose prose-sm max-w-none document-editor"
               style={{ 
                 fontFamily: selectedFont, 
                 fontSize: `${selectedSize}px`, 
