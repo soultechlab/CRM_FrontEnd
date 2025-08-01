@@ -8,11 +8,12 @@ import 'react-pdf/dist/esm/Page/TextLayer.css';
 import { pdfjs } from '../utils/pdfConfig';
 
 interface Field {
-  type: 'assinatura' | 'nome' | 'email' | 'cpf';
+  type: 'assinatura' | 'nome' | 'email' | 'cpf' | 'customizado';
   position: { x: number; y: number; page: number };
   width: number;
   height: number;
   color?: string;
+  customText?: string; // Para campos customizados
 }
 
 interface PdfViewerProps {
@@ -159,6 +160,8 @@ export function PdfViewer({
         return assinanteIndex === previewData.assinanteIndex ? previewData.email : `[Email do Assinante ${assinanteIndex + 1}]`;
       case 'cpf':
         return assinanteIndex === previewData.assinanteIndex ? previewData.cpf : `[CPF do Assinante ${assinanteIndex + 1}]`;
+      case 'customizado':
+        return field.customText || '[Texto Customizado]';
       default:
         return '';
     }
@@ -174,6 +177,8 @@ export function PdfViewer({
         return 'E-mail';
       case 'cpf':
         return 'CPF';
+      case 'customizado':
+        return 'Texto Customizado';
       default:
         return '';
     }
@@ -224,7 +229,7 @@ export function PdfViewer({
             </button>
           )}
         </div>
-        <div className="w-full h-full flex items-center justify-center text-xs text-gray-700 overflow-hidden p-1 font-medium">
+        <div className="w-full h-full flex items-start justify-start text-xs text-gray-700 overflow-hidden p-1 font-medium leading-tight">
           {getFieldPreview(field, assinanteIndex)}
         </div>
       </div>

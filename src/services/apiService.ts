@@ -5,12 +5,77 @@ import { Transacao } from '../types/financeiro';
 
 const API_BASE_URL = import.meta.env.VITE_KODA_DESENVOLVIMENTO;
 
+// Validar se a URL da API está configurada
+if (!API_BASE_URL) {
+  console.error('VITE_KODA_DESENVOLVIMENTO não está configurado no .env');
+}
+
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000, // 30 segundos de timeout
 });
+
+// Helper para testar conectividade da API
+export const testarConectividadeAPI = async (user: User | null) => {
+  try {
+    console.log('=== TESTANDO CONECTIVIDADE ===');
+    console.log('API_BASE_URL:', API_BASE_URL);
+    console.log('URL completa:', `${API_BASE_URL}/documents`);
+    console.log('Token presente:', !!user?.token);
+    
+    // Primeiro testar se o servidor está respondendo
+    const healthResponse = await fetch(`${API_BASE_URL}/health`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    }).catch(() => null);
+    
+    if (healthResponse) {
+      console.log('Health check:', {
+        status: healthResponse.status,
+        contentType: healthResponse.headers.get('content-type')
+      });
+    } else {
+      console.log('Health check falhou - servidor pode não estar respondendo');
+    }
+    
+    // Testar o endpoint de documentos
+    const testResponse = await fetch(`${API_BASE_URL}/documents`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    console.log('Teste endpoint /documents:', {
+      status: testResponse.status,
+      statusText: testResponse.statusText,
+      contentType: testResponse.headers.get('content-type'),
+      headers: Object.fromEntries(testResponse.headers.entries())
+    });
+    
+    // Capturar conteúdo da resposta para análise
+    const responseText = await testResponse.text();
+    console.log('Conteúdo da resposta (primeiros 300 chars):', responseText.substring(0, 300));
+    
+    // Se retornar HTML, significa que há problema de roteamento
+    const contentType = testResponse.headers.get('content-type');
+    if (contentType && contentType.includes('text/html')) {
+      console.error('API retornou HTML em vez de JSON - problema de roteamento');
+      return false;
+    }
+    
+    return testResponse.status !== 404;
+  } catch (error) {
+    console.error('Erro ao testar conectividade:', error);
+    return false;
+  }
+};
 
 // Autenticação
 export const signIn = async (email: string, password: string): Promise<any> => {
@@ -353,12 +418,50 @@ export const criarDocumento = async (data: CreateDocumentData, user: User | null
     formData.append('is_universal', data.is_universal ? 'true' : 'false');
     formData.append('is_active', data.is_active ? 'true' : 'false');
 
-    if (data.signers) {
+    if (data.signers && data.signers.length > 0) {
       formData.append('signers', JSON.stringify(data.signers));
+      console.log('Signers sendo enviados:', JSON.stringify(data.signers, null, 2));
+    } else {
+      console.log('Nenhum signer válido - enviando documento sem campos de assinatura');
     }
 
     if (!data.file || !(data.file instanceof File) || data.file.size === 0) {
       throw new Error('Arquivo PDF inválido ou corrompido');
+    }
+
+    // Log detalhado para debug
+    console.log('=== ENVIANDO DOCUMENTO ===');
+    console.log('URL completa da API:', `${API_BASE_URL}/documents`);
+    console.log('API_BASE_URL:', API_BASE_URL);
+    console.log('Token do usuário:', user?.token ? `${user.token.substring(0, 20)}...` : 'AUSENTE');
+    console.log('Dados básicos:', {
+      name: data.name,
+      fileSize: data.file.size,
+      fileName: data.file.name,
+      fileType: data.file.type,
+      clientId: data.client_id,
+      isUniversal: data.is_universal,
+      isActive: data.is_active,
+      signersCount: data.signers?.length || 0
+    });
+    
+    // Log dos signers em detalhes
+    if (data.signers) {
+      console.log('Signers detalhados:', JSON.stringify(data.signers, null, 2));
+    }
+    
+    // Log do FormData
+    console.log('FormData entries:');
+    for (let [key, value] of formData.entries()) {
+      if (key === 'file') {
+        console.log(`${key}:`, {
+          name: (value as File).name,
+          size: (value as File).size,
+          type: (value as File).type
+        });
+      } else {
+        console.log(`${key}:`, value);
+      }
     }
 
     const response = await fetch(`${API_BASE_URL}/documents`, {
@@ -369,14 +472,52 @@ export const criarDocumento = async (data: CreateDocumentData, user: User | null
       body: formData
     });
 
+    console.log('Resposta do servidor:', {
+      status: response.status,
+      statusText: response.statusText,
+      contentType: response.headers.get('content-type')
+    });
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP ${response.status}`);
+      // Capturar todo o conteúdo da resposta primeiro
+      const responseText = await response.text();
+      const contentType = response.headers.get('content-type');
+      
+      console.error('=== ERRO DA API ===');
+      console.error('Status:', response.status);
+      console.error('Status Text:', response.statusText);
+      console.error('Content-Type:', contentType);
+      console.error('Response Headers:', Object.fromEntries(response.headers.entries()));
+      console.error('Response Body (primeiros 1000 chars):', responseText.substring(0, 1000));
+      
+      // Verificar se a resposta é HTML
+      if (contentType && contentType.includes('text/html')) {
+        // Procurar por mensagens de erro específicas no HTML
+        if (responseText.includes('404') || responseText.includes('Not Found')) {
+          throw new Error(`Endpoint não encontrado (404). Verifique se a rota /documents existe na API.`);
+        } else if (responseText.includes('500') || responseText.includes('Internal Server Error')) {
+          throw new Error(`Erro interno do servidor (500). Verifique os logs do backend.`);
+        } else if (responseText.includes('nginx') || responseText.includes('Apache')) {
+          throw new Error(`Servidor web retornou erro. Verifique se a API Laravel está rodando.`);
+        } else {
+          throw new Error(`Servidor retornou página HTML (${response.status}). API pode não estar funcionando corretamente.`);
+        }
+      }
+      
+      // Tentar parsear como JSON
+      try {
+        const errorData = JSON.parse(responseText);
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      } catch (jsonError) {
+        throw new Error(`Resposta inválida da API (${response.status}): ${responseText.substring(0, 200)}`);
+      }
     }
 
     const responseData = await response.json();
+    console.log('Documento criado com sucesso:', responseData);
     return responseData;
   } catch (error: any) {
+    console.error('Erro ao criar documento:', error);
     throw new Error(error.message || 'Erro ao criar documento');
   }
 };
