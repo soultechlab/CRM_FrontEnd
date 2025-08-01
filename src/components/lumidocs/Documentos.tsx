@@ -44,6 +44,11 @@ export function Documentos() {
     arquivados: 0,
     lixeira: 0
   });
+  const [monthSendCount, setMonthSendCount] = useState(0);
+  const [sendLimit, setSendLimit] = useState(0);
+  const [sendLimitReached, setSendLimitReached] = useState(false);
+  const [periodStart, setPeriodStart] = useState<string | null>(null);
+  const [periodEnd, setPeriodEnd] = useState<string | null>(null);
 
   const [selectedDocument, setSelectedDocument] = useState<BackendDocument | null>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
@@ -69,11 +74,10 @@ export function Documentos() {
 
   const loadTabCounts = useCallback(async () => {
     if (!user) return;
-    
     try {
+      // Estatísticas por status (para abas)
       const statsResponse = await buscarEstatisticasDocumentos(user);
       const stats = statsResponse.data || {};
-      
       setTabCounts({
         rascunhos: stats.draft || 0,
         enviados: stats.pending_signature || 0,
@@ -81,8 +85,17 @@ export function Documentos() {
         arquivados: stats.archived || 0,
         lixeira: stats.trashed || 0
       });
-    } catch (err) {
-    }
+
+      // Estatísticas mensais (novo endpoint)
+      const { getMonthlyDocumentStats } = await import('../../services/apiService');
+      const monthlyStatsResponse = await getMonthlyDocumentStats(user);
+      const monthly = monthlyStatsResponse.data || {};
+      setMonthSendCount(monthly.month_sends || 0);
+      setSendLimit(monthly.month_limit || 0);
+      setSendLimitReached((monthly.month_sends || 0) >= (monthly.month_limit || 0));
+      setPeriodStart(monthly.period_start || null);
+      setPeriodEnd(monthly.period_end || null);
+    } catch (err) {}
   }, [user]);
 
   const loadDocuments = useCallback(async () => {
@@ -1010,6 +1023,10 @@ export function Documentos() {
             onClose={handleCloseSignatureModal}
             onConfirm={handleSendDocument}
             isResend={isResendMode}
+            currentSendCount={monthSendCount}
+            sendLimit={sendLimit}
+            sendLimitReached={sendLimitReached}
+            userPlan={user.plan || 'free'}
           />
         )}
 

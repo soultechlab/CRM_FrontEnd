@@ -357,6 +357,19 @@ export const buscarDadosDashboard = async (user: User|null) => {
   }
 }
 
+export const getMonthlyDocumentStats = async (user: User | null) => {
+  try {
+    const response = await apiClient.get('/documents/monthly-stats', {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || 'Erro ao obter estatísticas mensais de documentos');
+  }
+};
+
 // Documentos
 
 export interface DocumentListParams {

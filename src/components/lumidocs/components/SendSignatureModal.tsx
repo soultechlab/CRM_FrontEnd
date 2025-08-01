@@ -13,9 +13,23 @@ interface SendSignatureModalProps {
     signer_cpf?: string;
   }>) => void;
   isResend?: boolean;
+  currentSendCount: number;
+  sendLimit: number;
+  sendLimitReached: boolean;
+  userPlan: string;
 }
 
-export function SendSignatureModal({ document, isOpen, onClose, onConfirm, isResend = false }: SendSignatureModalProps) {
+export function SendSignatureModal({
+  document,
+  isOpen,
+  onClose,
+  onConfirm,
+  isResend = false,
+  currentSendCount,
+  sendLimit,
+  sendLimitReached,
+  userPlan
+}: SendSignatureModalProps) {
   const [editableSigners, setEditableSigners] = useState(
     document.signers.map(signer => ({
       id: signer.id,
@@ -61,9 +75,66 @@ export function SendSignatureModal({ document, isOpen, onClose, onConfirm, isRes
     signer.signer_email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signer.signer_email)
   );
 
+  // Mensagem e feedback visual de limite
+  const planoNome =
+    userPlan === 'free'
+      ? 'Gratuito'
+      : userPlan === 'monthly'
+      ? 'Mensal'
+      : userPlan === 'annual'
+      ? 'Anual'
+      : 'Outro';
+
+  const limiteAtingidoMsg = `Limite de envios atingido para seu plano (${planoNome}). Aguarde o próximo mês para novos envios ou faça upgrade de plano.`;
+  const usoMsg = `Envios este mês: ${currentSendCount}/${sendLimit} (${planoNome})`;
+
+  // Cores: amarelo/laranja se >= 80% do limite, vermelho se atingido
+  const percent = (currentSendCount / sendLimit) * 100;
+  let barColor = 'bg-blue-500';
+  if (sendLimitReached) barColor = 'bg-red-600';
+  else if (percent >= 80) barColor = 'bg-yellow-500';
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-xs sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-hidden">
+        <div className="p-3 sm:p-6 border-b border-gray-200">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">{usoMsg}</span>
+            <span
+              className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                sendLimitReached
+                  ? 'bg-red-100 text-red-700'
+                  : percent >= 80
+                  ? 'bg-yellow-100 text-yellow-800'
+                  : 'bg-blue-100 text-blue-700'
+              }`}
+            >
+              {sendLimitReached
+                ? 'Limite atingido'
+                : percent >= 80
+                ? 'Próximo do limite'
+                : 'Dentro do limite'}
+            </span>
+          </div>
+          <div className="w-full h-2 mt-2 bg-gray-200 rounded">
+            <div
+              className={`h-2 rounded transition-all ${barColor}`}
+              style={{ width: `${Math.min(percent, 100)}%` }}
+            ></div>
+          </div>
+          {sendLimitReached && (
+            <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              <span>{limiteAtingidoMsg}</span>
+              <a
+                href="/planos"
+                className="ml-auto px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-semibold"
+              >
+                Fazer upgrade
+              </a>
+            </div>
+          )}
+        </div>
         {/* Header */}
         <div className="flex items-center justify-between p-3 sm:p-6 border-b border-gray-200">
           <div className="flex items-center">
@@ -179,20 +250,24 @@ export function SendSignatureModal({ document, isOpen, onClose, onConfirm, isRes
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!hasValidEmails || isSubmitting}
+            disabled={!hasValidEmails || isSubmitting || sendLimitReached}
             className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center w-full sm:w-auto"
           >
-            {isSubmitting ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                {isResend ? 'Reenviando...' : 'Enviando...'}
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4 mr-2" />
-                {isResend ? 'Reenviar para Assinatura' : 'Enviar para Assinatura'}
-              </>
-            )}
+            {isSubmitting
+              ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {isResend ? 'Reenviando...' : 'Enviando...'}
+                </>
+              )
+              : sendLimitReached
+              ? 'Limite atingido'
+              : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  {isResend ? 'Reenviar para Assinatura' : 'Enviar para Assinatura'}
+                </>
+              )}
           </button>
         </div>
       </div>

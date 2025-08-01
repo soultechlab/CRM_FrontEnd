@@ -17,6 +17,10 @@ interface NewModelModalProps {
     description?: string;
     file: File;
   }) => void;
+  currentTemplateCount: number;
+  templateLimit: number;
+  templateLimitReached: boolean;
+  userPlan: string;
 }
 
 const categories: { key: ModelCategory; label: string }[] = [
@@ -27,7 +31,15 @@ const categories: { key: ModelCategory; label: string }[] = [
   { key: 'outros', label: 'Outros' },
 ];
 
-export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps) {
+export function NewModelModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  currentTemplateCount,
+  templateLimit,
+  templateLimitReached,
+  userPlan
+}: NewModelModalProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [name, setName] = useState('');
@@ -228,8 +240,65 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
     }
   };
 
+  // Mensagem e feedback visual de limite
+  const planoNome =
+    userPlan === 'free'
+      ? 'Gratuito'
+      : userPlan === 'monthly'
+      ? 'Mensal'
+      : userPlan === 'annual'
+      ? 'Anual'
+      : 'Outro';
+
+  const limiteAtingidoMsg = `Limite de templates atingido para seu plano (${planoNome}). Exclua um template para criar outro ou faça upgrade de plano.`;
+  const usoMsg = `Você já criou ${currentTemplateCount}/${templateLimit} template${templateLimit > 1 ? 's' : ''} (${planoNome})`;
+
+  // Cores: amarelo/laranja se >= 80% do limite, vermelho se atingido
+  const percent = (currentTemplateCount / templateLimit) * 100;
+  let barColor = 'bg-blue-500';
+  if (templateLimitReached) barColor = 'bg-red-600';
+  else if (percent >= 80) barColor = 'bg-yellow-500';
+
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Novo Modelo" maxWidth="max-w-6xl">
+      <div className="mb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{usoMsg}</span>
+          <span
+            className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold ${
+              templateLimitReached
+                ? 'bg-red-100 text-red-700'
+                : percent >= 80
+                ? 'bg-yellow-100 text-yellow-800'
+                : 'bg-blue-100 text-blue-700'
+            }`}
+          >
+            {templateLimitReached
+              ? 'Limite atingido'
+              : percent >= 80
+              ? 'Próximo do limite'
+              : 'Dentro do limite'}
+          </span>
+        </div>
+        <div className="w-full h-2 mt-2 bg-gray-200 rounded">
+          <div
+            className={`h-2 rounded transition-all ${barColor}`}
+            style={{ width: `${Math.min(percent, 100)}%` }}
+          ></div>
+        </div>
+        {templateLimitReached && (
+          <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            <span>{limiteAtingidoMsg}</span>
+            <a
+              href="/planos"
+              className="ml-auto px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-semibold"
+            >
+              Fazer upgrade
+            </a>
+          </div>
+        )}
+      </div>
       <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 px-2 sm:px-0">
         {/* Nome do modelo */}
         <div>
@@ -537,11 +606,23 @@ export function NewModelModal({ isOpen, onClose, onSubmit }: NewModelModalProps)
           <button
             type="submit"
             className="px-3 py-1 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
-            disabled={isSubmitting || !name.trim() || !creationMethod || (creationMethod === 'upload' && !file)}
+            disabled={
+              isSubmitting ||
+              !name.trim() ||
+              !creationMethod ||
+              (creationMethod === 'upload' && !file) ||
+              templateLimitReached
+            }
           >
-            {isSubmitting ? 'Processando...' : 
-             creationMethod === 'create' ? 'Abrir Editor' :
-             creationMethod === 'upload' ? 'Criar Modelo' : 'Continuar'}
+            {isSubmitting
+              ? 'Processando...'
+              : templateLimitReached
+              ? 'Limite atingido'
+              : creationMethod === 'create'
+              ? 'Abrir Editor'
+              : creationMethod === 'upload'
+              ? 'Criar Modelo'
+              : 'Continuar'}
           </button>
         </div>
       </form>

@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTemplates } from '../../hooks/useTemplates';
 import { mapApiToCategory, mapCategoryToApi, detectCategoryFromText, type ModelCategory } from '../../utils/categoryMapping';
+import { checkTemplateLimit, getPlanLimits } from '../../utils/planLimits';
 
 interface TemplateWithCategory extends DocumentTemplate {
   category?: ModelCategory;
@@ -66,6 +67,9 @@ export function Modelos() {
   const [templatePdfUrl, setTemplatePdfUrl] = useState<string | null>(null); 
   const [isViewTemplateModalOpen, setIsViewTemplateModalOpen] = useState(false); 
   const [selectedTemplateForView, setSelectedTemplateForView] = useState<TemplateWithCategory | null>(null);
+
+  // Limite de templates customizados (deve estar sempre definido)
+  const templateLimitInfo = checkTemplateLimit(user?.plan || 'free', customTemplates.length);
 
   useEffect(() => {
     carregarTemplates();
@@ -542,7 +546,15 @@ export function Modelos() {
         </div>
       </div>
 
-      <NewModelModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSubmit={handleModelSubmit} />
+      <NewModelModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleModelSubmit}
+        currentTemplateCount={customTemplates.length}
+        templateLimit={templateLimitInfo.limit}
+        templateLimitReached={templateLimitInfo.reached}
+        userPlan={user?.plan || 'free'}
+      />
       <ConfirmDeleteModal isOpen={deleteModal.isOpen} onClose={closeDeleteModal} onConfirm={confirmDeleteTemplate} title="Excluir Template" message={`Tem certeza que deseja excluir o template "${deleteModal.templateName}"? Esta ação não pode ser desfeita.`} loading={loading} />
       <Modal
         isOpen={isDocumentModalOpen}
