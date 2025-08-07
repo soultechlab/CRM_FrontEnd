@@ -189,48 +189,23 @@ export function DocumentoCard({
         >
           <div className="space-y-4">
             <p className="text-sm text-gray-500">
-              Selecione para qual status você deseja restaurar este documento:
+              Tem certeza que deseja restaurar este documento? Ele voltará ao seu status anterior.
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex gap-3">
               <button
-                onClick={() => {
-                  onRestore(documento.id, 'aguardando_envio');
-                  setIsRestoreModalOpen(false);
-                }}
-                className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                onClick={() => setIsRestoreModalOpen(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
-                <FileText className="h-5 w-5 mx-auto mb-2 text-gray-400" />
-                <span className="text-sm font-medium">Rascunho</span>
+                Cancelar
               </button>
               <button
                 onClick={() => {
-                  onRestore(documento.id, 'aguardando_assinatura');
+                  onRestore(documento.id);
                   setIsRestoreModalOpen(false);
                 }}
-                className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700"
               >
-                <Send className="h-5 w-5 mx-auto mb-2 text-gray-400" />
-                <span className="text-sm font-medium">Enviados</span>
-              </button>
-              <button
-                onClick={() => {
-                  onRestore(documento.id, 'assinado');
-                  setIsRestoreModalOpen(false);
-                }}
-                className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <CheckCircle className="h-5 w-5 mx-auto mb-2 text-gray-400" />
-                <span className="text-sm font-medium">Assinados</span>
-              </button>
-              <button
-                onClick={() => {
-                  onRestore(documento.id, 'arquivado');
-                  setIsRestoreModalOpen(false);
-                }}
-                className="p-3 border rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <Archive className="h-5 w-5 mx-auto mb-2 text-gray-400" />
-                <span className="text-sm font-medium">Arquivados</span>
+                Restaurar
               </button>
             </div>
           </div>

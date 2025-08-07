@@ -119,16 +119,6 @@ export function DocumentViewer({ document, isOpen, onClose, onDocumentUpdate }: 
   // Sempre usar o documento original no preview interno do modal
   const documentUrl = document.storage_url;
 
-  // Debug para verificar URLs disponíveis
-  console.log('🔍 DocumentViewer URLs disponíveis:', {
-    documentId: document.id,
-    status: document.status,
-    storage_url: document.storage_url,
-      signed_document_url: document.signed_document_url,
-    autentique_document_url: document.autentique_document_url,
-    autentique_document_id: document.autentique_document_id,
-    selectedUrl: documentUrl
-  });
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="" maxWidth="max-w-7xl">

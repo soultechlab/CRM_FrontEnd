@@ -92,11 +92,74 @@ export interface DocumentStatusResponse {
   success: boolean;
   data: {
     local_status: 'signed' | 'pending_signature' | 'draft' | 'rejected' | 'archived';
-    autentique_status: 'completed' | 'pending' | 'signed' | 'in_progress';
+    autentique_status: 'completed' | 'pending' | 'signed' | 'in_progress' | 'error'; 
     all_signed: boolean;
     document: BackendDocument;
     updated_signers: number;
     autentique_data: any;
+    autentique_error?: any; // Added
+    sync_error?: any; // Added
   };
   message: string;
+}
+
+export interface DocumentTemplate {
+  id: number;
+  user_id?: number;
+  name: string;
+  description?: string;
+  file_path?: string;
+  storage_url?: string;
+  default_fields?: any[];
+  is_active: boolean;
+  is_default: boolean;
+  type: 'default' | 'custom';
+  category?: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+}
+
+export interface DocumentTemplateFilters {
+  name?: string;
+  type?: 'default' | 'custom';
+  is_active?: boolean;
+  is_default?: boolean;
+  include_trashed?: boolean;
+  per_page?: number;
+  page?: number;
+}
+
+export interface CreateDocumentTemplateData {
+  name: string;
+  category: string;
+  description?: string;
+  file: File;
+  default_fields?: string;
+  is_active?: boolean;
+  is_default?: boolean;
+  type?: 'default' | 'custom';
+}
+
+export interface CreateDocumentFromTemplateData {
+  client_id: number;
+  name?: string;
+  signers: Array<{
+    name: string;
+    email: string;
+    cpf?: string;
+    fields?: Array<{
+      type: string;
+      page: number;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }>;
+  }>;
 }

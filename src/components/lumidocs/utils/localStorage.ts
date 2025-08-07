@@ -108,7 +108,7 @@ export type Cliente = {
 };
 
 export type SignatureField = {
-  type: 'assinatura' | 'nome' | 'email' | 'cpf';
+  type: 'assinatura' | 'nome' | 'email' | 'cpf' | 'customizado';
   position: {
     x: number;
     y: number;
@@ -116,6 +116,7 @@ export type SignatureField = {
   };
   width: number;
   height: number;
+  customText?: string; // Para campos customizados
 };
 
 export type Documento = {

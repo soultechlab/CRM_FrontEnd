@@ -18,6 +18,8 @@ import Financeiro from '../components/financeiro/Financeiro';
 import UserSettings from '../components/settings/UserSettings';
 import News from '../components/news/News';
 import { Documentos } from '../components/lumidocs/Documentos';
+import { Modelos } from '../components/lumidocs/Modelos';
+import { DocumentEditor } from '../components/lumidocs/DocumentEditor';
 
 export default function AppRoutes() {
   const { isLoading } = useAuth();
@@ -57,6 +59,8 @@ export default function AppRoutes() {
         <Route path="configuracoes" element={<UserSettings />} />
         <Route path="novidades" element={<News />} />
         <Route path="lumidocs" element={<Documentos />} />
+        <Route path="modelos" element={<Modelos />} />
+        <Route path="criar-modelo" element={<DocumentEditor />} />
       </Route>
 
       {/* Catch all route */}

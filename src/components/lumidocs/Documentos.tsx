@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, FileText, Send, CheckCircle, Search, Calendar, X, Archive, ChevronLeft, ChevronRight, Trash2, AlertTriangle, Download, Eye, MoreVertical, ExternalLink, RefreshCw } from 'lucide-react';
 import { Modal } from './components/Modal';
 import { ConfirmationModal } from './components/ConfirmationModal';
-// Importar configuração do PDF logo no início
 import './utils/pdfConfig';
 import { DocumentoForm } from './components/DocumentoForm';
 import { DocumentStatus } from './components/DocumentStatus';
@@ -10,7 +9,8 @@ import { SignatureProgress } from './components/SignatureProgress';
 import { DocumentViewer } from './components/DocumentViewer';
 import { SendSignatureModal } from './components/SendSignatureModal';
 import { SendStatus, SendStatusIcon } from './components/SendStatus';
-import { obterDocumentos, DocumentListParams, enviarDocumentoParaAssinatura, baixarDocumentoAssinado, arquivarDocumento, desarquivarDocumento, excluirDocumento, restaurarDocumento, verificarStatusDocumento, marcarDocumentoAssinado, sincronizarStatusDocumento, buscarDocumentosArquivados, buscarDocumentosLixeira, buscarEstatisticasDocumentos } from '../../services/apiService';
+import { LumiDocsHeader } from './components/LumiDocsHeader';
+import { obterDocumentos, DocumentListParams, enviarDocumentoParaAssinatura, baixarDocumentoAssinado, arquivarDocumento, desarquivarDocumento, excluirDocumento, restaurarDocumento, verificarStatusDocumento, marcarDocumentoAssinado, sincronizarStatusDocumento, buscarDocumentosArquivados, buscarDocumentosLixeira, buscarEstatisticasDocumentos, limparDocumentosAntigosLixeira, marcarDocumentoPermanentementeExcluido } from '../../services/apiService';
 import { useAuth } from '../../contexts/AuthContext';
 import { BackendDocument } from '../../types';
 
@@ -44,6 +44,11 @@ export function Documentos() {
     arquivados: 0,
     lixeira: 0
   });
+  const [monthSendCount, setMonthSendCount] = useState(0);
+  const [sendLimit, setSendLimit] = useState(0);
+  const [sendLimitReached, setSendLimitReached] = useState(false);
+  const [periodStart, setPeriodStart] = useState<string | null>(null);
+  const [periodEnd, setPeriodEnd] = useState<string | null>(null);
 
   const [selectedDocument, setSelectedDocument] = useState<BackendDocument | null>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
@@ -57,14 +62,22 @@ export function Documentos() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isPermanentDeleteModalOpen, setIsPermanentDeleteModalOpen] = useState(false);
+  const [documentToPermanentDelete, setDocumentToPermanentDelete] = useState<string | null>(null);
+  const [isPermanentDeleting, setIsPermanentDeleting] = useState(false);
+  const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+  const [documentToRestore, setDocumentToRestore] = useState<string | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [isCleanupModalOpen, setIsCleanupModalOpen] = useState(false);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState<any>(null);
 
   const loadTabCounts = useCallback(async () => {
     if (!user) return;
-    
     try {
+      // Estatísticas por status (para abas)
       const statsResponse = await buscarEstatisticasDocumentos(user);
       const stats = statsResponse.data || {};
-      
       setTabCounts({
         rascunhos: stats.draft || 0,
         enviados: stats.pending_signature || 0,
@@ -72,9 +85,17 @@ export function Documentos() {
         arquivados: stats.archived || 0,
         lixeira: stats.trashed || 0
       });
-    } catch (err) {
-      console.error('Erro ao carregar contagens:', err);
-    }
+
+      // Estatísticas mensais (novo endpoint)
+      const { getMonthlyDocumentStats } = await import('../../services/apiService');
+      const monthlyStatsResponse = await getMonthlyDocumentStats(user);
+      const monthly = monthlyStatsResponse.data || {};
+      setMonthSendCount(monthly.month_sends || 0);
+      setSendLimit(monthly.month_limit || 0);
+      setSendLimitReached((monthly.month_sends || 0) >= (monthly.month_limit || 0));
+      setPeriodStart(monthly.period_start || null);
+      setPeriodEnd(monthly.period_end || null);
+    } catch (err) {}
   }, [user]);
 
   const loadDocuments = useCallback(async () => {
@@ -90,13 +111,10 @@ export function Documentos() {
       let response;
       
       if (activeTab === 'arquivados') {
-        // Usar endpoint específico para arquivados
         response = await buscarDocumentosArquivados(user);
       } else if (activeTab === 'lixeira') {
-        // Usar endpoint específico para lixeira
         response = await buscarDocumentosLixeira(user);
       } else {
-        // Usar endpoint padrão para documentos ativos
         const params: DocumentListParams = {
           page: currentPage,
           per_page: perPage
@@ -115,7 +133,6 @@ export function Documentos() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar documentos';
       setError(errorMessage);
-      console.error('Erro ao carregar documentos:', err);
     } finally {
       setLoading(false);
     }
@@ -130,15 +147,12 @@ export function Documentos() {
     }
   }, [user, activeTab, currentPage, loadDocuments]);
 
-  // Carregar contagens apenas uma vez quando o usuário é autenticado
   useEffect(() => {
     if (user && user.token) {
       loadTabCounts();
     }
   }, [user, loadTabCounts]);
 
-  // Remover verificação automática que está causando loop
-  // useEffect removido para parar o loop de reload
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -146,8 +160,8 @@ export function Documentos() {
 
   const handleDocumentoSubmit = useCallback((novoDocumento: BackendDocument) => {
     setIsModalOpen(false);
-    loadDocuments(); // Reload documents after creating new one
-    loadTabCounts(); // Reload counts after creating new document
+    loadDocuments();
+    loadTabCounts();
   }, [loadDocuments, loadTabCounts]);
 
   const handleSendDocument = async (documentId: string, signers?: Array<{
@@ -159,7 +173,6 @@ export function Documentos() {
     try {
       setError(null);
       
-      // Mostrar status de envio como pendente nos documentos
       setDocumentos(prev => prev.map(doc => 
         String(doc.id) === documentId 
           ? { ...doc, send_status: 'pending' as const }
@@ -168,7 +181,6 @@ export function Documentos() {
 
       const response = await enviarDocumentoParaAssinatura(documentId, user, signers);
       
-      // Atualizar status baseado na resposta
       if (response.success) {
         setDocumentos(prev => prev.map(doc => 
           String(doc.id) === documentId 
@@ -193,11 +205,9 @@ export function Documentos() {
         ));
       }
       
-      // Atualizar contagens apenas uma vez, sem delay
       loadTabCounts();
       
     } catch (err: any) {
-      // Atualizar status como falha em caso de erro
       setDocumentos(prev => prev.map(doc => 
         String(doc.id) === documentId 
           ? { 
@@ -210,7 +220,6 @@ export function Documentos() {
       ));
       
       setError('Erro ao enviar documento para assinatura');
-      console.error('Erro ao enviar documento:', err);
     }
   };
 
@@ -230,110 +239,39 @@ export function Documentos() {
     try {
       setCheckingStatus(prev => new Set(prev).add(documentId));
       
-      console.log(`🔍 Iniciando verificação do documento ${documentId}`, {
-        documentoAntes: documentos.find(d => String(d.id) === documentId),
-        timestamp: new Date().toISOString()
-      });
-      
       const response = await verificarStatusDocumento(documentId, user);
-      
-      console.log('📊 ESTRUTURA COMPLETA DA RESPOSTA:', {
-        success: response.success,
-        data: response.data,
-        sync_results: response.data?.sync_results,
-        message: response.message,
-        autentique_error: response.data?.autentique_error,
-        sync_error: response.data?.sync_error
-      });
       
       if (response.success) {
         const { data } = response;
         const wasUpdated = data.local_status !== data.autentique_status || data.updated_signers > 0;
         const wasCompleted = data.all_signed && data.document.status === 'signed';
         
-        // Debug específico para documentos com erro
-        if (data.autentique_status === 'error') {
-          console.log('❌ ERRO NO DOCUMENTO:', {
-            id: documentId,
-            nome: data.document?.name,
-            autentique_error: data.autentique_error,
-            sync_error: data.sync_error,
-            mensagem_completa: response.message,
-            response_completa: response,
-            local_status: data.local_status,
-            autentique_status: data.autentique_status
-          });
-        }
-        
-        // Log para documentos que foram totalmente assinados
         if (wasCompleted) {
-          console.log('🎉 DOCUMENTO TOTALMENTE ASSINADO:', {
-            id: documentId,
-            nome: data.document.name,
-            statusAnterior: data.local_status,
-            statusAtual: data.document.status,
-            todosAssinaram: data.all_signed,
-            signedDocumentUrl: data.document.signed_document_url
-          });
-          
-          // Mostrar mensagem de sucesso temporária
           const message = `Documento "${data.document.name}" foi totalmente assinado!`;
           setSuccessMessage(message);
           setTimeout(() => setSuccessMessage(null), 5000);
         }
         
-        // Atualizar o documento local com as informações mais recentes
         setDocumentos(prev => prev.map(doc => 
           String(doc.id) === documentId 
             ? { 
                 ...doc, 
                 ...data.document,
-                // Garantir que o status seja atualizado
                 status: data.document.status,
-                // Atualizar signers com informações completas
                 signers: data.document.signers
               }
             : doc
         ));
         
-        // Log detalhado do que foi atualizado
         if (wasUpdated) {
-          console.log(`📋 Documento ${documentId} atualizado:`, {
-            statusAnterior: data.local_status,
-            statusAtual: data.autentique_status,
-            signersAtualizados: data.updated_signers,
-            todosAssinaram: data.all_signed,
-            documento: data.document.name,
-            autentique_error: data.autentique_error,
-            sync_error: data.sync_error,
-            documentoCompleto: wasCompleted
-          });
-          
-          // Recarregar contagens se houve mudança - especialmente importante para documentos assinados
           loadTabCounts();
           
-          // Se o documento foi totalmente assinado, recarregar a lista para movê-lo para a aba correta
-          // mas apenas se estamos na aba "enviados" (para evitar reloads desnecessários)
           if (wasCompleted && activeTab === 'enviados') {
             loadDocuments();
           }
-        } else {
-          console.log(`✅ Documento ${documentId} já está sincronizado`);
         }
-      } else {
-        console.log('❌ RESPOSTA COM SUCESSO = FALSE:', {
-          response,
-          message: response.message,
-          data: response.data
-        });
       }
     } catch (err: any) {
-      console.error('❌ ERRO COMPLETO AO VERIFICAR DOCUMENTO:', {
-        documentId,
-        error: err,
-        message: err.message,
-        stack: err.stack
-      });
       setError(`Erro ao verificar status do documento ${documentId}: ${err.message}`);
     } finally {
       setCheckingStatus(prev => {
@@ -351,28 +289,19 @@ export function Documentos() {
     setError(null);
     
     try {
-      console.log('🔄 Iniciando sincronização de todos os documentos...');
-      
-      // Verificar apenas documentos que podem estar com status incorreto
       const documentsToCheck = documentos.filter(doc => 
         doc.status === 'pending_signature' && 
         doc.signers.every(signer => signer.signer_status === 'signed')
       );
       
-      console.log(`📋 Encontrados ${documentsToCheck.length} documentos para verificar`);
-      
       for (const doc of documentsToCheck) {
         try {
-          console.log(`🔍 Verificando documento ${doc.id}...`);
           await handleCheckDocumentStatus(String(doc.id));
-          // Aguardar um pouco entre verificações para não sobrecarregar
           await new Promise(resolve => setTimeout(resolve, 500));
         } catch (error) {
-          console.error(`❌ Erro ao verificar documento ${doc.id}:`, error);
         }
       }
       
-      // Recarregar documentos e contadores após sincronização
       setTimeout(() => {
         loadDocuments();
         loadTabCounts();
@@ -382,7 +311,6 @@ export function Documentos() {
       setTimeout(() => setSuccessMessage(null), 5000);
       
     } catch (error) {
-      console.error('❌ Erro na sincronização geral:', error);
       setError('Erro ao sincronizar documentos');
     } finally {
       setSyncingAll(false);
@@ -403,7 +331,6 @@ export function Documentos() {
       document.body.removeChild(a);
     } catch (err) {
       setError('Erro ao baixar documento assinado');
-      console.error('Erro ao baixar documento:', err);
     }
   };
 
@@ -411,11 +338,10 @@ export function Documentos() {
     try {
       setError(null);
       await arquivarDocumento(documentId, user);
-      loadDocuments(); // Reload to update list
-      loadTabCounts(); // Reload counts after archiving
+      loadDocuments();
+      loadTabCounts();
     } catch (err) {
       setError('Erro ao arquivar documento');
-      console.error('Erro ao arquivar documento:', err);
     }
   }, [user, loadDocuments, loadTabCounts]);
 
@@ -431,13 +357,12 @@ export function Documentos() {
       setIsDeleting(true);
       setError(null);
       await excluirDocumento(documentToDelete, user);
-      loadDocuments(); // Reload to update list
-      loadTabCounts(); // Reload counts after deletion
+      loadDocuments();
+      loadTabCounts();
       setIsDeleteModalOpen(false);
       setDocumentToDelete(null);
     } catch (err) {
       setError('Erro ao excluir documento');
-      console.error('Erro ao excluir documento:', err);
     } finally {
       setIsDeleting(false);
     }
@@ -446,6 +371,66 @@ export function Documentos() {
   const handleCancelDelete = useCallback(() => {
     setIsDeleteModalOpen(false);
     setDocumentToDelete(null);
+  }, []);
+
+  const handleRestoreDocument = useCallback(async (documentId: string) => {
+    setDocumentToRestore(documentId);
+    setIsRestoreModalOpen(true);
+  }, []);
+
+  const handleConfirmRestore = useCallback(async () => {
+    if (!documentToRestore) return;
+    
+    try {
+      setIsRestoring(true);
+      setError(null);
+      await restaurarDocumento(documentToRestore, user);
+      loadDocuments();
+      loadTabCounts();
+      setSuccessMessage('Documento restaurado com sucesso!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      setIsRestoreModalOpen(false);
+      setDocumentToRestore(null);
+    } catch (err) {
+      setError('Erro ao restaurar documento');
+    } finally {
+      setIsRestoring(false);
+    }
+  }, [documentToRestore, user, loadDocuments, loadTabCounts]);
+
+  const handleCancelRestore = useCallback(() => {
+    setIsRestoreModalOpen(false);
+    setDocumentToRestore(null);
+  }, []);
+
+  const handlePermanentDelete = useCallback(async (documentId: string) => {
+    setDocumentToPermanentDelete(documentId);
+    setIsPermanentDeleteModalOpen(true);
+  }, []);
+
+  const handleConfirmPermanentDelete = useCallback(async () => {
+    if (!documentToPermanentDelete) return;
+    
+    try {
+      setIsPermanentDeleting(true);
+      setError(null);
+      await marcarDocumentoPermanentementeExcluido(documentToPermanentDelete, user);
+      loadDocuments();
+      loadTabCounts();
+      setSuccessMessage('Documento marcado como permanentemente excluído!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      setIsPermanentDeleteModalOpen(false);
+      setDocumentToPermanentDelete(null);
+    } catch (err) {
+      setError('Erro ao marcar documento como permanentemente excluído');
+    } finally {
+      setIsPermanentDeleting(false);
+    }
+  }, [documentToPermanentDelete, user, loadDocuments, loadTabCounts]);
+
+  const handleCancelPermanentDelete = useCallback(() => {
+    setIsPermanentDeleteModalOpen(false);
+    setDocumentToPermanentDelete(null);
   }, []);
 
   const getStatusText = (status: string) => {
@@ -511,7 +496,14 @@ export function Documentos() {
     }
   ] as const;
 
-  const DocumentCard = ({ document }: { document: BackendDocument }) => (
+  const DocumentCard = ({ document }: { document: BackendDocument }) => {
+    const isTrash = activeTab === 'lixeira';
+    
+    const deletionDate = isTrash && document.updated_at 
+      ? new Date(new Date(document.updated_at).getTime() + 30 * 24 * 60 * 60 * 1000)
+      : null;
+
+    return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start mb-4">
         <div className="flex-1">
@@ -524,10 +516,36 @@ export function Documentos() {
           <p className="text-sm text-gray-600 mb-1">
             Cliente: {document.client?.name || 'Documento Universal'}
           </p>
-          <p className="text-sm text-gray-500 mb-2">
-            Criado em: {new Date(document.created_at).toLocaleDateString('pt-BR')}
-          </p>
-          <DocumentStatus status={document.status} />
+          {isTrash ? (
+            <>
+              <p className="text-sm text-gray-500 mb-1">
+                Criado em: {new Date(document.created_at).toLocaleDateString('pt-BR')}
+              </p>
+              <p className="text-sm text-gray-500 mb-1">
+                Excluído em: {document.updated_at ? new Date(document.updated_at).toLocaleDateString('pt-BR') : 'Data não disponível'}
+              </p>
+              {deletionDate && (
+                <p className="text-sm text-red-600 mb-2">
+                  Exclusão permanente: {deletionDate.toLocaleDateString('pt-BR')}
+                </p>
+              )}
+              <div className="mb-2">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                  Status anterior: {document.status === 'draft' ? 'Rascunho' : 
+                                   document.status === 'pending_signature' ? 'Pendente' : 
+                                   document.status === 'signed' ? 'Assinado' : 
+                                   document.status === 'archived' ? 'Arquivado' : 'Desconhecido'}
+                </span>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-gray-500 mb-2">
+                Criado em: {new Date(document.created_at).toLocaleDateString('pt-BR')}
+              </p>
+              <DocumentStatus status={document.status} />
+            </>
+          )}
         </div>
         <div className="relative">
           <button className="p-1 rounded-full hover:bg-gray-100">
@@ -536,38 +554,58 @@ export function Documentos() {
         </div>
       </div>
 
-      <div className="mb-4">
-        <SignatureProgress 
-          signers={document.signers} 
-          documentId={String(document.id)}
-          documentStatus={document.status}
-          onStatusUpdate={useCallback(() => {
-            loadDocuments();
-            loadTabCounts();
-          }, [loadDocuments, loadTabCounts])}
-          onSyncStatus={handleCheckDocumentStatus}
-          onDocumentStatusChange={useCallback((documentId, newStatus) => {
-            // Atualizar o status do documento localmente para feedback imediato
-            setDocumentos(prev => prev.map(doc => 
-              String(doc.id) === documentId 
-                ? { ...doc, status: newStatus as any }
-                : doc
-            ));
-          }, [])}
-        />
-      </div>
+      {!isTrash && (
+        <>
+          <div className="mb-4">
+            <SignatureProgress 
+              signers={document.signers} 
+              documentId={String(document.id)}
+              documentStatus={document.status}
+              onStatusUpdate={useCallback(() => {
+                loadDocuments();
+                loadTabCounts();
+              }, [loadDocuments, loadTabCounts])}
+              onSyncStatus={handleCheckDocumentStatus}
+              onDocumentStatusChange={useCallback((documentId: string, newStatus: 'signed' | 'pending_signature') => {
+                setDocumentos(prev => prev.map(doc => 
+                  String(doc.id) === documentId 
+                    ? { ...doc, status: newStatus }
+                    : doc
+                ));
+              }, [])}
+            />
+          </div>
 
-      {/* Send Status for documents that have been sent */}
-      {(document.status === 'pending_signature' || document.status === 'signed') && document.send_status && (
-        <SendStatus 
-          status={document.send_status} 
-          errorMessage={document.send_error_message}
-          lastAttempt={document.last_send_attempt}
-        />
+          {(document.status === 'pending_signature' || document.status === 'signed') && document.send_status && (
+            <SendStatus 
+              status={document.send_status} 
+              errorMessage={document.send_error_message}
+              lastAttempt={document.last_send_attempt}
+            />
+          )}
+        </>
       )}
 
       <div className="flex flex-wrap gap-2">
-        {/* Action buttons based on document status */}
+        {isTrash ? (
+          <>
+            <button
+              onClick={() => handleRestoreDocument(String(document.id))}
+              className="flex-1 bg-green-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center"
+            >
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Restaurar
+            </button>
+            <button
+              onClick={() => handlePermanentDelete(String(document.id))}
+              className="flex-1 bg-red-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-red-700 transition-colors flex items-center justify-center"
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              Marcar como Excluído
+            </button>
+          </>
+        ) : (
+          <>
         {document.status === 'draft' && !document.send_status && (
           <button
             onClick={() => handleOpenSignatureModal(document)}
@@ -588,7 +626,6 @@ export function Documentos() {
           </button>
         )}
 
-        {/* Resend button for pending signature documents */}
         {document.status === 'pending_signature' && (
           <button
             onClick={() => handleOpenSignatureModal(document, true)}
@@ -600,11 +637,10 @@ export function Documentos() {
             title={document.send_status === 'failed' ? 'Tentar enviar novamente' : 'Reenviar para assinatura'}
           >
             <RefreshCw className="w-4 h-4 mr-1" />
-            {document.send_status === 'failed' ? 'Tentar Novamente' : 'Reenviar'}
+            Tentar Novamente
           </button>
         )}
 
-        {/* Special retry button for failed draft sends */}
         {document.status === 'draft' && document.send_status === 'failed' && (
           <button
             onClick={() => handleOpenSignatureModal(document)}
@@ -617,7 +653,6 @@ export function Documentos() {
         )}
 
         
-        {/* Signature links for pending documents */}
         {document.status === 'pending_signature' && document.signers.length > 0 && (
           <div className="flex-1 space-y-1">
             {document.signers
@@ -638,7 +673,6 @@ export function Documentos() {
           </div>
         )}
 
-        {/* View document button */}
         <button
           onClick={() => handleViewDocument(document)}
           className="bg-gray-500 text-white px-3 py-2 rounded-md text-sm hover:bg-gray-600 transition-colors"
@@ -647,7 +681,6 @@ export function Documentos() {
           <Eye className="w-4 h-4" />
         </button>
 
-        {/* Archive button */}
         {(document.status === 'signed' || document.status === 'draft') && (
           <button
             onClick={() => handleArchiveDocument(String(document.id))}
@@ -658,7 +691,6 @@ export function Documentos() {
           </button>
         )}
 
-        {/* Delete button */}
         <button
           onClick={() => handleDeleteDocument(String(document.id))}
           className="bg-red-500 text-white px-3 py-2 rounded-md text-sm hover:bg-red-600 transition-colors"
@@ -666,9 +698,10 @@ export function Documentos() {
         >
           <Trash2 className="w-4 h-4" />
         </button>
+          </>
+        )}
       </div>
 
-      {/* Document info footer */}
       <div className="mt-4 pt-4 border-t border-gray-100">
         <div className="flex justify-between text-xs text-gray-500">
           <span>ID: {String(document.id).slice(0, 8)}...</span>
@@ -678,9 +711,9 @@ export function Documentos() {
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
-  // If user is not authenticated, show login message
   if (!user || !user.token) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -696,8 +729,9 @@ export function Documentos() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* HEADER */}
+    <>
+      <LumiDocsHeader onNewDocumentClick={() => setIsModalOpen(true)} />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-8">
             <div className="flex items-center space-x-4">
               <h1 className="text-2xl font-bold text-gray-900">Documentos</h1>
@@ -724,17 +758,9 @@ export function Documentos() {
                 <RefreshCw className={`h-4 w-4 mr-2 ${syncingAll ? 'animate-spin' : ''}`} />
                 Sincronizar
               </button>
-              <button
-              onClick={() => setIsModalOpen(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-              >
-              <Plus className="h-5 w-5 mr-2" />
-              Novo Documento
-              </button>
             </div>
         </div>
 
-        {/* ERROR MESSAGE */}
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
             <div className="flex">
@@ -747,7 +773,6 @@ export function Documentos() {
           </div>
         )}
 
-        {/* SUCCESS MESSAGE */}
         {successMessage && (
           <div className="mb-6 bg-green-50 border border-green-200 rounded-md p-4">
             <div className="flex">
@@ -760,7 +785,6 @@ export function Documentos() {
           </div>
         )}
 
-        {/* FILTERS */}
         <div className="space-y-8">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
             <div className="flex flex-col lg:flex-row gap-4">
@@ -815,7 +839,41 @@ export function Documentos() {
             </div>
         </div>
 
-        {/* TABS */}
+        {activeTab === 'lixeira' && (
+          <div className="my-8 bg-yellow-50 border border-yellow-200 rounded-md p-6">
+            <div className="flex justify-between items-start">
+              <div className="flex">
+                <AlertTriangle className="h-5 w-5 text-yellow-400" />
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-yellow-800">Aviso - Lixeira</h3>
+                  <div className="mt-2 text-sm text-yellow-700">
+                    Os documentos na lixeira são automaticamente excluídos permanentemente após 30 dias da data de exclusão.
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    setError(null);
+                    const result = await limparDocumentosAntigosLixeira(user);
+                    loadDocuments();
+                    loadTabCounts();
+                    setSuccessMessage(`Limpeza concluída! ${result.data.deleted_count} documentos antigos foram excluídos permanentemente.`);
+                    setTimeout(() => setSuccessMessage(null), 5000);
+                  } catch (err) {
+                    setError('Erro ao executar limpeza automática');
+                  }
+                }}
+                className="inline-flex items-center px-3 py-2 border border-yellow-300 rounded-md text-sm font-medium text-yellow-800 bg-yellow-100 hover:bg-yellow-200 transition-colors"
+                title="Excluir permanentemente documentos com mais de 30 dias na lixeira"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Limpar Antigos (30+ dias)
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-5">
           <div className="grid grid-cols-1 sm:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-gray-200">
             {tabs.map((tab) => (
@@ -862,7 +920,6 @@ export function Documentos() {
           </div>
         </div>
 
-        {/* PAGINATION */}
         <div className="flex items-center justify-between bg-white rounded-xl shadow-sm border border-gray-200 p-4 mt-5">
           <div className="flex items-center space-x-2">
             <span className="text-sm text-gray-500">Itens por página:</span>
@@ -917,7 +974,6 @@ export function Documentos() {
           </div>
         </div>
 
-        {/* DOCUMENTS */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -967,6 +1023,10 @@ export function Documentos() {
             onClose={handleCloseSignatureModal}
             onConfirm={handleSendDocument}
             isResend={isResendMode}
+            currentSendCount={monthSendCount}
+            sendLimit={sendLimit}
+            sendLimitReached={sendLimitReached}
+            userPlan={user.plan || 'free'}
           />
         )}
 
@@ -981,6 +1041,31 @@ export function Documentos() {
           type="danger"
           loading={isDeleting}
         />
-    </div>
+
+        <ConfirmationModal
+          isOpen={isPermanentDeleteModalOpen}
+          onClose={handleCancelPermanentDelete}
+          onConfirm={handleConfirmPermanentDelete}
+          title="Marcar como Permanentemente Excluído"
+          message="Tem certeza que deseja marcar este documento como permanentemente excluído? O documento ficará inacessível mas será mantido no sistema para auditoria."
+          confirmText="Marcar como Excluído"
+          cancelText="Cancelar"
+          type="danger"
+          loading={isPermanentDeleting}
+        />
+
+        <ConfirmationModal
+          isOpen={isRestoreModalOpen}
+          onClose={handleCancelRestore}
+          onConfirm={handleConfirmRestore}
+          title="Restaurar Documento"
+          message="Tem certeza que deseja restaurar este documento? Ele será movido de volta para seu status anterior."
+          confirmText="Restaurar"
+          cancelText="Cancelar"
+          type="success"
+          loading={isRestoring}
+        />
+      </div>
+    </>
   );
 }

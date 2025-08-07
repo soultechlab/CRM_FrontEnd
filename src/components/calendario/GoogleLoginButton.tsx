@@ -35,7 +35,7 @@ const GoogleLoginButton = () => {
           // Ignora o credentialResponse (que é o ID token) e solicita o access token
           requestAccessToken();
         }}
-        onError={() => console.log('Erro no login')}
+        onError={() => {}}
       />
     </GoogleOAuthProvider>
   );

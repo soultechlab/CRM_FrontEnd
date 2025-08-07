@@ -29,6 +29,9 @@ log.txt
 *.sublime-workspace
 *.sublime-project
 
+# Claude Code
+.claude/
+
 # OS files
 .DS_Store
 Thumbs.db
