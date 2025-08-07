@@ -114,7 +114,6 @@ export function useAdminStats() {
 
         const mappedData = mapearDadosStats(data);
 
-        console.log(mappedData);
         
         setStats(mappedData);
       } catch (err) {

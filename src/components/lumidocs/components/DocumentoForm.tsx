@@ -2,23 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { Search, X, FileText, Plus } from 'lucide-react';
 import { Cliente as LocalCliente, SignatureField } from '../utils/localStorage';
 import { BackendDocument } from '../../../types';
-// Importar configuração do PDF antes do PdfViewer
 import '../utils/pdfConfig';
 import { PdfViewer } from './PdfViewer';
-import { criarDocumento, CreateDocumentData, SignerData, obterClientes } from '../../../services/apiService';
+import { criarDocumento, CreateDocumentData, SignerData, obterClientes, Cliente, testarConectividadeAPI } from '../../../services/apiService';
+import { fillPdfWithData, loadPdfFromUrl, createFileFromBlob, createBlobFromUint8Array } from '../utils/pdfRenderer';
+
+interface TemplateFile extends File {
+  isTemplate?: boolean;
+  templateUrl?: string;
+}
 import { useAuth } from '../../../contexts/AuthContext';
 import { AddClientInline } from './AddClientInline';
 
-
 interface DocumentoFormProps {
   initialData?: BackendDocument;
+  initialFile?: File;
   onSubmit: (documento: BackendDocument) => void;
 }
 
-export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
+export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoFormProps) {
   const { user } = useAuth();
   const [nome, setNome] = useState(initialData?.name || '');
-  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [arquivo, setArquivo] = useState<TemplateFile | null>(initialFile || null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClientes, setSelectedClientes] = useState<Array<{
     cliente: Cliente;
@@ -26,11 +31,11 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
   }>>([]);
   const [previewUrl, setPreviewUrl] = useState<string>(initialData?.storage_url || '');
   const [currentClienteIndex, setCurrentClienteIndex] = useState<number | null>(null);
-  const [fieldType, setFieldType] = useState<'assinatura' | 'nome' | 'email' | 'cpf'>('assinatura');
+  const [fieldType, setFieldType] = useState<'assinatura' | 'nome' | 'email' | 'cpf' | 'customizado'>('assinatura');
+  const [customText, setCustomText] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<string>(initialData?.client?.id?.toString() || '');
-  const [isUniversal, setIsUniversal] = useState(!initialData?.client);
+  const [isUniversal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddClientForm, setShowAddClientForm] = useState(false);
@@ -41,17 +46,14 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
         setLoading(true);
         setError(null);
         
-        
         if (!user) {
           setError('Usuário não autenticado');
           return;
         }
         
         const clientesData = await obterClientes(user);
-        console.log('Clients loaded successfully:', clientesData?.length);
         setClientes(clientesData);
         
-        // Initialize signers if editing existing document
         if (initialData?.signers) {
           const initialSigners = initialData.signers.map(signer => ({
             cliente: {
@@ -59,7 +61,6 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
               nome: signer.signer_name,
               email: signer.signer_email,
               cpf: signer.signer_cpf || '',
-              // Add other required Cliente fields with defaults
               telefone: '',
               endereco: '',
               observacoes: '',
@@ -69,14 +70,13 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
               valor_sessao: 0,
               created_at: ''
             },
-            fields: [] // Fields will be loaded from backend if needed
+            fields: []
           }));
           setSelectedClientes(initialSigners);
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar clientes';
         setError(errorMessage);
-        console.error('Erro ao carregar clientes:', err);
       } finally {
         setLoading(false);
       }
@@ -90,6 +90,22 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
     }
   }, [user, initialData]);
 
+  useEffect(() => {
+    if (initialFile) {
+      setArquivo(initialFile);
+    }
+  }, [initialFile]);
+
+  useEffect(() => {
+    if (initialData?.storage_url && !initialFile && !arquivo) {
+      const fileName = `${initialData.name.replace(/[^a-zA-Z0-9\s]/g, '_')}.pdf`;
+      const mockFile = new File([''], fileName, { type: 'application/pdf' }) as TemplateFile;
+      mockFile.isTemplate = true;
+      mockFile.templateUrl = initialData.storage_url;
+      setArquivo(mockFile);
+    }
+  }, [initialData, initialFile, arquivo]);
+
   const filteredClientes = clientes.filter(cliente => 
     !selectedClientes.find(sc => sc.cliente.id === cliente.id) &&
     (cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -98,20 +114,32 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log('🚀 INICIANDO handleSubmit');
+    
     e.preventDefault();
     e.stopPropagation();
+    
+    // Verificar se o evento veio do botão de submit correto
+    const submitter = (e.nativeEvent as SubmitEvent)?.submitter as HTMLButtonElement;
+    
+    // BLOQUEAR qualquer submit que não venha do botão específico
+    if (!submitter || submitter.id !== 'submit-document-button') {
+      console.log('🚫 Submit bloqueado - não veio do botão de salvar correto');
+      return;
+    }
+    
+    console.log('✅ Submit autorizado - veio do botão correto');
     
     if (isSubmitting) return;
     setIsSubmitting(true);
     
     try {
-      // Validate required fields
       if (!nome.trim()) {
         setError('Por favor, insira o nome do documento');
         return;
       }
 
-      if (!initialData && !arquivo) {
+      if (!arquivo && !previewUrl) {
         setError('Por favor, selecione um arquivo PDF');
         return;
       }
@@ -121,51 +149,178 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
         return;
       }
 
-      if (selectedClientes.some(sc => sc.fields.length === 0)) {
-        setError('Todos os assinantes precisam ter pelo menos um campo de assinatura definido');
+      // Não é mais necessário validar campos de assinatura, pois a Autentique adiciona automaticamente
+
+      // Testar conectividade da API antes de processar
+      console.log('🔗 Testando conectividade da API...');
+      const apiConnected = await testarConectividadeAPI(user);
+      if (!apiConnected) {
+        setError('Não foi possível conectar com o servidor. Verifique se a API está rodando em http://localhost:8080');
         return;
       }
+      console.log('✅ API conectada com sucesso');
 
-      // Prepare signers data for backend
-      const signersData: SignerData[] = selectedClientes.map(sc => ({
-        name: sc.cliente.nome,
+      // Preparar dados dos assinantes para preenchimento do PDF
+      const signersForPdfFill = selectedClientes.map(sc => ({
+        nome: sc.cliente.nome,
         email: sc.cliente.email,
-        cpf: sc.cliente.cpf || undefined,
+        cpf: sc.cliente.cpf || '',
         fields: sc.fields.map(field => ({
-          type: field.type,
-          page: field.position.page,
-          x: field.position.x,
-          y: field.position.y,
-          width: field.width,
-          height: field.height
+          ...field,
+          value: field.type === 'nome' ? sc.cliente.nome : 
+                 field.type === 'email' ? sc.cliente.email :
+                 field.type === 'cpf' ? sc.cliente.cpf || '' :
+                 field.type === 'customizado' ? (field as any).customText || '' : ''
         }))
       }));
 
-      // Prepare document data
+      // Dados para envio ao backend (excluir campos customizados, pois já foram processados no PDF)
+      const signersData: SignerData[] = selectedClientes
+        .map(sc => ({
+          name: sc.cliente.nome,
+          email: sc.cliente.email,
+          cpf: sc.cliente.cpf || undefined,
+          fields: sc.fields
+            .filter(field => field.type !== 'customizado') // Excluir campos customizados (já processados no PDF)
+            .map(field => ({
+              type: field.type,
+              page: field.position.page,
+              x: field.position.x,
+              y: field.position.y,
+              width: field.width,
+              height: field.height
+            }))
+        }))
+        .filter(signer => signer.fields.length > 0); // Remover assinantes sem campos válidos
+
+      let finalFile = arquivo;
+      
+      try {
+        console.log('=== INICIANDO PROCESSAMENTO DO PDF ===');
+        
+        // Carregar PDF (seja de arquivo local ou template)
+        let pdfBuffer: ArrayBuffer;
+        
+        if (arquivo && arquivo.isTemplate && arquivo.templateUrl) {
+          console.log('Carregando PDF de template:', arquivo.templateUrl);
+          pdfBuffer = await loadPdfFromUrl(arquivo.templateUrl);
+        } else if (arquivo) {
+          console.log('Carregando PDF de arquivo local:', arquivo.name);
+          pdfBuffer = await arquivo.arrayBuffer();
+        } else {
+          throw new Error('Nenhum arquivo PDF disponível');
+        }
+        
+        console.log('PDF carregado, iniciando preenchimento...');
+        
+        // Preencher PDF com dados dos campos dinâmicos
+        const filledPdfData = await fillPdfWithData(pdfBuffer, signersForPdfFill);
+        const filledPdfBlob = createBlobFromUint8Array(filledPdfData);
+        
+        // Criar arquivo final com dados preenchidos
+        const fileName = arquivo?.name || `${nome.replace(/[^a-zA-Z0-9\s]/g, '_')}.pdf`;
+        finalFile = createFileFromBlob(filledPdfBlob, fileName);
+        
+        // Validar arquivo gerado
+        console.log('✅ PDF processado com sucesso:', {
+          originalSize: pdfBuffer.byteLength,
+          processedSize: filledPdfData.length,
+          finalFileSize: finalFile.size,
+          fileName: finalFile.name,
+          fileType: finalFile.type
+        });
+        
+      } catch (pdfError) {
+        console.error('❌ ERRO ESPECÍFICO NO PROCESSAMENTO DO PDF:', pdfError);
+        setError(`Erro ao processar PDF: ${pdfError instanceof Error ? pdfError.message : 'Erro desconhecido'}`);
+        return;
+      }
+
       const documentData: CreateDocumentData = {
         name: nome.trim(),
-        client_id: isUniversal ? undefined : (selectedClientId || selectedClientes[0]?.cliente?.id),
-        file: arquivo!,
+        client_id: selectedClientes[0]?.cliente?.id ? parseInt(selectedClientes[0].cliente.id) : undefined,
+        file: finalFile!,
         is_active: true,
-        is_universal: isUniversal,
-        signers: signersData
+        is_universal: false,
+        signers: signersData.length > 0 ? signersData : undefined // Não enviar array vazio
       };
       
-
-      // Call backend API to create document
-      if (arquivo) {
-        const createdDocument = await criarDocumento(documentData, user);
-        onSubmit(createdDocument);
+      // Log detalhado do que será enviado
+      console.log('=== DADOS DO DOCUMENTO ===');
+      console.log('DocumentData:', {
+        name: documentData.name,
+        client_id: documentData.client_id,
+        is_active: documentData.is_active,
+        is_universal: documentData.is_universal,
+        fileInfo: {
+          name: finalFile?.name,
+          size: finalFile?.size,
+          type: finalFile?.type
+        },
+        signersCount: signersData.length
+      });
+      console.log('Signers enviados para backend:', JSON.stringify(signersData, null, 2));
+      
+      console.log('=== ENVIANDO PARA API ===');
+      
+      if (finalFile) {
+        // Validar arquivo antes do envio
+        console.log('Validando arquivo final:', {
+          name: finalFile.name,
+          size: finalFile.size,
+          type: finalFile.type,
+          lastModified: finalFile.lastModified
+        });
+        
+        // Verificar se o arquivo não está corrompido
+        if (finalFile.size === 0) {
+          setError('Arquivo PDF processado está vazio. Tente novamente.');
+          return;
+        }
+        
+        if (finalFile.size > 10 * 1024 * 1024) { // 10MB
+          setError('Arquivo PDF muito grande após processamento (>10MB). Simplifique o documento.');
+          return;
+        }
+        
+        // Testar se o arquivo é um PDF válido lendo os primeiros bytes
+        try {
+          const firstBytes = await finalFile.slice(0, 8).arrayBuffer();
+          const bytes = new Uint8Array(firstBytes);
+          const pdfHeader = Array.from(bytes.slice(0, 4)).map(b => String.fromCharCode(b)).join('');
+          
+          console.log('Header do arquivo:', pdfHeader);
+          
+          if (pdfHeader !== '%PDF') {
+            setError('Arquivo processado não é um PDF válido. Tente novamente.');
+            return;
+          }
+        } catch (headerError) {
+          console.error('Erro ao validar header do PDF:', headerError);
+          setError('Erro ao validar arquivo processado. Tente novamente.');
+          return;
+        }
+        
+        try {
+          const createdDocument = await criarDocumento(documentData, user);
+          console.log('✅ Documento criado na API com sucesso');
+          onSubmit(createdDocument);
+        } catch (apiError) {
+          console.error('❌ ERRO ESPECÍFICO NA API:', apiError);
+          throw apiError; // Re-throw para ser capturado pelo catch principal
+        }
       } else {
         setError('Arquivo é obrigatório para criar documento');
         return;
       }
 
     } catch (error) {
-      console.error('Erro ao salvar documento:', error);
+      console.error('Erro completo ao criar documento:', error);
       
       if (error instanceof Error) {
-        if (error.message.includes('network') || error.message.includes('fetch')) {
+        if (error.message.includes('HTML')) {
+          setError('Erro no servidor. A API pode não estar funcionando corretamente. Contate o suporte.');
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
           setError('Erro de conexão. Verifique sua internet e tente novamente.');
         } else if (error.message.includes('401') || error.message.includes('unauthorized')) {
           setError('Sessão expirada. Faça login novamente.');
@@ -173,6 +328,10 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
           setError('Dados inválidos. Verifique os campos e tente novamente.');
         } else if (error.message.includes('413') || error.message.includes('size')) {
           setError('Arquivo muito grande. Tamanho máximo: 5MB.');
+        } else if (error.message.includes('500')) {
+          setError('Erro interno do servidor. Tente novamente em alguns minutos.');
+        } else if (error.message.includes('404')) {
+          setError('Endpoint não encontrado. Verifique se a API está configurada corretamente.');
         } else {
           setError(`Erro ao salvar documento: ${error.message}`);
         }
@@ -211,20 +370,24 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
   };
 
   const handleClientAdded = async (novoCliente: LocalCliente) => {
-    // Recarregar lista de clientes do servidor para garantir dados atualizados
-    try {
-      const clientesAtualizados = await obterClientes(user);
-      setClientes(clientesAtualizados);
-    } catch (error) {
-      console.error('Erro ao recarregar clientes:', error);
-      // Fallback: adicionar manualmente à lista existente
-      setClientes(prev => [...prev, novoCliente]);
-    }
+    setClientes(prev => {
+      const clienteExiste = prev.some(c => c.id === novoCliente.id);
+      if (clienteExiste) {
+        return prev;
+      }
+      return [...prev, novoCliente];
+    });
     
-    // Adicionar cliente automaticamente como assinante
+    setTimeout(async () => {
+      try {
+        const clientesAtualizados = await obterClientes(user);
+        setClientes(clientesAtualizados);
+      } catch (error) {
+        console.error('Erro ao recarregar clientes:', error);
+      }
+    }, 1000);
+    
     handleAddCliente(novoCliente);
-    
-    // Fechar formulário
     setShowAddClientForm(false);
   };
 
@@ -247,8 +410,7 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
     const fieldWidth = fieldType === 'assinatura' ? 30 : 20;
     const fieldHeight = fieldType === 'assinatura' ? 10 : 5;
     
-    // Check for overlapping fields with a margin
-    const margin = 3; // 3% margin around fields
+    const margin = 3;
     const allFields = newSelectedClientes.flatMap((sc, index) => 
       sc.fields.map(field => ({ ...field, signerIndex: index }))
     );
@@ -276,7 +438,6 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
       return;
     }
 
-    // Add field with adjusted position if needed
     let adjustedPosition = { ...position };
     if (position.x + fieldWidth > 100) {
       adjustedPosition.x = 100 - fieldWidth;
@@ -285,34 +446,48 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
       adjustedPosition.y = 100 - fieldHeight;
     }
 
-    // If this is a signature field, suggest positions for auto-filled fields
     if (fieldType === 'assinatura') {
       const autoFields = ['nome', 'email', 'cpf'] as const;
+      const cliente = newSelectedClientes[currentClienteIndex].cliente;
       autoFields.forEach((type, index) => {
-        const suggestedPosition = getSuggestedPosition(adjustedPosition, index, fieldWidth, fieldHeight);
+        // Só adicionar campo se o dado existir para o cliente
         if (
-          suggestedPosition.x >= 0 && 
-          suggestedPosition.x + 20 <= 100 &&
-          suggestedPosition.y >= 0 && 
-          suggestedPosition.y + 5 <= 100 &&
-          !isPositionOverlapping(suggestedPosition, 20, 5, allFields, position.page, margin)
+          (type === 'nome' && cliente.nome) ||
+          (type === 'email' && cliente.email) ||
+          (type === 'cpf' && cliente.cpf)
         ) {
-          newSelectedClientes[currentClienteIndex].fields.push({
-            type,
-            position: { ...suggestedPosition, page: position.page },
-            width: 20,
-            height: 5
-          });
+          const suggestedPosition = getSuggestedPosition(adjustedPosition, index, fieldWidth, fieldHeight);
+          if (
+            suggestedPosition.x >= 0 && 
+            suggestedPosition.x + 20 <= 100 &&
+            suggestedPosition.y >= 0 && 
+            suggestedPosition.y + 5 <= 100 &&
+            !isPositionOverlapping(suggestedPosition, 20, 5, allFields, position.page, margin)
+          ) {
+            newSelectedClientes[currentClienteIndex].fields.push({
+              type,
+              position: { ...suggestedPosition, page: position.page },
+              width: 20,
+              height: 5
+            });
+          }
         }
       });
     }
 
-    newSelectedClientes[currentClienteIndex].fields.push({
+    const newField: SignatureField = {
       type: fieldType,
       position: adjustedPosition,
       width: fieldWidth,
       height: fieldHeight
-    });
+    };
+
+    // Adicionar texto customizado se for campo customizado
+    if (fieldType === 'customizado') {
+      (newField as any).customText = customText;
+    }
+
+    newSelectedClientes[currentClienteIndex].fields.push(newField);
     
     setSelectedClientes(newSelectedClientes);
   };
@@ -320,10 +495,10 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
   const getSuggestedPosition = (basePosition: { x: number; y: number }, index: number, fieldWidth: number, fieldHeight: number) => {
     const margin = 3;
     const positions = [
-      { x: basePosition.x, y: basePosition.y + fieldHeight + margin }, // below
-      { x: basePosition.x + fieldWidth + margin, y: basePosition.y }, // right
-      { x: basePosition.x, y: basePosition.y - 5 - margin }, // above
-      { x: basePosition.x - 20 - margin, y: basePosition.y }, // left
+      { x: basePosition.x, y: basePosition.y + fieldHeight + margin },
+      { x: basePosition.x + fieldWidth + margin, y: basePosition.y },
+      { x: basePosition.x, y: basePosition.y - 5 - margin },
+      { x: basePosition.x - 20 - margin, y: basePosition.y }
     ];
 
     return positions[index % positions.length];
@@ -368,14 +543,14 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
 
   const getFieldColor = (clienteIndex: number) => {
     const colors = [
-      'rgb(239 68 68)', // red
-      'rgb(34 197 94)', // green
-      'rgb(59 130 246)', // blue
-      'rgb(168 85 247)', // purple
-      'rgb(234 179 8)', // yellow
-      'rgb(236 72 153)', // pink
-      'rgb(14 165 233)', // sky
-      'rgb(99 102 241)', // indigo
+      'rgb(239 68 68)',
+      'rgb(34 197 94)',
+      'rgb(59 130 246)',
+      'rgb(168 85 247)',
+      'rgb(234 179 8)',
+      'rgb(236 72 153)',
+      'rgb(14 165 233)',
+      'rgb(99 102 241)'
     ];
     return colors[clienteIndex % colors.length];
   };
@@ -423,40 +598,6 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
             placeholder="Digite o nome do documento"
             required
           />
-        </div>
-
-        <div className="space-y-4">
-          <div className="flex items-center space-x-4">
-            <input
-              type="checkbox"
-              id="isUniversal"
-              checked={isUniversal}
-              onChange={(e) => setIsUniversal(e.target.checked)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label htmlFor="isUniversal" className="text-sm font-medium text-gray-700">
-              Documento Universal (sem cliente específico)
-            </label>
-          </div>
-
-          {!isUniversal && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
-              <select
-                value={selectedClientId}
-                onChange={(e) => setSelectedClientId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                required={!isUniversal}
-              >
-                <option value="">Selecione um cliente</option>
-                {clientes.map((cliente) => (
-                  <option key={cliente.id} value={cliente.id}>
-                    {cliente.nome} - {cliente.email}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
 
         {!initialData && (
@@ -567,7 +708,7 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
                       <div className="text-sm text-gray-500">
                         Campos definidos: {sc.fields.length}
                         {sc.fields.length > 0 && (
-                          <span className="ml-2 text-green-600">✓</span>
+                          <span className="ml-2 text-green-600">✓ Configurado</span>
                         )}
                       </div>
                     </div>
@@ -618,59 +759,92 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
                 </span>
               </h3>
               <div className="flex flex-wrap gap-2 mb-4">
-                <button
-                  type="button"
-                  onClick={() => setFieldType('assinatura')}
-                  className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
-                    fieldType === 'assinatura'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  Assinatura Digital
-                </button>
+                
                 <button
                   type="button"
                   onClick={() => setFieldType('nome')}
+                  disabled={!selectedClientes[currentClienteIndex]?.cliente?.nome}
                   className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
                     fieldType === 'nome'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  } ${!selectedClientes[currentClienteIndex]?.cliente?.nome ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   Nome (Auto-preenchido)
                 </button>
                 <button
                   type="button"
                   onClick={() => setFieldType('email')}
+                  disabled={!selectedClientes[currentClienteIndex]?.cliente?.email}
                   className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
                     fieldType === 'email'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  } ${!selectedClientes[currentClienteIndex]?.cliente?.email ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   Email (Auto-preenchido)
                 </button>
                 <button
                   type="button"
                   onClick={() => setFieldType('cpf')}
+                  disabled={!selectedClientes[currentClienteIndex]?.cliente?.cpf}
                   className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
                     fieldType === 'cpf'
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  } ${!selectedClientes[currentClienteIndex]?.cliente?.cpf ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   CPF (Auto-preenchido)
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setFieldType('customizado')}
+                  className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
+                    fieldType === 'customizado'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Texto Customizado
+                </button>
               </div>
+              
+              {fieldType === 'customizado' && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Texto Customizado
+                  </label>
+                  <input
+                    type="text"
+                    value={customText}
+                    onChange={(e) => setCustomText(e.target.value)}
+                    placeholder="Digite o texto que aparecerá no PDF"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    maxLength={100}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Este texto será inserido diretamente no PDF na posição que você clicar
+                  </p>
+                </div>
+              )}
+              
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-blue-800">
-                  <strong>Instruções:</strong> Clique no documento para adicionar campos. Os campos de nome, email e CPF serão preenchidos automaticamente com os dados do cliente. Apenas a assinatura digital precisará ser feita pelo assinante.
+                  <strong>Como funciona:</strong> Clique no documento para adicionar campos. Os campos de nome, email e CPF são preenchidos automaticamente. Use "Texto Customizado" para inserir qualquer texto fixo no documento. A Autentique adiciona a assinatura digital automaticamente no final.
                 </p>
               </div>
             </div>
 
-            <div className="relative bg-gray-50 rounded-lg p-4">
+            <div 
+              className="relative bg-gray-50 rounded-lg p-4"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+              }}
+            >
               <PdfViewer
                 pdfUrl={previewUrl}
                 onPositionSelect={handleAddField}
@@ -695,6 +869,7 @@ export function DocumentoForm({ initialData, onSubmit }: DocumentoFormProps) {
 
         <div className="flex justify-end space-x-3 pt-6 border-t">
           <button
+            id="submit-document-button"
             type="submit"
             disabled={isSubmitting}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"

@@ -16,14 +16,20 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="fixed inset-0 bg-black opacity-30" onClick={onClose}></div>
-        <div className={`relative bg-white rounded-lg shadow-xl w-full ${maxWidth}`}>
-          <div className="flex items-center justify-between p-4 border-b">
-            <h3 className="text-lg font-semibold">{title}</h3>
+        <div
+          className={`
+            relative bg-white rounded-lg shadow-xl w-full
+            ${maxWidth}
+            sm:max-w-sm md:max-w-md lg:max-w-lg
+          `}
+        >
+          <div className="flex items-center justify-between p-3 sm:p-4 border-b">
+            <h3 className="text-base sm:text-lg font-semibold">{title}</h3>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
               <X className="h-5 w-5" />
             </button>
           </div>
-          <div className="p-6">{children}</div>
+          <div className="p-3 sm:p-6">{children}</div>
         </div>
       </div>
     </div>

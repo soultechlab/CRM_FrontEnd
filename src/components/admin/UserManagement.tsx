@@ -73,7 +73,6 @@ export default function UserManagement() {
     await atualizarUsuario(userId, updates, user);
 
     if (newPassword) {
-      console.log('Password would be updated here in a real application');
     }
   };
 
