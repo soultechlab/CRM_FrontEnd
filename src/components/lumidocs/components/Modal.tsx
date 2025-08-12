@@ -20,7 +20,6 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
           className={`
             relative bg-white rounded-lg shadow-xl w-full
             ${maxWidth}
-            sm:max-w-sm md:max-w-md lg:max-w-lg
           `}
         >
           <div className="flex items-center justify-between p-3 sm:p-4 border-b">

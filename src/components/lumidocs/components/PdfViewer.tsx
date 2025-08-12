@@ -6,6 +6,7 @@ import 'react-pdf/dist/esm/Page/TextLayer.css';
 
 // Importar nossa configuração customizada do PDF.js
 import { pdfjs } from '../utils/pdfConfig';
+import { toast } from 'react-toastify';
 
 interface Field {
   type: 'assinatura' | 'nome' | 'email' | 'cpf' | 'customizado';
@@ -77,7 +78,7 @@ export function PdfViewer({
   }
 
   function onDocumentLoadError(error: any) {
-    console.error('Error loading PDF:', error);
+    toast.error(`Falha ao carregar o arquivo PDF: ${error.message || 'Arquivo inválido ou corrompido'}`);
     setError(`Falha ao carregar o arquivo PDF: ${error.message || 'Arquivo inválido ou corrompido'}`);
     setLoading(false);
   }
@@ -333,7 +334,6 @@ export function PdfViewer({
               width={800}
               onLoadSuccess={({ width, height }) => {
                 // Garantir que as dimensões da página estão disponíveis
-                console.log('Página carregada com dimensões:', width, height);
               }}
             />
           </Document>

@@ -90,7 +90,6 @@ export default function ImportarClientesModal({ onClose, onImport }: ImportarCli
 
           onImport(clientes);
         } catch (error) {
-          console.log(error);
           setError('Erro ao processar o arquivo. Verifique o formato .');
         }
       };

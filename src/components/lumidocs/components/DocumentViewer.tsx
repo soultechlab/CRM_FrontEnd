@@ -35,7 +35,6 @@ export function DocumentViewer({ document, isOpen, onClose, onDocumentUpdate }: 
       onDocumentUpdate?.();
     } catch (err) {
       setError('Erro ao enviar documento para assinatura');
-      console.error('Erro ao enviar documento:', err);
     } finally {
       setLoading(false);
     }
@@ -56,7 +55,6 @@ export function DocumentViewer({ document, isOpen, onClose, onDocumentUpdate }: 
       document.body.removeChild(a);
     } catch (err) {
       setError('Erro ao baixar documento assinado');
-      console.error('Erro ao baixar documento:', err);
     } finally {
       setLoading(false);
     }
@@ -71,7 +69,6 @@ export function DocumentViewer({ document, isOpen, onClose, onDocumentUpdate }: 
       onClose();
     } catch (err) {
       setError('Erro ao arquivar documento');
-      console.error('Erro ao arquivar documento:', err);
     } finally {
       setLoading(false);
     }
@@ -87,7 +84,6 @@ export function DocumentViewer({ document, isOpen, onClose, onDocumentUpdate }: 
         onClose();
       } catch (err) {
         setError('Erro ao excluir documento');
-        console.error('Erro ao excluir documento:', err);
       } finally {
         setLoading(false);
       }
@@ -99,18 +95,13 @@ export function DocumentViewer({ document, isOpen, onClose, onDocumentUpdate }: 
       setLoading(true);
       setError(null);
       
-      console.log(`🔄 Sincronizando status do documento ${document.id}...`);
       const response = await sincronizarStatusDocumento(document.id, user);
       
-      console.log('✅ Resposta da sincronização:', response);
-      
       if (response.success) {
-        console.log(`📊 Status sincronizado: ${response.data.previous_status} → ${response.data.current_status}`);
         onDocumentUpdate?.();
       }
     } catch (err) {
       setError('Erro ao sincronizar status do documento');
-      console.error('Erro ao sincronizar status:', err);
     } finally {
       setLoading(false);
     }

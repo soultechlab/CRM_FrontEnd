@@ -10,7 +10,6 @@ export const exportarRelatorioFinanceiro = (
   const doc = new jsPDF();
   const hoje = new Date();
 
-  // Configurações do relatório
   const titulo = `Relatório Financeiro - ${
     periodo === 'mes' ? 'Mês Atual' :
     periodo === 'ano' ? 'Ano Atual' :
@@ -19,7 +18,6 @@ export const exportarRelatorioFinanceiro = (
     'Saldo Líquido'
   }`;
 
-  // Filtra transações pelo período e tipo
   const transacoesFiltradas = transacoes.filter(transacao => {
     const dataTransacao = new Date(transacao.data);
     const filtroData = periodo === 'mes' 
@@ -37,7 +35,6 @@ export const exportarRelatorioFinanceiro = (
     return filtroData && filtroTipo;
   });
 
-  // Cabeçalho
   doc.setFontSize(20);
   doc.text('FotoCRM', 105, 20, { align: 'center' });
   doc.setFontSize(16);
@@ -45,7 +42,6 @@ export const exportarRelatorioFinanceiro = (
   doc.setFontSize(12);
   doc.text(`Gerado em: ${formatarData(hoje.toISOString())}`, 105, 40, { align: 'center' });
 
-  // Resumo Financeiro
   doc.setFontSize(14);
   doc.text('Resumo Financeiro', 20, 60);
   doc.setFontSize(12);
@@ -70,7 +66,6 @@ export const exportarRelatorioFinanceiro = (
     doc.text(`Saldo Líquido: ${formatarMoeda(resumo.saldoLiquido)}`, 20, yPos);
   }
 
-  // Lista de Transações
   if (transacoesFiltradas.length > 0) {
     doc.setFontSize(14);
     doc.text('Transações do Período', 20, 130);
@@ -92,6 +87,5 @@ export const exportarRelatorioFinanceiro = (
     });
   }
 
-  // Download do PDF
   doc.save(`relatorio_financeiro_${periodo}_${formatarData(hoje.toISOString())}.pdf`);
 };

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Mail, Edit3, Send, AlertCircle } from 'lucide-react';
 import { BackendDocument } from '../../../types';
+import { toast } from 'react-toastify';
 
 interface SendSignatureModalProps {
   document: BackendDocument;
@@ -65,7 +66,7 @@ export function SendSignatureModal({
       await onConfirm(String(document.id), editableSigners);
       onClose();
     } catch (error) {
-      console.error('Erro ao enviar documento:', error);
+      toast.error('Erro ao enviar documento para assinatura');
     } finally {
       setIsSubmitting(false);
     }
@@ -96,7 +97,7 @@ export function SendSignatureModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-xs sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-xs sm:max-w-lg md:max-w-2xl max-h-[90vh] flex flex-col">
         <div className="p-3 sm:p-6 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{usoMsg}</span>
@@ -157,7 +158,7 @@ export function SendSignatureModal({
         </div>
 
         {/* Content */}
-        <div className="p-3 sm:p-6">
+        <div className="p-3 sm:p-6 overflow-y-auto flex-1">
           <div className="mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-4 gap-2">
               <h4 className="text-sm sm:text-md font-medium text-gray-900">
@@ -240,7 +241,7 @@ export function SendSignatureModal({
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 px-2 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-end gap-2 sm:gap-3">
+        <div className="bg-gray-50 px-2 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-end gap-2 sm:gap-3 flex-shrink-0">
           <button
             onClick={onClose}
             className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors w-full sm:w-auto"

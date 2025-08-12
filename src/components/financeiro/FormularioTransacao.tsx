@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search } from 'lucide-react';
 import { useFinanceiro } from '../../contexts/FinanceiroContext';
+import { toast } from 'react-toastify';
 import { Transacao, Parcela } from '../../types/financeiro';
 import { Cliente } from '../../types';
 import { obterClientes } from '../../services/apiService';
@@ -89,7 +90,7 @@ export default function FormularioTransacao({ transacaoId, onClose }: Formulario
         const dadosClientes = await obterClientes(user);
         setClientes(dadosClientes);
       } catch (err) {
-        console.log(err);
+        toast.error('Erro ao buscar clientes');
       }
     };
 
@@ -211,7 +212,7 @@ export default function FormularioTransacao({ transacaoId, onClose }: Formulario
         const dadosTransacao = mapearDadosTransacao(transacaoEntrada, user);
 
         if (transacaoId) {
-          atualizarTransacao(transacaoId, dadosTransacao);
+          atualizarTransacao(transacaoId, transacaoEntrada, dadosTransacao);
         } else {
           adicionarTransacao(dadosTransacao, transacaoEntrada);
         }
@@ -236,7 +237,7 @@ export default function FormularioTransacao({ transacaoId, onClose }: Formulario
         const dadosTransacao = mapearDadosTransacao(transacaoParcela, user);
 
         if (parcela.transacaoId) {
-          atualizarTransacao(parcela.transacaoId, dadosTransacao);
+          atualizarTransacao(parcela.transacaoId, transacaoParcela, dadosTransacao);
         } else {
           adicionarTransacao(dadosTransacao, transacaoParcela);
         }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Mail, Lock, User } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -51,7 +52,7 @@ export default function RegisterPage() {
         } 
       });
     } catch (err) {
-      console.error('Erro no cadastro:', err);
+      toast.error('Erro no cadastro');
     } finally {
       setIsLoading(false);
     }

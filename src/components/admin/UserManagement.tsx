@@ -29,7 +29,7 @@ export default function UserManagement() {
         const response = await obterUsuarios(user);
         setUsers(response);
       } catch (error) {
-        console.error("Erro ao buscar usuários:", error);
+        toast.error("Erro ao buscar usuários");
       }
     };
   

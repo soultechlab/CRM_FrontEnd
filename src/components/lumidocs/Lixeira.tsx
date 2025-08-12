@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Search, RefreshCw, AlertTriangle, CheckCircle, RotateCcw, Trash2, ArrowLeft, Eye } from 'lucide-react';
 import { LumiDocsHeader } from './components/LumiDocsHeader';
-import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
 import { DocumentTemplate } from '../../types';
 import { useTemplates } from '../../hooks/useTemplates';
 import { mapApiToCategory, detectCategoryFromText, type ModelCategory } from '../../utils/categoryMapping';
@@ -56,7 +55,7 @@ export function Lixeira({ onBack }: LixeiraProps) {
       const templatesWithCategory = templates.map(mapearCategoria);
       setTrashedTemplates(templatesWithCategory);
     } catch (error: any) {
-      console.error('Erro ao carregar templates da lixeira:', error);
+      setError('Erro ao carregar templates da lixeira');
     }
   };
 
@@ -69,7 +68,7 @@ export function Lixeira({ onBack }: LixeiraProps) {
         setTimeout(() => setSuccessMessage(null), 3000);
       }
     } catch (error: any) {
-      console.error('Erro ao restaurar template:', error);
+      setError('Erro ao restaurar template');
     }
   };
 
@@ -79,7 +78,7 @@ export function Lixeira({ onBack }: LixeiraProps) {
       setDebugInfo(debugData);
       setShowDebug(true);
     } catch (error: any) {
-      console.error('Erro ao obter debug:', error);
+      // Debug silencioso em caso de erro
     }
   };
 
