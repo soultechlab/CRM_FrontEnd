@@ -1,6 +1,7 @@
 import React from 'react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { atualizarUsuarioTokenGoogle } from '../../services/apiService';
+import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
 
 const GoogleLoginButton = () => {
@@ -13,7 +14,7 @@ const GoogleLoginButton = () => {
       scope: "https://www.googleapis.com/auth/calendar",
       callback: (response: any) => {
         if (response.error) {
-          console.error("Erro ao obter access token:", response);
+          toast.error("Erro ao obter access token do Google Calendar");
           return;
         }
         const tokenData = {

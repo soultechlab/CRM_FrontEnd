@@ -1,6 +1,7 @@
 import React, { useEffect, useState, memo } from 'react';
 import { CheckCircle, Clock, User, RefreshCw } from 'lucide-react';
 import { marcarDocumentoAssinado } from '../../../services/apiService';
+import { toast } from 'react-toastify';
 import { useAuth } from '../../../contexts/AuthContext';
 
 interface Signer {
@@ -56,7 +57,7 @@ export const SignatureProgress = memo(function SignatureProgress({ signers, clas
             }, 2000);
           }
         } catch (error) {
-          console.error('❌ Erro ao marcar documento como assinado:', error);
+          toast.error('Erro ao marcar documento como assinado');
           if (onDocumentStatusChange) {
             onDocumentStatusChange(documentId, 'pending_signature');
           }

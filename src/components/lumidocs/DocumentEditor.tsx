@@ -20,9 +20,11 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import DOMPurify from 'dompurify';
+import jsPDF from 'jspdf';
 import { criarTemplateDocumentoFromHtml } from '../../services/apiService';
 import { useAuth } from '../../contexts/AuthContext';
 import { mapCategoryToApi } from '../../utils/categoryMapping';
+import { DownloadFormatModal } from './components/DownloadFormatModal';
 
 type ModelCategory = 'contratos' | 'permuta' | 'eventos' | 'ensaios' | 'outros';
 
@@ -32,19 +34,17 @@ export function DocumentEditor() {
   const editorRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   
-  // Parâmetros do modelo
   const [modelName] = useState(searchParams.get('name') || 'Novo Modelo');
   const [modelCategory] = useState(searchParams.get('category') as ModelCategory || 'contratos');
   const [modelDescription] = useState(searchParams.get('description') || '');
   
-  // Estados do editor
   const [content, setContent] = useState('<p>Digite aqui o conteúdo do seu modelo...</p>');
   const [selectedFont, setSelectedFont] = useState('Arial');
   const [selectedSize, setSelectedSize] = useState('14');
   const [selectedColor, setSelectedColor] = useState('#000000');
   const [isSaving, setIsSaving] = useState(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
 
-  // Função para sanitizar conteúdo
   const sanitizeContent = (content: string) => {
     return DOMPurify.sanitize(content, {
       ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'ol', 'ul', 'li', 'blockquote', 'hr', 'span'],
@@ -52,7 +52,6 @@ export function DocumentEditor() {
     });
   };
 
-  // Função para salvar e restaurar seleção
   const saveSelection = () => {
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0) {
@@ -70,10 +69,8 @@ export function DocumentEditor() {
   };
 
   useEffect(() => {
-    // Configurar editor como editável apenas na primeira renderização
     if (editorRef.current) {
       editorRef.current.innerHTML = sanitizeContent(content);
-      // Focar no final do conteúdo
       const selection = window.getSelection();
       const range = document.createRange();
       range.selectNodeContents(editorRef.current);
@@ -81,15 +78,12 @@ export function DocumentEditor() {
       selection?.removeAllRanges();
       selection?.addRange(range);
       
-      // Adicionar listener para mudanças na seleção
       const handleSelectionChange = () => {
         const selection = window.getSelection();
         if (selection && selection.rangeCount > 0) {
           const range = selection.getRangeAt(0);
           
-          // Verificar se a seleção está dentro do editor
           if (editorRef.current?.contains(range.commonAncestorContainer)) {
-            // Atualizar estados baseado na seleção atual
             const parentElement = range.commonAncestorContainer.nodeType === Node.TEXT_NODE
               ? range.commonAncestorContainer.parentElement
               : range.commonAncestorContainer as Element;
@@ -97,23 +91,19 @@ export function DocumentEditor() {
             if (parentElement) {
               const computedStyle = window.getComputedStyle(parentElement);
               
-              // Atualizar fonte se disponível
               const fontFamily = computedStyle.fontFamily;
               if (fontFamily) {
                 setSelectedFont(fontFamily.replace(/['"]/g, ''));
               }
               
-              // Atualizar tamanho se disponível
               const fontSize = computedStyle.fontSize;
               if (fontSize) {
                 const sizeInPx = parseInt(fontSize);
                 setSelectedSize(sizeInPx.toString());
               }
               
-              // Atualizar cor se disponível
               const color = computedStyle.color;
               if (color) {
-                // Converter RGB para hex se necessário
                 const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
                 if (rgbMatch) {
                   const hex = "#" + ((1 << 24) + (parseInt(rgbMatch[1]) << 16) + (parseInt(rgbMatch[2]) << 8) + parseInt(rgbMatch[3])).toString(16).slice(1);
@@ -137,20 +127,20 @@ export function DocumentEditor() {
     if (editorRef.current) {
       editorRef.current.focus();
       
-      // Verificar se há texto selecionado
+      
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
         
-        // Se há seleção, aplicar o comando
+        
         if (!range.collapsed) {
           document.execCommand(command, false, value);
         } else {
-          // Se não há seleção, aplicar para nova digitação
+          
           document.execCommand(command, false, value);
         }
       } else {
-        // Fallback para quando não há seleção
+        
         document.execCommand(command, false, value);
       }
       
@@ -163,16 +153,16 @@ export function DocumentEditor() {
     if (editorRef.current) {
       editorRef.current.focus();
       
-      // Salvar seleção atual
+      
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
         
         if (!range.collapsed) {
-          // Há texto selecionado - aplicar fonte
+          
           document.execCommand('fontName', false, font);
         } else {
-          // Não há seleção - aplicar para próxima digitação
+          
           document.execCommand('fontName', false, font);
         }
       }
@@ -191,22 +181,22 @@ export function DocumentEditor() {
         const range = selection.getRangeAt(0);
         
         if (!range.collapsed) {
-          // Salvar seleção
+          
           const savedRange = saveSelection();
           
-          // Aplicar tamanho diretamente via CSS
+          
           const selectedContent = range.extractContents();
           const span = document.createElement('span');
           span.style.fontSize = `${size}px`;
           span.appendChild(selectedContent);
           range.insertNode(span);
           
-          // Restaurar seleção no conteúdo modificado
+          
           const newRange = document.createRange();
           newRange.selectNodeContents(span);
           restoreSelection(newRange);
         } else {
-          // Para nova digitação, usar execCommand
+          
           document.execCommand('fontSize', false, '3');
           document.execCommand('insertHTML', false, `<span style="font-size: ${size}px;"></span>`);
         }
@@ -242,32 +232,32 @@ export function DocumentEditor() {
       
       const command = type === 'ul' ? 'insertUnorderedList' : 'insertOrderedList';
       
-      // Primeiro, tentar o comando padrão
+      
       const success = document.execCommand(command, false);
       
       if (!success) {
-        // Se falhar, criar lista manualmente
+        
         const selection = window.getSelection();
         if (selection && selection.rangeCount > 0) {
           const range = selection.getRangeAt(0);
           
-          // Criar elemento de lista
+          
           const listElement = document.createElement(type);
           const listItem = document.createElement('li');
           
           if (!range.collapsed) {
-            // Se há texto selecionado, colocar na lista
+            
             const selectedContent = range.extractContents();
             listItem.appendChild(selectedContent);
           } else {
-            // Se não há seleção, criar item vazio
+            
             listItem.innerHTML = '&nbsp;';
           }
           
           listElement.appendChild(listItem);
           range.insertNode(listElement);
           
-          // Posicionar cursor dentro do item da lista
+          
           const newRange = document.createRange();
           newRange.setStart(listItem, 0);
           newRange.setEnd(listItem, listItem.childNodes.length);
@@ -289,11 +279,11 @@ export function DocumentEditor() {
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
         
-        // Tentar comando padrão primeiro
+        
         const success = document.execCommand('formatBlock', false, 'blockquote');
         
         if (!success) {
-          // Se falhar, criar blockquote manualmente
+          
           const blockquote = document.createElement('blockquote');
           blockquote.style.margin = '1em 0';
           blockquote.style.paddingLeft = '1em';
@@ -309,7 +299,7 @@ export function DocumentEditor() {
           
           range.insertNode(blockquote);
           
-          // Posicionar cursor dentro do blockquote
+          
           const newRange = document.createRange();
           newRange.selectNodeContents(blockquote);
           selection.removeAllRanges();
@@ -329,11 +319,11 @@ export function DocumentEditor() {
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
         
-        // Tentar comando padrão primeiro
+        
         const success = document.execCommand('insertHorizontalRule');
         
         if (!success) {
-          // Se falhar, criar HR manualmente
+          
           const hr = document.createElement('hr');
           hr.style.margin = '1em 0';
           hr.style.border = 'none';
@@ -341,7 +331,7 @@ export function DocumentEditor() {
           
           range.insertNode(hr);
           
-          // Posicionar cursor após o HR
+          
           const newRange = document.createRange();
           newRange.setStartAfter(hr);
           selection.removeAllRanges();
@@ -407,8 +397,8 @@ export function DocumentEditor() {
     }
   };
 
-  const handleDownload = () => {
-    const htmlContent = `
+  const generateHtmlContent = () => {
+    return `
       <!DOCTYPE html>
       <html>
         <head>
@@ -431,7 +421,10 @@ export function DocumentEditor() {
         </body>
       </html>
     `;
-    
+  };
+
+  const handleDownloadHTML = () => {
+    const htmlContent = generateHtmlContent();
     const blob = new Blob([htmlContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -439,6 +432,144 @@ export function DocumentEditor() {
     a.download = `${modelName}.html`;
     a.click();
     URL.revokeObjectURL(url);
+    setIsDownloadModalOpen(false);
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      
+      const margin = 20;
+      const pageWidth = 210;
+      const contentWidth = pageWidth - 2 * margin;
+      
+      
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = sanitizeContent(content);
+      const textContent = tempDiv.textContent || tempDiv.innerText || '';
+      
+      
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(12);
+      
+      
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(modelName, margin, margin + 10);
+      
+      
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      
+      
+      const lines = pdf.splitTextToSize(textContent, contentWidth);
+      
+      let currentY = margin + 25;
+      const lineHeight = 7;
+      const pageHeight = 297;
+      const maxY = pageHeight - margin;
+      
+      
+      for (let i = 0; i < lines.length; i++) {
+        if (currentY + lineHeight > maxY) {
+          
+          pdf.addPage();
+          currentY = margin + 10;
+        }
+        
+        pdf.text(lines[i], margin, currentY);
+        currentY += lineHeight;
+      }
+      
+      
+      pdf.save(`${modelName}.pdf`);
+      
+      setIsDownloadModalOpen(false);
+      toast.success('PDF gerado e baixado com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao gerar PDF. Tente novamente.');
+    }
+  };
+
+  const handleDownloadDOCX = async () => {
+    try {
+      
+      const htmlContent = `
+<!DOCTYPE html>
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+  <meta charset='utf-8'>
+  <title>${modelName}</title>
+  <!--[if gte mso 9]>
+  <xml>
+    <w:WordDocument>
+      <w:View>Print</w:View>
+      <w:Zoom>90</w:Zoom>
+      <w:DoNotPromptForConvert/>
+      <w:DoNotDisplayGridlines/>
+    </w:WordDocument>
+  </xml>
+  <![endif]-->
+  <style>
+    @page Section1 {
+      size: 595.3pt 841.9pt;
+      margin: 72pt 72pt 72pt 72pt;
+      mso-header-margin: 35.4pt;
+      mso-footer-margin: 35.4pt;
+      mso-paper-source: 0;
+    }
+    div.Section1 { page: Section1; }
+    body {
+      font-family: '${selectedFont}', Arial, sans-serif;
+      font-size: ${selectedSize}pt;
+      line-height: 1.6;
+    }
+    h1 {
+      font-size: 18pt;
+      font-weight: bold;
+      margin-bottom: 12pt;
+      color: #000000;
+    }
+    p {
+      margin: 6pt 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="Section1">
+    <h1>${modelName}</h1>
+    ${sanitizeContent(content)}
+  </div>
+</body>
+</html>`;
+      
+      
+      const blob = new Blob(['\ufeff', htmlContent], { 
+        type: 'application/msword'
+      });
+      
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${modelName}.doc`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      setIsDownloadModalOpen(false);
+      toast.success('Arquivo Word baixado com sucesso! (formato .doc compatível)');
+    } catch (error) {
+      toast.error('Erro ao gerar arquivo Word. Tente novamente.');
+    }
+  };
+
+  const handleDownload = () => {
+    setIsDownloadModalOpen(true);
   };
 
   return (
@@ -665,7 +796,7 @@ export function DocumentEditor() {
               contentEditable
               onInput={(e) => setContent(sanitizeContent(e.currentTarget.innerHTML))}
               onKeyDown={(e) => {
-                // Melhorar comportamento das listas com Enter
+                
                 if (e.key === 'Enter') {
                   const selection = window.getSelection();
                   if (selection && selection.rangeCount > 0) {
@@ -673,20 +804,20 @@ export function DocumentEditor() {
                     const listItem = range.startContainer.parentElement?.closest('li');
                     
                     if (listItem) {
-                      // Se estiver em uma lista e o item estiver vazio, sair da lista
+                      
                       if (listItem.textContent?.trim() === '') {
                         e.preventDefault();
                         const list = listItem.parentElement;
                         if (list) {
-                          // Criar parágrafo após a lista
+                          
                           const p = document.createElement('p');
                           p.innerHTML = '<br>';
                           list.parentNode?.insertBefore(p, list.nextSibling);
                           
-                          // Remover item vazio
+                          
                           listItem.remove();
                           
-                          // Focar no novo parágrafo
+                          
                           const newRange = document.createRange();
                           newRange.setStart(p, 0);
                           selection.removeAllRanges();
@@ -715,6 +846,14 @@ export function DocumentEditor() {
           </div>
         </div>
       </div>
+
+      <DownloadFormatModal
+        isOpen={isDownloadModalOpen}
+        onClose={() => setIsDownloadModalOpen(false)}
+        onDownloadPDF={handleDownloadPDF}
+        onDownloadDOCX={handleDownloadDOCX}
+        modelName={modelName}
+      />
     </div>
   );
 }

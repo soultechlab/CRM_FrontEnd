@@ -8,6 +8,7 @@ import { PdfViewer } from './PdfViewer';
 import { criarDocumento, CreateDocumentData, SignerData, obterClientes, Cliente } from '../../../services/apiService';
 import { useAuth } from '../../../contexts/AuthContext';
 import { AddClientInline } from './AddClientInline';
+import { toast } from 'react-toastify';
 
 interface UseTemplateModalProps {
   template: DocumentTemplate;
@@ -59,7 +60,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
       const blobUrl = URL.createObjectURL(blob);
       setPreviewUrl(blobUrl);
     } catch (error) {
-      console.error('Error loading PDF with auth:', error);
+      toast.error(`Erro ao carregar PDF: ${error.message}`);
       setError(`Erro ao carregar PDF: ${error.message}`);
     }
   };
@@ -97,7 +98,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
       const clientesData = await obterClientes(user);
       setClientes(clientesData);
     } catch (err: any) {
-      console.error('Erro ao carregar clientes:', err);
+      toast.error(err.message || 'Erro ao carregar clientes');
       setError(err.message || 'Erro ao carregar clientes');
     } finally {
       setLoading(false);
@@ -281,7 +282,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
         setError(response.error || 'Erro ao criar documento');
       }
     } catch (err: any) {
-      console.error('Erro ao criar documento:', err);
+      toast.error(err.message || 'Erro ao criar documento');
       setError(err.message || 'Erro ao criar documento');
     } finally {
       setIsSubmitting(false);

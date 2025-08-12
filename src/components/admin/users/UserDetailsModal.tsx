@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Users, DollarSign, Calendar, Clock, AlertCircle } from 'lucide-react';
 import { User } from '../../../types/admin';
 import { formatarMoeda } from '../../../utils/formatters';
+import { toast } from 'react-toastify';
 import { formatarDataBR, tempoDecorrido } from '../../../utils/dateUtils';
 import LoadingSpinner from '../../shared/LoadingSpinner';
 import SocialLinks from './social/SocialLinks';
@@ -58,7 +59,7 @@ export default function UserDetailsModal({ user, onClose }: UserDetailsModalProp
         });
       } catch (err) {
         setError('Erro ao carregar métricas do usuário');
-        console.error('Error fetching user metrics:', err);
+        toast.error('Erro ao carregar métricas do usuário');
       } finally {
         setLoading(false);
       }

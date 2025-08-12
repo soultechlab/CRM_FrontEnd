@@ -48,7 +48,6 @@ export const hasFinancialAccess = (user: any) => {
   return limits.hasFinancialAccess;
 };
 
-// NOVAS FUNÇÕES PARA LIMITES DE TEMPLATES E ENVIOS DE DOCUMENTOS
 
 export const checkTemplateLimit = (userPlan: string, currentTemplateCount: number) => {
   const limits = getPlanLimits(userPlan);

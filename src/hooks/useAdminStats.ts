@@ -117,7 +117,6 @@ export function useAdminStats() {
         
         setStats(mappedData);
       } catch (err) {
-        console.error(err);
       }
     };
 

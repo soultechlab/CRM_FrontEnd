@@ -48,8 +48,7 @@ export function FinanceiroProvider({ children }: { children: React.ReactNode }) 
             console.warn('obterTransacoes retornou um valor não-array ou undefined:', dadosTransacoes);
             setTransacoes([]); // Garante que transacoes seja sempre um array
           }
-        } catch (err) {
-          console.error("Erro ao buscar transações:", err);
+          } catch (err) {
           setTransacoes([]); // Garante que transacoes seja sempre um array em caso de erro
         }
       } else {

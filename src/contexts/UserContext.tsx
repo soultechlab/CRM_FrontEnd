@@ -73,7 +73,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         });
       } catch (err) {
         setError('Error loading user data');
-        console.error(err);
       } finally {
         setIsLoading(false);
       }
