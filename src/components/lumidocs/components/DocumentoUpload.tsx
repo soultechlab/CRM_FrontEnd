@@ -10,6 +10,7 @@ export function DocumentoUpload({ onSuccess }: DocumentoUploadProps) {
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [nome, setNome] = useState('');
   const [clientesSelecionados, setClientesSelecionados] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const clientes = storage.getClientes();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,20 +47,28 @@ export function DocumentoUpload({ onSuccess }: DocumentoUploadProps) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB
-        alert('O arquivo deve ter no máximo 5MB');
+      if (file.size > 5 * 1024 * 1024) {
+        setError('O arquivo deve ter no máximo 5MB');
+        e.target.value = '';
         return;
       }
       if (file.type !== 'application/pdf') {
-        alert('Apenas arquivos PDF são permitidos');
+        setError('Apenas arquivos PDF são permitidos');
+        e.target.value = '';
         return;
       }
       setArquivo(file);
+      setError(null);
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="text-sm text-red-700">{error}</div>
+        </div>
+      )}
       <div>
         <label className="block text-sm font-medium text-gray-700">Nome do Documento</label>
         <input

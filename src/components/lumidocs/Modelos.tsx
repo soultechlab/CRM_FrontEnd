@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Search, Calendar, X, RefreshCw, AlertTriangle, CheckCircle, ScrollText, ArrowLeftRight, CalendarDays, Camera, Archive, Trash2, Eye } from 'lucide-react';
 import { LumiDocsHeader } from './components/LumiDocsHeader';
 import { NewModelModal } from './components/NewModelModal';
-import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
+import { ConfirmationModal } from './components/ConfirmationModal';
 import { DocumentoForm } from './components/DocumentoForm';
 import { Modal } from './components/Modal';
 import { ViewTemplateModal } from './components/ViewTemplateModal';
@@ -68,7 +68,6 @@ export function Modelos() {
   const [isViewTemplateModalOpen, setIsViewTemplateModalOpen] = useState(false); 
   const [selectedTemplateForView, setSelectedTemplateForView] = useState<TemplateWithCategory | null>(null);
 
-  // Limite de templates customizados (deve estar sempre definido)
   const templateLimitInfo = checkTemplateLimit(user?.plan || 'free', customTemplates.length);
 
   useEffect(() => {
@@ -105,7 +104,7 @@ export function Modelos() {
         setTemplates([...defaultTemplatesWithCategory, ...customTemplatesWithCategory]);
       }
     } catch (error: any) {
-      console.error('Erro ao carregar templates:', error);
+      setError('Falha ao carregar templates. Tente novamente.');
     }
   };
 
@@ -141,10 +140,10 @@ export function Modelos() {
         
         setTimeout(() => setSuccessMessage(null), 3000);
       } else {
-        console.error('Falha ao criar template - verifique os logs do console');
+        setError('Falha ao criar template. Verifique os dados e tente novamente.');
       }
     } catch (error: any) {
-      console.error('Erro ao criar modelo:', error);
+      setError('Erro ao criar modelo. Verifique os dados e tente novamente.');
     }
   };
 
@@ -173,7 +172,7 @@ export function Modelos() {
         setTimeout(() => setSuccessMessage(null), 3000);
       }
     } catch (error: any) {
-      console.error('Erro ao excluir template:', error);
+      setError('Erro ao excluir template. Tente novamente.');
     } finally {
       setDeleteModal({
         isOpen: false,
@@ -201,7 +200,7 @@ export function Modelos() {
         setTimeout(() => setSuccessMessage(null), 3000);
       }
     } catch (error: any) {
-      console.error('Erro ao alterar status:', error);
+      setError('Erro ao alterar status. Tente novamente.');
     }
   };
 
@@ -555,7 +554,17 @@ export function Modelos() {
         templateLimitReached={templateLimitInfo.reached}
         userPlan={user?.plan || 'free'}
       />
-      <ConfirmDeleteModal isOpen={deleteModal.isOpen} onClose={closeDeleteModal} onConfirm={confirmDeleteTemplate} title="Excluir Template" message={`Tem certeza que deseja excluir o template "${deleteModal.templateName}"? Esta ação não pode ser desfeita.`} loading={loading} />
+      <ConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={closeDeleteModal}
+        onConfirm={confirmDeleteTemplate}
+        title="Excluir Template"
+        message={`Tem certeza que deseja excluir o template "${deleteModal.templateName}"? Esta ação não pode ser desfeita.`}
+        loading={loading}
+        type="danger"
+        confirmText="Excluir"
+        cancelText="Cancelar"
+      />
       <Modal
         isOpen={isDocumentModalOpen}
         onClose={() => {

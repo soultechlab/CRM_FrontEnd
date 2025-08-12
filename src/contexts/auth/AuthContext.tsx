@@ -24,7 +24,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Mocked load user
-    console.log('Mocked loadUser called');
     setTimeout(() => {
       setUser({ email: 'mock@example.com' });
       setIsLoading(false);
@@ -32,17 +31,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    console.log(`Mocked signIn called with email: ${email}`);
     setUser({ email });
   };
 
   const signUp = async (name: string, email: string, password: string) => {
-    console.log(`Mocked signUp called with name: ${name}, email: ${email}`);
     setUser({ email });
   };
 
   const signOut = async () => {
-    console.log('Mocked signOut called');
     setUser(null);
   };
 

@@ -5,9 +5,7 @@ export default function AuthCallback() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Mocked authentication check
-    console.log('Mocked onAuthStateChange triggered');
-    const event = 'SIGNED_IN'; // Simulated event
+    const event = 'SIGNED_IN'; 
     if (event === 'SIGNED_IN') {
       navigate('/');
     }

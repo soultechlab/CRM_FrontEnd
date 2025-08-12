@@ -1,12 +1,9 @@
-// Update social media utilities
 export const validateInstagram = (username: string): boolean => {
-  // Remove @ if present and validate username format
   const cleanUsername = username.replace('@', '');
   return /^[a-zA-Z0-9._]{1,30}$/.test(cleanUsername);
 };
 
 export const formatInstagram = (username: string): string => {
-  // Ensure username starts with @
   const cleanUsername = username.trim().replace('@', '');
   return cleanUsername ? `@${cleanUsername}` : '';
 };

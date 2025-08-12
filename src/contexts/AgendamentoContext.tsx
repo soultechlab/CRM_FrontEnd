@@ -30,7 +30,6 @@ export function AgendamentoProvider({ children }: { children: React.ReactNode })
             const dadosAgendamento = await obterAgendamentos(user);
             setAgendamentos(dadosAgendamento);
           } catch (err) {
-            console.error(err);
           }
         } else {
           setAgendamentos([]); // Limpa agendamentos se não houver usuário

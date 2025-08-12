@@ -45,11 +45,9 @@ export function FinanceiroProvider({ children }: { children: React.ReactNode }) 
           if (Array.isArray(dadosTransacoes)) {
             setTransacoes(dadosTransacoes);
           } else {
-            console.warn('obterTransacoes retornou um valor não-array ou undefined:', dadosTransacoes);
             setTransacoes([]); // Garante que transacoes seja sempre um array
           }
-        } catch (err) {
-          console.error("Erro ao buscar transações:", err);
+          } catch (err) {
           setTransacoes([]); // Garante que transacoes seja sempre um array em caso de erro
         }
       } else {
@@ -115,8 +113,8 @@ export function FinanceiroProvider({ children }: { children: React.ReactNode }) 
   const atualizarResumoFinanceiro = () => {
     // Verificação de segurança opcional, mas boa prática.
     if (!Array.isArray(transacoes)) {
-      console.warn("atualizarResumoFinanceiro chamada com 'transacoes' não sendo um array. Valor:", transacoes);
-      setResumoFinanceiro(initialResumo); // Reseta para o estado inicial ou lida com o erro
+      toast.error('Erro interno: dados de transações corrompidos');
+      setResumoFinanceiro(initialResumo);
       return;
     }
 

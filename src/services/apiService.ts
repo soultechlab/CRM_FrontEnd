@@ -7,7 +7,7 @@ const API_BASE_URL = import.meta.env.VITE_KODA_DESENVOLVIMENTO;
 
 // Validar se a URL da API está configurada
 if (!API_BASE_URL) {
-  console.error('VITE_KODA_DESENVOLVIMENTO não está configurado no .env');
+  throw new Error('VITE_KODA_DESENVOLVIMENTO não está configurado no .env');
 }
 
 const apiClient = axios.create({
@@ -21,10 +21,10 @@ const apiClient = axios.create({
 // Helper para testar conectividade da API
 export const testarConectividadeAPI = async (user: User | null) => {
   try {
-    console.log('=== TESTANDO CONECTIVIDADE ===');
-    console.log('API_BASE_URL:', API_BASE_URL);
-    console.log('URL completa:', `${API_BASE_URL}/documents`);
-    console.log('Token presente:', !!user?.token);
+    
+    
+    
+    
     
     // Primeiro testar se o servidor está respondendo
     const healthResponse = await fetch(`${API_BASE_URL}/health`, {
@@ -35,12 +35,9 @@ export const testarConectividadeAPI = async (user: User | null) => {
     }).catch(() => null);
     
     if (healthResponse) {
-      console.log('Health check:', {
-        status: healthResponse.status,
-        contentType: healthResponse.headers.get('content-type')
-      });
+      
     } else {
-      console.log('Health check falhou - servidor pode não estar respondendo');
+      
     }
     
     // Testar o endpoint de documentos
@@ -52,27 +49,20 @@ export const testarConectividadeAPI = async (user: User | null) => {
       },
     });
     
-    console.log('Teste endpoint /documents:', {
-      status: testResponse.status,
-      statusText: testResponse.statusText,
-      contentType: testResponse.headers.get('content-type'),
-      headers: Object.fromEntries(testResponse.headers.entries())
-    });
+    
     
     // Capturar conteúdo da resposta para análise
     const responseText = await testResponse.text();
-    console.log('Conteúdo da resposta (primeiros 300 chars):', responseText.substring(0, 300));
+    
     
     // Se retornar HTML, significa que há problema de roteamento
     const contentType = testResponse.headers.get('content-type');
     if (contentType && contentType.includes('text/html')) {
-      console.error('API retornou HTML em vez de JSON - problema de roteamento');
       return false;
     }
     
     return testResponse.status !== 404;
   } catch (error) {
-    console.error('Erro ao testar conectividade:', error);
     return false;
   }
 };
@@ -433,9 +423,9 @@ export const criarDocumento = async (data: CreateDocumentData, user: User | null
 
     if (data.signers && data.signers.length > 0) {
       formData.append('signers', JSON.stringify(data.signers));
-      console.log('Signers sendo enviados:', JSON.stringify(data.signers, null, 2));
+      
     } else {
-      console.log('Nenhum signer válido - enviando documento sem campos de assinatura');
+      
     }
 
     if (!data.file || !(data.file instanceof File) || data.file.size === 0) {
@@ -443,39 +433,19 @@ export const criarDocumento = async (data: CreateDocumentData, user: User | null
     }
 
     // Log detalhado para debug
-    console.log('=== ENVIANDO DOCUMENTO ===');
-    console.log('URL completa da API:', `${API_BASE_URL}/documents`);
-    console.log('API_BASE_URL:', API_BASE_URL);
-    console.log('Token do usuário:', user?.token ? `${user.token.substring(0, 20)}...` : 'AUSENTE');
-    console.log('Dados básicos:', {
-      name: data.name,
-      fileSize: data.file.size,
-      fileName: data.file.name,
-      fileType: data.file.type,
-      clientId: data.client_id,
-      isUniversal: data.is_universal,
-      isActive: data.is_active,
-      signersCount: data.signers?.length || 0
-    });
+    
+    
+    
+    
+    
     
     // Log dos signers em detalhes
     if (data.signers) {
-      console.log('Signers detalhados:', JSON.stringify(data.signers, null, 2));
+      
     }
     
     // Log do FormData
-    console.log('FormData entries:');
-    for (let [key, value] of formData.entries()) {
-      if (key === 'file') {
-        console.log(`${key}:`, {
-          name: (value as File).name,
-          size: (value as File).size,
-          type: (value as File).type
-        });
-      } else {
-        console.log(`${key}:`, value);
-      }
-    }
+    
 
     const response = await fetch(`${API_BASE_URL}/documents`, {
       method: 'POST',
@@ -485,23 +455,14 @@ export const criarDocumento = async (data: CreateDocumentData, user: User | null
       body: formData
     });
 
-    console.log('Resposta do servidor:', {
-      status: response.status,
-      statusText: response.statusText,
-      contentType: response.headers.get('content-type')
-    });
+    
 
     if (!response.ok) {
       // Capturar todo o conteúdo da resposta primeiro
       const responseText = await response.text();
       const contentType = response.headers.get('content-type');
       
-      console.error('=== ERRO DA API ===');
-      console.error('Status:', response.status);
-      console.error('Status Text:', response.statusText);
-      console.error('Content-Type:', contentType);
-      console.error('Response Headers:', Object.fromEntries(response.headers.entries()));
-      console.error('Response Body (primeiros 1000 chars):', responseText.substring(0, 1000));
+      
       
       // Verificar se a resposta é HTML
       if (contentType && contentType.includes('text/html')) {
@@ -527,10 +488,9 @@ export const criarDocumento = async (data: CreateDocumentData, user: User | null
     }
 
     const responseData = await response.json();
-    console.log('Documento criado com sucesso:', responseData);
+    
     return responseData;
   } catch (error: any) {
-    console.error('Erro ao criar documento:', error);
     throw new Error(error.message || 'Erro ao criar documento');
   }
 };
@@ -763,14 +723,6 @@ export const obterTemplatesDisponiveis = async (user: User | null) => {
     });
     return response.data;
   } catch (error: any) {
-    console.error('Erro detalhado na API de templates:', {
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      message: error.message,
-      url: error.config?.url
-    });
-    
     throw new Error(error.response?.data?.message || `Server Error (${error.response?.status})`);
   }
 };

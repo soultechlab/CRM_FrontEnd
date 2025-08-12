@@ -73,7 +73,7 @@ export function NewModelModal({
       const response = await obterClientes(user);
       setClientes(response);
     } catch (error) {
-      console.error('Erro ao carregar clientes:', error);
+      setErrors({ general: 'Erro ao carregar clientes' });
     } finally {
       setLoadingClientes(false);
     }
@@ -216,7 +216,6 @@ export function NewModelModal({
       setCreationMethod(null);
       onClose();
     } catch (error) {
-      console.error('Erro ao criar modelo:', error);
       setErrors({
         general: 'Erro ao criar modelo. Tente novamente.',
       });

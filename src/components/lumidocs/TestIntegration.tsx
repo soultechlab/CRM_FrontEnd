@@ -24,18 +24,13 @@ export function TestIntegration() {
   const testIntegration = async () => {
     try {
       clearError();
-      console.log('🔗 Testando integração com backend...');
       
       const response = await obterTemplatesAvailables();
       
       if (response) {
         setAvailableTemplates(response);
-        console.log('✅ Integração funcionando! Templates disponíveis:', response);
-      } else {
-        console.log('❌ Falha na integração ou sem templates disponíveis');
-      }
+      } 
     } catch (err) {
-      console.error('❌ Erro na integração:', err);
     }
   };
 

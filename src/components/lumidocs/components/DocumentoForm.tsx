@@ -114,21 +114,14 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
-    console.log('🚀 INICIANDO handleSubmit');
-    
     e.preventDefault();
     e.stopPropagation();
     
-    // Verificar se o evento veio do botão de submit correto
     const submitter = (e.nativeEvent as SubmitEvent)?.submitter as HTMLButtonElement;
     
-    // BLOQUEAR qualquer submit que não venha do botão específico
     if (!submitter || submitter.id !== 'submit-document-button') {
-      console.log('🚫 Submit bloqueado - não veio do botão de salvar correto');
       return;
     }
-    
-    console.log('✅ Submit autorizado - veio do botão correto');
     
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -151,14 +144,11 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
 
       // Não é mais necessário validar campos de assinatura, pois a Autentique adiciona automaticamente
 
-      // Testar conectividade da API antes de processar
-      console.log('🔗 Testando conectividade da API...');
       const apiConnected = await testarConectividadeAPI(user);
       if (!apiConnected) {
         setError('Não foi possível conectar com o servidor. Verifique se a API está rodando em http://localhost:8080');
         return;
       }
-      console.log('✅ API conectada com sucesso');
 
       // Preparar dados dos assinantes para preenchimento do PDF
       const signersForPdfFill = selectedClientes.map(sc => ({
@@ -196,22 +186,15 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
       let finalFile = arquivo;
       
       try {
-        console.log('=== INICIANDO PROCESSAMENTO DO PDF ===');
-        
-        // Carregar PDF (seja de arquivo local ou template)
         let pdfBuffer: ArrayBuffer;
         
         if (arquivo && arquivo.isTemplate && arquivo.templateUrl) {
-          console.log('Carregando PDF de template:', arquivo.templateUrl);
           pdfBuffer = await loadPdfFromUrl(arquivo.templateUrl);
         } else if (arquivo) {
-          console.log('Carregando PDF de arquivo local:', arquivo.name);
           pdfBuffer = await arquivo.arrayBuffer();
         } else {
           throw new Error('Nenhum arquivo PDF disponível');
         }
-        
-        console.log('PDF carregado, iniciando preenchimento...');
         
         // Preencher PDF com dados dos campos dinâmicos
         const filledPdfData = await fillPdfWithData(pdfBuffer, signersForPdfFill);
@@ -221,17 +204,8 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
         const fileName = arquivo?.name || `${nome.replace(/[^a-zA-Z0-9\s]/g, '_')}.pdf`;
         finalFile = createFileFromBlob(filledPdfBlob, fileName);
         
-        // Validar arquivo gerado
-        console.log('✅ PDF processado com sucesso:', {
-          originalSize: pdfBuffer.byteLength,
-          processedSize: filledPdfData.length,
-          finalFileSize: finalFile.size,
-          fileName: finalFile.name,
-          fileType: finalFile.type
-        });
         
       } catch (pdfError) {
-        console.error('❌ ERRO ESPECÍFICO NO PROCESSAMENTO DO PDF:', pdfError);
         setError(`Erro ao processar PDF: ${pdfError instanceof Error ? pdfError.message : 'Erro desconhecido'}`);
         return;
       }
@@ -245,32 +219,8 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
         signers: signersData.length > 0 ? signersData : undefined // Não enviar array vazio
       };
       
-      // Log detalhado do que será enviado
-      console.log('=== DADOS DO DOCUMENTO ===');
-      console.log('DocumentData:', {
-        name: documentData.name,
-        client_id: documentData.client_id,
-        is_active: documentData.is_active,
-        is_universal: documentData.is_universal,
-        fileInfo: {
-          name: finalFile?.name,
-          size: finalFile?.size,
-          type: finalFile?.type
-        },
-        signersCount: signersData.length
-      });
-      console.log('Signers enviados para backend:', JSON.stringify(signersData, null, 2));
-      
-      console.log('=== ENVIANDO PARA API ===');
       
       if (finalFile) {
-        // Validar arquivo antes do envio
-        console.log('Validando arquivo final:', {
-          name: finalFile.name,
-          size: finalFile.size,
-          type: finalFile.type,
-          lastModified: finalFile.lastModified
-        });
         
         // Verificar se o arquivo não está corrompido
         if (finalFile.size === 0) {
@@ -289,25 +239,20 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
           const bytes = new Uint8Array(firstBytes);
           const pdfHeader = Array.from(bytes.slice(0, 4)).map(b => String.fromCharCode(b)).join('');
           
-          console.log('Header do arquivo:', pdfHeader);
-          
           if (pdfHeader !== '%PDF') {
             setError('Arquivo processado não é um PDF válido. Tente novamente.');
             return;
           }
         } catch (headerError) {
-          console.error('Erro ao validar header do PDF:', headerError);
           setError('Erro ao validar arquivo processado. Tente novamente.');
           return;
         }
         
         try {
           const createdDocument = await criarDocumento(documentData, user);
-          console.log('✅ Documento criado na API com sucesso');
           onSubmit(createdDocument);
         } catch (apiError) {
-          console.error('❌ ERRO ESPECÍFICO NA API:', apiError);
-          throw apiError; // Re-throw para ser capturado pelo catch principal
+          throw apiError;
         }
       } else {
         setError('Arquivo é obrigatório para criar documento');
@@ -315,7 +260,6 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
       }
 
     } catch (error) {
-      console.error('Erro completo ao criar documento:', error);
       
       if (error instanceof Error) {
         if (error.message.includes('HTML')) {
@@ -383,7 +327,7 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
         const clientesAtualizados = await obterClientes(user);
         setClientes(clientesAtualizados);
       } catch (error) {
-        console.error('Erro ao recarregar clientes:', error);
+        setError('Erro ao recarregar lista de clientes');
       }
     }, 1000);
     
@@ -434,7 +378,7 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
     });
 
     if (isOverlapping) {
-      alert('Os campos precisam ter um espaçamento mínimo entre si. Por favor, escolha outra posição.');
+      setError('Os campos precisam ter um espaçamento mínimo entre si. Por favor, escolha outra posição.');
       return;
     }
 
