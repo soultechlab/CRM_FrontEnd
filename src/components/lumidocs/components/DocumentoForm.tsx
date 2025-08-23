@@ -31,7 +31,7 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
   }>>([]);
   const [previewUrl, setPreviewUrl] = useState<string>(initialData?.storage_url || '');
   const [currentClienteIndex, setCurrentClienteIndex] = useState<number | null>(null);
-  const [fieldType, setFieldType] = useState<'assinatura' | 'nome' | 'email' | 'cpf' | 'customizado'>('assinatura');
+  const [fieldType, setFieldType] = useState<'nome' | 'email' | 'cpf' | 'customizado'>('nome');
   const [customText, setCustomText] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -142,7 +142,13 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
         return;
       }
 
-      // Não é mais necessário validar campos de assinatura, pois a Autentique adiciona automaticamente
+      // Validação específica para campos não preenchidos
+      const clientesSemCampos = selectedClientes.filter(sc => sc.fields.length === 0);
+      if (clientesSemCampos.length > 0) {
+        const nomesClientes = clientesSemCampos.map(sc => sc.cliente.nome).join(', ');
+        setError(`Os seguintes clientes precisam ter campos definidos: ${nomesClientes}. Clique em "Definir Campos" para cada cliente e posicione os campos no documento antes de salvar.`);
+        return;
+      }
 
       const apiConnected = await testarConectividadeAPI(user);
       if (!apiConnected) {
@@ -204,7 +210,6 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
         const fileName = arquivo?.name || `${nome.replace(/[^a-zA-Z0-9\s]/g, '_')}.pdf`;
         finalFile = createFileFromBlob(filledPdfBlob, fileName);
         
-        
       } catch (pdfError) {
         setError(`Erro ao processar PDF: ${pdfError instanceof Error ? pdfError.message : 'Erro desconhecido'}`);
         return;
@@ -219,9 +224,7 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
         signers: signersData.length > 0 ? signersData : undefined // Não enviar array vazio
       };
       
-      
       if (finalFile) {
-        
         // Verificar se o arquivo não está corrompido
         if (finalFile.size === 0) {
           setError('Arquivo PDF processado está vazio. Tente novamente.');
@@ -260,7 +263,6 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
       }
 
     } catch (error) {
-      
       if (error instanceof Error) {
         if (error.message.includes('HTML')) {
           setError('Erro no servidor. A API pode não estar funcionando corretamente. Contate o suporte.');
@@ -348,11 +350,11 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
   };
 
   const handleAddField = (position: { x: number; y: number; page: number }) => {
-    if (currentClienteIndex === null) return;
+    if (currentClienteIndex === null || !selectedClientes[currentClienteIndex]) return;
     
     const newSelectedClientes = [...selectedClientes];
-    const fieldWidth = fieldType === 'assinatura' ? 30 : 20;
-    const fieldHeight = fieldType === 'assinatura' ? 10 : 5;
+    const fieldWidth = 20;
+    const fieldHeight = 5;
     
     const margin = 3;
     const allFields = newSelectedClientes.flatMap((sc, index) => 
@@ -390,34 +392,6 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
       adjustedPosition.y = 100 - fieldHeight;
     }
 
-    if (fieldType === 'assinatura') {
-      const autoFields = ['nome', 'email', 'cpf'] as const;
-      const cliente = newSelectedClientes[currentClienteIndex].cliente;
-      autoFields.forEach((type, index) => {
-        // Só adicionar campo se o dado existir para o cliente
-        if (
-          (type === 'nome' && cliente.nome) ||
-          (type === 'email' && cliente.email) ||
-          (type === 'cpf' && cliente.cpf)
-        ) {
-          const suggestedPosition = getSuggestedPosition(adjustedPosition, index, fieldWidth, fieldHeight);
-          if (
-            suggestedPosition.x >= 0 && 
-            suggestedPosition.x + 20 <= 100 &&
-            suggestedPosition.y >= 0 && 
-            suggestedPosition.y + 5 <= 100 &&
-            !isPositionOverlapping(suggestedPosition, 20, 5, allFields, position.page, margin)
-          ) {
-            newSelectedClientes[currentClienteIndex].fields.push({
-              type,
-              position: { ...suggestedPosition, page: position.page },
-              width: 20,
-              height: 5
-            });
-          }
-        }
-      });
-    }
 
     const newField: SignatureField = {
       type: fieldType,
@@ -469,20 +443,24 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
   };
 
   const handleDeleteField = (fieldIndex: number) => {
-    if (currentClienteIndex === null) return;
+    if (currentClienteIndex === null || !selectedClientes[currentClienteIndex]) return;
     
     const newSelectedClientes = [...selectedClientes];
-    newSelectedClientes[currentClienteIndex].fields.splice(fieldIndex, 1);
-    setSelectedClientes(newSelectedClientes);
+    if (newSelectedClientes[currentClienteIndex]?.fields) {
+      newSelectedClientes[currentClienteIndex].fields.splice(fieldIndex, 1);
+      setSelectedClientes(newSelectedClientes);
+    }
   };
 
   const handleMoveField = (fieldIndex: number, newPosition: { x: number; y: number }) => {
-    if (currentClienteIndex === null) return;
+    if (currentClienteIndex === null || !selectedClientes[currentClienteIndex]) return;
     
     const newSelectedClientes = [...selectedClientes];
-    const field = newSelectedClientes[currentClienteIndex].fields[fieldIndex];
-    field.position = { ...field.position, x: newPosition.x, y: newPosition.y };
-    setSelectedClientes(newSelectedClientes);
+    const field = newSelectedClientes[currentClienteIndex]?.fields?.[fieldIndex];
+    if (field) {
+      field.position = { ...field.position, x: newPosition.x, y: newPosition.y };
+      setSelectedClientes(newSelectedClientes);
+    }
   };
 
   const getFieldColor = (clienteIndex: number) => {
@@ -637,6 +615,8 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
                 className={`p-4 rounded-lg border-2 transition-colors ${
                   currentClienteIndex === index
                     ? 'border-blue-500 bg-blue-50'
+                    : sc.fields.length === 0
+                    ? 'border-red-300 bg-red-50'
                     : 'border-gray-200 bg-white'
                 }`}
               >
@@ -649,10 +629,14 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
                     <div>
                       <div className="font-medium text-gray-900">{sc.cliente.nome}</div>
                       <div className="text-sm text-gray-500">{sc.cliente.email}</div>
-                      <div className="text-sm text-gray-500">
-                        Campos definidos: {sc.fields.length}
-                        {sc.fields.length > 0 && (
+                      <div className="text-sm flex items-center">
+                        <span className={sc.fields.length === 0 ? 'text-red-600' : 'text-gray-500'}>
+                          Campos definidos: {sc.fields.length}
+                        </span>
+                        {sc.fields.length > 0 ? (
                           <span className="ml-2 text-green-600">✓ Configurado</span>
+                        ) : (
+                          <span className="ml-2 text-red-600 font-medium">⚠ Necessário definir campos</span>
                         )}
                       </div>
                     </div>
@@ -693,13 +677,13 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
           </div>
         )}
 
-        {previewUrl && currentClienteIndex !== null && (
+        {previewUrl && currentClienteIndex !== null && selectedClientes[currentClienteIndex] && (
           <div className="border-t pt-6">
             <div className="mb-4">
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 Definir campos para{' '}
                 <span style={{ color: getFieldColor(currentClienteIndex) }}>
-                  {selectedClientes[currentClienteIndex].cliente.nome}
+                  {selectedClientes[currentClienteIndex]?.cliente?.nome || 'Cliente'}
                 </span>
               </h3>
               <div className="flex flex-wrap gap-2 mb-4">
@@ -774,7 +758,7 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
               
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-blue-800">
-                  <strong>Como funciona:</strong> Clique no documento para adicionar campos. Os campos de nome, email e CPF são preenchidos automaticamente. Use "Texto Customizado" para inserir qualquer texto fixo no documento. A Autentique adiciona a assinatura digital automaticamente no final.
+                  <strong>Como funciona:</strong> Clique no documento para adicionar campos. Os campos de nome, email e CPF (caso exista no cadastro do cliente) são preenchidos automaticamente. Use "Texto Customizado" para inserir qualquer texto fixo no documento. A Autentique adiciona a assinatura digital automaticamente no final.
                 </p>
               </div>
             </div>
@@ -794,15 +778,15 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
                 onPositionSelect={handleAddField}
                 onDeleteField={handleDeleteField}
                 onMoveField={handleMoveField}
-                fields={selectedClientes[currentClienteIndex].fields.map(field => ({
+                fields={selectedClientes[currentClienteIndex]?.fields?.map(field => ({
                   ...field,
                   color: getFieldColor(currentClienteIndex)
-                }))}
+                })) || []}
                 allSignerFields={getAllSignerFields()}
                 previewData={{
-                  nome: selectedClientes[currentClienteIndex].cliente.nome,
-                  email: selectedClientes[currentClienteIndex].cliente.email,
-                  cpf: selectedClientes[currentClienteIndex].cliente.cpf,
+                  nome: selectedClientes[currentClienteIndex]?.cliente?.nome || '',
+                  email: selectedClientes[currentClienteIndex]?.cliente?.email || '',
+                  cpf: selectedClientes[currentClienteIndex]?.cliente?.cpf || '',
                   assinatura: '',
                   assinanteIndex: currentClienteIndex
                 }}
@@ -815,10 +799,26 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
           <button
             id="submit-document-button"
             type="submit"
-            disabled={isSubmitting}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+            disabled={
+              isSubmitting || 
+              selectedClientes.some(sc => sc.fields.length === 0)
+            }
+            className={`px-6 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 font-medium transition-colors ${
+              selectedClientes.some(sc => sc.fields.length === 0) && selectedClientes.length > 0
+                ? 'bg-red-100 text-red-700 border-red-300 cursor-not-allowed border'
+                : isSubmitting
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500'
+            }`}
+            title={
+              selectedClientes.some(sc => sc.fields.length === 0) && selectedClientes.length > 0
+                ? 'Defina os campos para todos os clientes antes de salvar'
+                : ''
+            }
           >
-            {isSubmitting ? 'Salvando...' : (initialData ? 'Salvar Alterações' : 'Cadastrar Documento')}
+            {isSubmitting ? 'Salvando...' : 
+             selectedClientes.some(sc => sc.fields.length === 0) && selectedClientes.length > 0 ? 'Definir Campos Primeiro' :
+             (initialData ? 'Salvar Alterações' : 'Cadastrar Documento')}
           </button>
         </div>
       </form>

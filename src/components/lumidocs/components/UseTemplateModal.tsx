@@ -28,7 +28,7 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
   }>>([]);
   const [previewUrl, setPreviewUrl] = useState<string>(template.storage_url || template.file_path || '');
   const [currentClienteIndex, setCurrentClienteIndex] = useState<number | null>(null);
-  const [fieldType, setFieldType] = useState<'assinatura' | 'nome' | 'email' | 'cpf'>('assinatura');
+  const [fieldType, setFieldType] = useState<'nome' | 'email' | 'cpf'>('nome');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,8 +158,8 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
 
     const newSelectedClientes = [...selectedClientes];
     
-    const fieldWidth = fieldType === 'assinatura' ? 15 : 12; // Percentual da largura da página
-    const fieldHeight = fieldType === 'assinatura' ? 4 : 3; // Percentual da altura da página
+    const fieldWidth = 12; // Percentual da largura da página
+    const fieldHeight = 3; // Percentual da altura da página
     
     let adjustedPosition = { ...position };
     const margin = 3;
@@ -244,10 +244,14 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
       return;
     }
 
-    if (selectedClientes.some(sc => sc.fields.length === 0)) {
-      setError('Todos os assinantes precisam ter pelo menos um campo de assinatura definido');
+    // Validação específica para campos não preenchidos
+    const clientesSemCampos = selectedClientes.filter(sc => sc.fields.length === 0);
+    if (clientesSemCampos.length > 0) {
+      const nomesClientes = clientesSemCampos.map(sc => sc.cliente.nome).join(', ');
+      setError(`Os seguintes clientes precisam ter campos de assinatura definidos: ${nomesClientes}. Clique em "Definir Campos" para cada cliente e posicione os campos no documento.`);
       return;
     }
+
 
     setIsSubmitting(true);
     setError(null);
@@ -262,8 +266,8 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
           page: field.position.page,
           x: field.position.x,
           y: field.position.y,
-          width: field.type === 'assinatura' ? 100 : 80,
-          height: field.type === 'assinatura' ? 30 : 20
+          width: 80,
+          height: 20
         }))
       }));
 
@@ -453,6 +457,8 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                     className={`p-2 sm:p-4 rounded-lg border-2 transition-colors ${
                       currentClienteIndex === index
                         ? 'border-blue-500 bg-blue-50'
+                        : sc.fields.length === 0
+                        ? 'border-red-300 bg-red-50'
                         : 'border-gray-200 bg-white'
                     }`}
                   >
@@ -465,10 +471,14 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                         <div>
                           <div className="font-medium text-gray-900 text-xs sm:text-base">{sc.cliente.nome}</div>
                           <div className="text-xs sm:text-sm text-gray-500">{sc.cliente.email}</div>
-                          <div className="text-xs sm:text-sm text-gray-500">
-                            Campos definidos: {sc.fields.length}
-                            {sc.fields.length > 0 && (
+                          <div className="text-xs sm:text-sm flex items-center">
+                            <span className={sc.fields.length === 0 ? 'text-red-600' : 'text-gray-500'}>
+                              Campos definidos: {sc.fields.length}
+                            </span>
+                            {sc.fields.length > 0 ? (
                               <span className="ml-2 text-green-600">✓</span>
+                            ) : (
+                              <span className="ml-2 text-red-600 font-medium">⚠ Necessário definir campos</span>
                             )}
                           </div>
                         </div>
@@ -519,17 +529,6 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
                     </span>
                   </h3>
                   <div className="flex flex-wrap gap-1 sm:gap-2 mb-2 sm:mb-4">
-                    <button
-                      type="button"
-                      onClick={() => setFieldType('assinatura')}
-                      className={`px-2 py-1 sm:px-3 sm:py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
-                        fieldType === 'assinatura'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      Assinatura Digital
-                    </button>
                     <button
                       type="button"
                       onClick={() => setFieldType('nome')}
@@ -585,13 +584,34 @@ export function UseTemplateModal({ template, isOpen, onClose, onConfirm }: UseTe
             </button>
             <button
               onClick={handleSubmit}
-              disabled={isSubmitting || !nome.trim() || selectedClientes.length === 0}
-              className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center w-full sm:w-auto"
+              disabled={
+                isSubmitting || 
+                !nome.trim() || 
+                selectedClientes.length === 0 ||
+                selectedClientes.some(sc => sc.fields.length === 0)
+              }
+              className={`px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium border border-transparent rounded-md transition-colors flex items-center w-full sm:w-auto ${
+                selectedClientes.some(sc => sc.fields.length === 0) && selectedClientes.length > 0
+                  ? 'bg-red-100 text-red-700 border-red-300 cursor-not-allowed'
+                  : isSubmitting || !nome.trim() || selectedClientes.length === 0
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'text-white bg-blue-600 hover:bg-blue-700'
+              }`}
+              title={
+                selectedClientes.some(sc => sc.fields.length === 0) && selectedClientes.length > 0
+                  ? 'Defina os campos de assinatura para todos os clientes'
+                  : ''
+              }
             >
               {isSubmitting ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                   Criando...
+                </>
+              ) : selectedClientes.some(sc => sc.fields.length === 0) && selectedClientes.length > 0 ? (
+                <>
+                  <AlertCircle className="w-4 h-4 mr-2" />
+                  Definir Campos Primeiro
                 </>
               ) : (
                 <>
