@@ -432,20 +432,6 @@ export const criarDocumento = async (data: CreateDocumentData, user: User | null
       throw new Error('Arquivo PDF inválido ou corrompido');
     }
 
-    // Log detalhado para debug
-    
-    
-    
-    
-    
-    
-    // Log dos signers em detalhes
-    if (data.signers) {
-      
-    }
-    
-    // Log do FormData
-    
 
     const response = await fetch(`${API_BASE_URL}/documents`, {
       method: 'POST',
@@ -455,14 +441,10 @@ export const criarDocumento = async (data: CreateDocumentData, user: User | null
       body: formData
     });
 
-    
-
     if (!response.ok) {
       // Capturar todo o conteúdo da resposta primeiro
       const responseText = await response.text();
       const contentType = response.headers.get('content-type');
-      
-      
       
       // Verificar se a resposta é HTML
       if (contentType && contentType.includes('text/html')) {
@@ -488,7 +470,6 @@ export const criarDocumento = async (data: CreateDocumentData, user: User | null
     }
 
     const responseData = await response.json();
-    
     return responseData;
   } catch (error: any) {
     throw new Error(error.message || 'Erro ao criar documento');
