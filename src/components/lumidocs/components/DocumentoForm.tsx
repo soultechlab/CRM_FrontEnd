@@ -108,8 +108,8 @@ export function DocumentoForm({ initialData, initialFile, onSubmit }: DocumentoF
 
   const filteredClientes = clientes.filter(cliente => 
     !selectedClientes.find(sc => sc.cliente.id === cliente.id) &&
-    (cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     cliente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    ((cliente.nome && cliente.nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
+     (cliente.email && cliente.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
      (cliente.cpf && cliente.cpf.includes(searchTerm)))
   );
 
