@@ -1,19 +1,28 @@
-import axios from 'axios';
-import { Agendamento, Cliente, DocumentStatusResponse, DocumentTemplate, DocumentTemplateFilters, CreateDocumentTemplateData, CreateDocumentFromTemplateData } from '../types';
-import { User } from './auth/types';
-import { Transacao } from '../types/financeiro';
+import axios from "axios";
+import {
+  Agendamento,
+  Cliente,
+  DocumentStatusResponse,
+  DocumentTemplate,
+  DocumentTemplateFilters,
+  CreateDocumentTemplateData,
+  CreateDocumentFromTemplateData,
+} from "../types";
+import { User } from "./auth/types";
+import { Transacao } from "../types/financeiro";
 
-const API_BASE_URL = import.meta.env.VITE_KODA_DESENVOLVIMENTO;
+const API_BASE_URL =
+  import.meta.env.VITE_KODA_DESENVOLVIMENTO || "http://localhost:8080";
 
 // Validar se a URL da API está configurada
 if (!API_BASE_URL) {
-  throw new Error('VITE_KODA_DESENVOLVIMENTO não está configurado no .env');
+  throw new Error("VITE_KODA_DESENVOLVIMENTO não está configurado no .env");
 }
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
   timeout: 30000, // 30 segundos de timeout
 });
@@ -21,46 +30,36 @@ const apiClient = axios.create({
 // Helper para testar conectividade da API
 export const testarConectividadeAPI = async (user: User | null) => {
   try {
-    
-    
-    
-    
-    
     // Primeiro testar se o servidor está respondendo
     const healthResponse = await fetch(`${API_BASE_URL}/health`, {
-      method: 'GET',
+      method: "GET",
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
     }).catch(() => null);
-    
+
     if (healthResponse) {
-      
     } else {
-      
     }
-    
+
     // Testar o endpoint de documentos
     const testResponse = await fetch(`${API_BASE_URL}/documents`, {
-      method: 'GET',
+      method: "GET",
       headers: {
         Authorization: `Bearer ${user?.token}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
-    
-    
-    
+
     // Capturar conteúdo da resposta para análise
     const responseText = await testResponse.text();
-    
-    
+
     // Se retornar HTML, significa que há problema de roteamento
-    const contentType = testResponse.headers.get('content-type');
-    if (contentType && contentType.includes('text/html')) {
+    const contentType = testResponse.headers.get("content-type");
+    if (contentType && contentType.includes("text/html")) {
       return false;
     }
-    
+
     return testResponse.status !== 404;
   } catch (error) {
     return false;
@@ -70,64 +69,79 @@ export const testarConectividadeAPI = async (user: User | null) => {
 // Autenticação
 export const signIn = async (email: string, password: string): Promise<any> => {
   try {
-    const response = await apiClient.post('/login', { email, password });
+    const response = await apiClient.post("/login", { email, password });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao fazer login');
+    throw new Error(error.response?.data?.message || "Erro ao fazer login");
   }
 };
 
-export const signUp = async (name: string, email: string, password: string): Promise<any> => {
+export const signUp = async (
+  name: string,
+  email: string,
+  password: string
+): Promise<any> => {
   try {
-    const response = await apiClient.post('/register', { email, password, name });
+    const response = await apiClient.post("/register", {
+      email,
+      password,
+      name,
+    });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao fazer registro');
+    throw new Error(error.response?.data?.message || "Erro ao fazer registro");
   }
 };
 
-export const signOut = async (user: User|null) => {
+export const signOut = async (user: User | null) => {
   try {
-    const response = await apiClient.post('/logout', null, {
+    const response = await apiClient.post("/logout", null, {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
     });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao fazer logout');
+    throw new Error(error.response?.data?.message || "Erro ao fazer logout");
   }
-}
+};
 
 // Clientes
-export const obterClientes = async (user: User|null) => {
+export const obterClientes = async (user: User | null) => {
   try {
-    const response = await apiClient.get('/clients', {
+    const response = await apiClient.get("/clients", {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
     });
     return response.data.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao obter clientes');
-  }
-}
-
-export const salvarCliente = async (dadosCliente: Partial<Cliente>, user: User|null): Promise<Cliente> => {
-  try {
-    const response = await apiClient.post('/clients', dadosCliente, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-    });
-
-    return response.data.data;
-  } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao salvar cliente');
+    throw new Error(error.response?.data?.message || "Erro ao obter clientes");
   }
 };
 
-export const atualizarCliente = async (dadosCliente: Partial<Cliente>, clientId: any,user: User|null): Promise<Cliente> => {
+export const salvarCliente = async (
+  dadosCliente: Partial<Cliente>,
+  user: User | null
+): Promise<Cliente> => {
+  try {
+    const response = await apiClient.post("/clients", dadosCliente, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+
+    return response.data.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.message || "Erro ao salvar cliente");
+  }
+};
+
+export const atualizarCliente = async (
+  dadosCliente: Partial<Cliente>,
+  clientId: any,
+  user: User | null
+): Promise<Cliente> => {
   try {
     const response = await apiClient.put(`/clients/${clientId}`, dadosCliente, {
       headers: {
@@ -137,11 +151,11 @@ export const atualizarCliente = async (dadosCliente: Partial<Cliente>, clientId:
 
     return response.data.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao obter clientes');
+    throw new Error(error.response?.data?.message || "Erro ao obter clientes");
   }
-}
+};
 
-export const excluirCliente = async (clientId: any, user: User|null) => {
+export const excluirCliente = async (clientId: any, user: User | null) => {
   try {
     const response = await apiClient.delete(`/clients/${clientId}`, {
       headers: {
@@ -150,14 +164,17 @@ export const excluirCliente = async (clientId: any, user: User|null) => {
     });
     return response.data.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao deletar cliente');
+    throw new Error(error.response?.data?.message || "Erro ao deletar cliente");
   }
-}
+};
 
 // Agendamentos
-export const salvarAgendamento = async (dadosAgendamento: any, user: User|null): Promise<Agendamento> => {
+export const salvarAgendamento = async (
+  dadosAgendamento: any,
+  user: User | null
+): Promise<Agendamento> => {
   try {
-    const response = await apiClient.post('/appointments', dadosAgendamento, {
+    const response = await apiClient.post("/appointments", dadosAgendamento, {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
@@ -165,38 +182,55 @@ export const salvarAgendamento = async (dadosAgendamento: any, user: User|null):
 
     return response.data.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao criar agendamento');
+    throw new Error(
+      error.response?.data?.message || "Erro ao criar agendamento"
+    );
   }
 };
 
-export const atualizarAgendamento = async (agendamentoId: any, dadosAgendamento: any, user: User|null): Promise<Agendamento> => {
+export const atualizarAgendamento = async (
+  agendamentoId: any,
+  dadosAgendamento: any,
+  user: User | null
+): Promise<Agendamento> => {
   try {
-    const response = await apiClient.put(`/appointments/${agendamentoId}`, dadosAgendamento, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-    });
+    const response = await apiClient.put(
+      `/appointments/${agendamentoId}`,
+      dadosAgendamento,
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
 
     return response.data.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao atualizar agendamento');
+    throw new Error(
+      error.response?.data?.message || "Erro ao atualizar agendamento"
+    );
   }
 };
 
-export const obterAgendamentos = async (user: User|null) => {
+export const obterAgendamentos = async (user: User | null) => {
   try {
-    const response = await apiClient.get('/appointments', {
+    const response = await apiClient.get("/appointments", {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
     });
     return response.data.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao obter agendamentos');
+    throw new Error(
+      error.response?.data?.message || "Erro ao obter agendamentos"
+    );
   }
-}
+};
 
-export const excluirAgendamento = async (agendamentoId: string | number, user: User|null) => {
+export const excluirAgendamento = async (
+  agendamentoId: string | number,
+  user: User | null
+) => {
   try {
     const response = await apiClient.delete(`/appointments/${agendamentoId}`, {
       headers: {
@@ -205,15 +239,20 @@ export const excluirAgendamento = async (agendamentoId: string | number, user: U
     });
     return response.data.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao excluir agendamento');
+    throw new Error(
+      error.response?.data?.message || "Erro ao excluir agendamento"
+    );
   }
-}
+};
 
 // Financeiro
 
-export const salvarTransacao = async (dadosTransacao: any, user: User|null): Promise<Transacao> => {
+export const salvarTransacao = async (
+  dadosTransacao: any,
+  user: User | null
+): Promise<Transacao> => {
   try {
-    const response = await apiClient.post('/finances', dadosTransacao, {
+    const response = await apiClient.post("/finances", dadosTransacao, {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
@@ -221,38 +260,50 @@ export const salvarTransacao = async (dadosTransacao: any, user: User|null): Pro
 
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao criar transação');
+    throw new Error(error.response?.data?.message || "Erro ao criar transação");
   }
-}
+};
 
-export const obterTransacoes = async (user: User|null) => {
+export const obterTransacoes = async (user: User | null) => {
   try {
-    const response = await apiClient.get('/finances', {
+    const response = await apiClient.get("/finances", {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
     });
     return response.data.finances;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao obter transações');
+    throw new Error(
+      error.response?.data?.message || "Erro ao obter transações"
+    );
   }
-}
+};
 
-export const alterarTransacao = async (dadosTransacao: Partial<Transacao>, transacaoId: any,user: User|null) => {
+export const alterarTransacao = async (
+  dadosTransacao: Partial<Transacao>,
+  transacaoId: any,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.put(`/finances/${transacaoId}`, dadosTransacao, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-    });
+    const response = await apiClient.put(
+      `/finances/${transacaoId}`,
+      dadosTransacao,
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
 
     return response.data.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao atualizar transação!');
+    throw new Error(
+      error.response?.data?.message || "Erro ao atualizar transação!"
+    );
   }
-}
+};
 
-export const excluirTransacao = async (transacaoId: any, user: User|null) => {
+export const excluirTransacao = async (transacaoId: any, user: User | null) => {
   try {
     const response = await apiClient.delete(`/finances/${transacaoId}`, {
       headers: {
@@ -261,39 +312,52 @@ export const excluirTransacao = async (transacaoId: any, user: User|null) => {
     });
     return response.data.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao deletar transacao');
+    throw new Error(
+      error.response?.data?.message || "Erro ao deletar transacao"
+    );
   }
-}
+};
 
 // Usuario
 
-export const obterUsuarios = async (user: User|null) => {
+export const obterUsuarios = async (user: User | null) => {
   try {
-    const response = await apiClient.get('/users', {
+    const response = await apiClient.get("/users", {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
     });
     return response.data.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao obter agendamentos');
+    throw new Error(
+      error.response?.data?.message || "Erro ao obter agendamentos"
+    );
   }
-}
+};
 
-export const adicionarUsuario = async (dadosUsuario: any, user: User|null) => {
+export const adicionarUsuario = async (
+  dadosUsuario: any,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.post('/users', dadosUsuario, {
+    const response = await apiClient.post("/users", dadosUsuario, {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
     });
     return response.data.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao adicionar usuário');
+    throw new Error(
+      error.response?.data?.message || "Erro ao adicionar usuário"
+    );
   }
-}
+};
 
-export const atualizarUsuario = async (userId: any, dadosUsuario: Partial<User>, user: User|null) => {
+export const atualizarUsuario = async (
+  userId: any,
+  dadosUsuario: Partial<User>,
+  user: User | null
+) => {
   try {
     const response = await apiClient.put(`/users/${userId}`, dadosUsuario, {
       headers: {
@@ -302,61 +366,82 @@ export const atualizarUsuario = async (userId: any, dadosUsuario: Partial<User>,
     });
     return response.data.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao atualizar usuário');
+    throw new Error(
+      error.response?.data?.message || "Erro ao atualizar usuário"
+    );
   }
-}
+};
 
-export const atualizarConfigUsuario = async (dadosUsuario: any, user: User|null) => {
+export const atualizarConfigUsuario = async (
+  dadosUsuario: any,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.put(`/settings-user/${user?.id}`, dadosUsuario, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-    });
+    const response = await apiClient.put(
+      `/settings-user/${user?.id}`,
+      dadosUsuario,
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
     return response.data.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao atualizar dados');
+    throw new Error(error.response?.data?.message || "Erro ao atualizar dados");
   }
-}
+};
 
-export const atualizarUsuarioTokenGoogle = async (token: string, user: User|null) => {
+export const atualizarUsuarioTokenGoogle = async (
+  token: string,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.post(`/users/${user?.id}/add-calendar-token`, { token }, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-    });
+    const response = await apiClient.post(
+      `/users/${user?.id}/add-calendar-token`,
+      { token },
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
     return response.data.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao atualizar token usuário');
+    throw new Error(
+      error.response?.data?.message || "Erro ao atualizar token usuário"
+    );
   }
-}
+};
 
 // Dashboard
 
-export const buscarDadosDashboard = async (user: User|null) => {
+export const buscarDadosDashboard = async (user: User | null) => {
   try {
-    const response = await apiClient.get('dashboard', {
+    const response = await apiClient.get("dashboard", {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
     });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao buscar dados');
+    throw new Error(error.response?.data?.message || "Erro ao buscar dados");
   }
-}
+};
 
 export const getMonthlyDocumentStats = async (user: User | null) => {
   try {
-    const response = await apiClient.get('/documents/monthly-stats', {
+    const response = await apiClient.get("/documents/monthly-stats", {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
     });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao obter estatísticas mensais de documentos');
+    throw new Error(
+      error.response?.data?.message ||
+        "Erro ao obter estatísticas mensais de documentos"
+    );
   }
 };
 
@@ -365,7 +450,7 @@ export const getMonthlyDocumentStats = async (user: User | null) => {
 export interface DocumentListParams {
   page?: number;
   per_page?: number;
-  status?: 'draft' | 'pending_signature' | 'signed' | 'rejected';
+  status?: "draft" | "pending_signature" | "signed" | "rejected";
   is_active?: boolean;
   name?: string;
 }
@@ -393,9 +478,12 @@ export interface CreateDocumentData {
   signers?: SignerData[];
 }
 
-export const obterDocumentos = async (params: DocumentListParams, user: User | null) => {
+export const obterDocumentos = async (
+  params: DocumentListParams,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.get('/documents', {
+    const response = await apiClient.get("/documents", {
       params,
       headers: {
         Authorization: `Bearer ${user?.token}`,
@@ -403,82 +491,107 @@ export const obterDocumentos = async (params: DocumentListParams, user: User | n
     });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao obter documentos');
+    throw new Error(
+      error.response?.data?.message || "Erro ao obter documentos"
+    );
   }
 };
 
-export const criarDocumento = async (data: CreateDocumentData, user: User | null) => {
+export const criarDocumento = async (
+  data: CreateDocumentData,
+  user: User | null
+) => {
   try {
     const formData = new FormData();
-    
-    formData.append('file', data.file);
-    formData.append('name', data.name);
-    
+
+    formData.append("file", data.file);
+    formData.append("name", data.name);
+
     if (data.client_id) {
-      formData.append('client_id', data.client_id.toString());
+      formData.append("client_id", data.client_id.toString());
     }
-    
-    formData.append('is_universal', data.is_universal ? 'true' : 'false');
-    formData.append('is_active', data.is_active ? 'true' : 'false');
+
+    formData.append("is_universal", data.is_universal ? "true" : "false");
+    formData.append("is_active", data.is_active ? "true" : "false");
 
     if (data.signers && data.signers.length > 0) {
-      formData.append('signers', JSON.stringify(data.signers));
-      
+      formData.append("signers", JSON.stringify(data.signers));
     } else {
-      
     }
 
     if (!data.file || !(data.file instanceof File) || data.file.size === 0) {
-      throw new Error('Arquivo PDF inválido ou corrompido');
+      throw new Error("Arquivo PDF inválido ou corrompido");
     }
 
-
     const response = await fetch(`${API_BASE_URL}/documents`, {
-      method: 'POST',
+      method: "POST",
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
-      body: formData
+      body: formData,
     });
 
     if (!response.ok) {
       // Capturar todo o conteúdo da resposta primeiro
       const responseText = await response.text();
-      const contentType = response.headers.get('content-type');
-      
+      const contentType = response.headers.get("content-type");
+
       // Verificar se a resposta é HTML
-      if (contentType && contentType.includes('text/html')) {
+      if (contentType && contentType.includes("text/html")) {
         // Procurar por mensagens de erro específicas no HTML
-        if (responseText.includes('404') || responseText.includes('Not Found')) {
-          throw new Error(`Endpoint não encontrado (404). Verifique se a rota /documents existe na API.`);
-        } else if (responseText.includes('500') || responseText.includes('Internal Server Error')) {
-          throw new Error(`Erro interno do servidor (500). Verifique os logs do backend.`);
-        } else if (responseText.includes('nginx') || responseText.includes('Apache')) {
-          throw new Error(`Servidor web retornou erro. Verifique se a API Laravel está rodando.`);
+        if (
+          responseText.includes("404") ||
+          responseText.includes("Not Found")
+        ) {
+          throw new Error(
+            `Endpoint não encontrado (404). Verifique se a rota /documents existe na API.`
+          );
+        } else if (
+          responseText.includes("500") ||
+          responseText.includes("Internal Server Error")
+        ) {
+          throw new Error(
+            `Erro interno do servidor (500). Verifique os logs do backend.`
+          );
+        } else if (
+          responseText.includes("nginx") ||
+          responseText.includes("Apache")
+        ) {
+          throw new Error(
+            `Servidor web retornou erro. Verifique se a API Laravel está rodando.`
+          );
         } else {
-          throw new Error(`Servidor retornou página HTML (${response.status}). API pode não estar funcionando corretamente.`);
+          throw new Error(
+            `Servidor retornou página HTML (${response.status}). API pode não estar funcionando corretamente.`
+          );
         }
       }
-      
+
       // Tentar parsear como JSON
       try {
         const errorData = JSON.parse(responseText);
-        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(
+          errorData.message || `HTTP ${response.status}: ${response.statusText}`
+        );
       } catch (jsonError) {
-        throw new Error(`Resposta inválida da API (${response.status}): ${responseText.substring(0, 200)}`);
+        throw new Error(
+          `Resposta inválida da API (${
+            response.status
+          }): ${responseText.substring(0, 200)}`
+        );
       }
     }
 
     const responseData = await response.json();
     return responseData;
   } catch (error: any) {
-    throw new Error(error.message || 'Erro ao criar documento');
+    throw new Error(error.message || "Erro ao criar documento");
   }
 };
 
 export const enviarDocumentoParaAssinatura = async (
-  documentId: string, 
-  user: User | null, 
+  documentId: string,
+  user: User | null,
   signers?: Array<{
     id: number;
     signer_name: string;
@@ -488,50 +601,78 @@ export const enviarDocumentoParaAssinatura = async (
 ) => {
   try {
     const requestBody = signers ? { signers } : {};
-    const response = await apiClient.post(`/documents/${documentId}/send-autentique`, requestBody, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-    });
+    const response = await apiClient.post(
+      `/documents/${documentId}/send-autentique`,
+      requestBody,
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao enviar documento para assinatura');
+    throw new Error(
+      error.response?.data?.message ||
+        "Erro ao enviar documento para assinatura"
+    );
   }
 };
 
-export const marcarDocumentoAssinado = async (documentId: string, user: User | null) => {
+export const marcarDocumentoAssinado = async (
+  documentId: string,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.post(`/documents/${documentId}/mark-signed`, {}, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    const response = await apiClient.post(
+      `/documents/${documentId}/mark-signed`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao marcar documento como assinado');
+    throw new Error(
+      error.response?.data?.message || "Erro ao marcar documento como assinado"
+    );
   }
 };
 
-export const sincronizarStatusDocumento = async (documentId: string, user: User | null) => {
+export const sincronizarStatusDocumento = async (
+  documentId: string,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.post(`/documents/${documentId}/sync-status`, {}, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    const response = await apiClient.post(
+      `/documents/${documentId}/sync-status`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao sincronizar status do documento');
+    throw new Error(
+      error.response?.data?.message || "Erro ao sincronizar status do documento"
+    );
   }
 };
 
-export const verificarStatusDocumento = async (documentId: string, user: User | null): Promise<DocumentStatusResponse> => {
+export const verificarStatusDocumento = async (
+  documentId: string,
+  user: User | null
+): Promise<DocumentStatusResponse> => {
   try {
     const headers = {
       Authorization: `Bearer ${user?.token}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     };
 
     const response = await apiClient.get(`/documents/${documentId}/status`, {
@@ -540,51 +681,82 @@ export const verificarStatusDocumento = async (documentId: string, user: User | 
 
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao verificar status do documento');
+    throw new Error(
+      error.response?.data?.message || "Erro ao verificar status do documento"
+    );
   }
 };
 
-export const baixarDocumentoAssinado = async (documentId: string, user: User | null) => {
+export const baixarDocumentoAssinado = async (
+  documentId: string,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.get(`/documents/${documentId}/download-signed`, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-      responseType: 'blob',
-    });
+    const response = await apiClient.get(
+      `/documents/${documentId}/download-signed`,
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+        responseType: "blob",
+      }
+    );
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao baixar documento assinado');
+    throw new Error(
+      error.response?.data?.message || "Erro ao baixar documento assinado"
+    );
   }
 };
 
-export const arquivarDocumento = async (documentId: string, user: User | null) => {
+export const arquivarDocumento = async (
+  documentId: string,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.post(`/documents/${documentId}/archive`, {}, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-    });
+    const response = await apiClient.post(
+      `/documents/${documentId}/archive`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao arquivar documento');
+    throw new Error(
+      error.response?.data?.message || "Erro ao arquivar documento"
+    );
   }
 };
 
-export const desarquivarDocumento = async (documentId: string, user: User | null) => {
+export const desarquivarDocumento = async (
+  documentId: string,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.post(`/documents/${documentId}/unarchive`, {}, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-    });
+    const response = await apiClient.post(
+      `/documents/${documentId}/unarchive`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao desarquivar documento');
+    throw new Error(
+      error.response?.data?.message || "Erro ao desarquivar documento"
+    );
   }
 };
 
-export const excluirDocumento = async (documentId: string, user: User | null) => {
+export const excluirDocumento = async (
+  documentId: string,
+  user: User | null
+) => {
   try {
     const response = await apiClient.delete(`/documents/${documentId}`, {
       headers: {
@@ -593,13 +765,18 @@ export const excluirDocumento = async (documentId: string, user: User | null) =>
     });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao excluir documento');
+    throw new Error(
+      error.response?.data?.message || "Erro ao excluir documento"
+    );
   }
 };
 
-export const buscarDocumentosArquivados = async (user: User | null, filters?: any) => {
+export const buscarDocumentosArquivados = async (
+  user: User | null,
+  filters?: any
+) => {
   try {
-    const response = await apiClient.get('/documents/archived', {
+    const response = await apiClient.get("/documents/archived", {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
@@ -607,13 +784,18 @@ export const buscarDocumentosArquivados = async (user: User | null, filters?: an
     });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao buscar documentos arquivados');
+    throw new Error(
+      error.response?.data?.message || "Erro ao buscar documentos arquivados"
+    );
   }
 };
 
-export const buscarDocumentosLixeira = async (user: User | null, filters?: any) => {
+export const buscarDocumentosLixeira = async (
+  user: User | null,
+  filters?: any
+) => {
   try {
-    const response = await apiClient.get('/documents/trashed', {
+    const response = await apiClient.get("/documents/trashed", {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
@@ -621,69 +803,95 @@ export const buscarDocumentosLixeira = async (user: User | null, filters?: any) 
     });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao buscar documentos na lixeira');
+    throw new Error(
+      error.response?.data?.message || "Erro ao buscar documentos na lixeira"
+    );
   }
 };
 
 export const buscarEstatisticasDocumentos = async (user: User | null) => {
   try {
-    const response = await apiClient.get('/documents/stats', {
+    const response = await apiClient.get("/documents/stats", {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
     });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao buscar estatísticas');
+    throw new Error(
+      error.response?.data?.message || "Erro ao buscar estatísticas"
+    );
   }
 };
 
-export const restaurarDocumento = async (documentId: string, user: User | null) => {
+export const restaurarDocumento = async (
+  documentId: string,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.post(`/documents/${documentId}/restore`, 
-      {}, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-    });
+    const response = await apiClient.post(
+      `/documents/${documentId}/restore`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao restaurar documento');
+    throw new Error(
+      error.response?.data?.message || "Erro ao restaurar documento"
+    );
   }
 };
 
 export const limparDocumentosAntigosLixeira = async (user: User | null) => {
   try {
-    const response = await apiClient.delete('/documents/cleanup-old-trashed', {
+    const response = await apiClient.delete("/documents/cleanup-old-trashed", {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
     });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao limpar documentos antigos');
+    throw new Error(
+      error.response?.data?.message || "Erro ao limpar documentos antigos"
+    );
   }
 };
 
-export const marcarDocumentoPermanentementeExcluido = async (documentId: string, user: User | null) => {
+export const marcarDocumentoPermanentementeExcluido = async (
+  documentId: string,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.put(`/documents/${documentId}/mark-permanently-deleted`, 
-      {}, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-    });
+    const response = await apiClient.put(
+      `/documents/${documentId}/mark-permanently-deleted`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao marcar documento como permanentemente excluído');
+    throw new Error(
+      error.response?.data?.message ||
+        "Erro ao marcar documento como permanentemente excluído"
+    );
   }
 };
 
 // Document Templates
 
-export const obterTemplatesDocumentos = async (filters: DocumentTemplateFilters, user: User | null) => {
+export const obterTemplatesDocumentos = async (
+  filters: DocumentTemplateFilters,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.get('/document-templates', {
+    const response = await apiClient.get("/document-templates", {
       params: filters,
       headers: {
         Authorization: `Bearer ${user?.token}`,
@@ -691,70 +899,83 @@ export const obterTemplatesDocumentos = async (filters: DocumentTemplateFilters,
     });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao obter templates de documentos');
+    throw new Error(
+      error.response?.data?.message || "Erro ao obter templates de documentos"
+    );
   }
 };
 
 export const obterTemplatesDisponiveis = async (user: User | null) => {
   try {
-    const response = await apiClient.get('/document-templates/available', {
+    const response = await apiClient.get("/document-templates/available", {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
     });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || `Server Error (${error.response?.status})`);
+    throw new Error(
+      error.response?.data?.message ||
+        `Server Error (${error.response?.status})`
+    );
   }
 };
 
-export const criarTemplateDocumento = async (data: CreateDocumentTemplateData, user: User | null) => {
+export const criarTemplateDocumento = async (
+  data: CreateDocumentTemplateData,
+  user: User | null
+) => {
   try {
     const formData = new FormData();
-    
-    formData.append('file', data.file);
-    formData.append('name', data.name);
-    formData.append('category', data.category);
-    
+
+    formData.append("file", data.file);
+    formData.append("name", data.name);
+    formData.append("category", data.category);
+
     if (data.description) {
-      formData.append('description', data.description);
+      formData.append("description", data.description);
     }
-    
+
     if (data.default_fields) {
-      formData.append('default_fields', data.default_fields);
+      formData.append("default_fields", data.default_fields);
     }
-    
-    formData.append('is_active', data.is_active !== false ? 'true' : 'false');
-    
+
+    formData.append("is_active", data.is_active !== false ? "true" : "false");
+
     if (data.is_default !== undefined) {
-      formData.append('is_default', data.is_default ? 'true' : 'false');
+      formData.append("is_default", data.is_default ? "true" : "false");
     }
-    
+
     if (data.type) {
-      formData.append('type', data.type);
+      formData.append("type", data.type);
     }
 
     if (!data.file || !(data.file instanceof File) || data.file.size === 0) {
-      throw new Error('Arquivo PDF inválido ou corrompido');
+      throw new Error("Arquivo PDF inválido ou corrompido");
     }
 
-    const response = await apiClient.post('/document-templates', formData, {
+    const response = await apiClient.post("/document-templates", formData, {
       headers: {
         Authorization: `Bearer ${user?.token}`,
-        'Content-Type': 'multipart/form-data',
+        "Content-Type": "multipart/form-data",
       },
     });
 
     return response.data;
   } catch (error: any) {
     if (error.response) {
-      throw new Error(error.response.data?.message || `HTTP ${error.response.status}`);
+      throw new Error(
+        error.response.data?.message || `HTTP ${error.response.status}`
+      );
     }
-    throw new Error(error.message || 'Erro ao criar template de documento');
+    throw new Error(error.message || "Erro ao criar template de documento");
   }
 };
 
-export const obterTemplateDocumento = async (templateId: number, user: User | null) => {
+export const obterTemplateDocumento = async (
+  templateId: number,
+  user: User | null
+) => {
   try {
     const response = await apiClient.get(`/document-templates/${templateId}`, {
       headers: {
@@ -763,56 +984,65 @@ export const obterTemplateDocumento = async (templateId: number, user: User | nu
     });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao obter template de documento');
+    throw new Error(
+      error.response?.data?.message || "Erro ao obter template de documento"
+    );
   }
 };
 
-export const atualizarTemplateDocumento = async (templateId: number, data: Partial<CreateDocumentTemplateData>, user: User | null) => {
+export const atualizarTemplateDocumento = async (
+  templateId: number,
+  data: Partial<CreateDocumentTemplateData>,
+  user: User | null
+) => {
   try {
     const formData = new FormData();
-    
+
     // Obrigatório para multipart/form-data com PUT
-    formData.append('_method', 'PUT');
-    
+    formData.append("_method", "PUT");
+
     if (data.file) {
-      formData.append('file', data.file);
-    }
-    
-    if (data.name) {
-      formData.append('name', data.name);
-    }
-    
-    if (data.category) {
-      formData.append('category', data.category);
-    }
-    
-    if (data.description !== undefined) {
-      formData.append('description', data.description);
-    }
-    
-    if (data.default_fields) {
-      formData.append('default_fields', data.default_fields);
-    }
-    
-    if (data.is_active !== undefined) {
-      formData.append('is_active', data.is_active ? 'true' : 'false');
-    }
-    
-    if (data.is_default !== undefined) {
-      formData.append('is_default', data.is_default ? 'true' : 'false');
-    }
-    
-    if (data.type) {
-      formData.append('type', data.type);
+      formData.append("file", data.file);
     }
 
-    const response = await fetch(`${API_BASE_URL}/document-templates/${templateId}`, {
-      method: 'POST', // Usar POST com _method=PUT conforme especificação
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-      body: formData
-    });
+    if (data.name) {
+      formData.append("name", data.name);
+    }
+
+    if (data.category) {
+      formData.append("category", data.category);
+    }
+
+    if (data.description !== undefined) {
+      formData.append("description", data.description);
+    }
+
+    if (data.default_fields) {
+      formData.append("default_fields", data.default_fields);
+    }
+
+    if (data.is_active !== undefined) {
+      formData.append("is_active", data.is_active ? "true" : "false");
+    }
+
+    if (data.is_default !== undefined) {
+      formData.append("is_default", data.is_default ? "true" : "false");
+    }
+
+    if (data.type) {
+      formData.append("type", data.type);
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}/document-templates/${templateId}`,
+      {
+        method: "POST", // Usar POST com _method=PUT conforme especificação
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+        body: formData,
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -822,100 +1052,150 @@ export const atualizarTemplateDocumento = async (templateId: number, data: Parti
     const responseData = await response.json();
     return responseData;
   } catch (error: any) {
-    throw new Error(error.message || 'Erro ao atualizar template de documento');
+    throw new Error(error.message || "Erro ao atualizar template de documento");
   }
 };
 
-export const excluirTemplateDocumento = async (templateId: number, user: User | null) => {
+export const excluirTemplateDocumento = async (
+  templateId: number,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.delete(`/document-templates/${templateId}`, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-    });
+    const response = await apiClient.delete(
+      `/document-templates/${templateId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao excluir template de documento');
+    throw new Error(
+      error.response?.data?.message || "Erro ao excluir template de documento"
+    );
   }
 };
 
-export const alternarStatusTemplateDocumento = async (templateId: number, user: User | null) => {
+export const alternarStatusTemplateDocumento = async (
+  templateId: number,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.put(`/document-templates/${templateId}/toggle-active`, {}, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-    });
+    const response = await apiClient.put(
+      `/document-templates/${templateId}/toggle-active`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao alterar status do template');
+    throw new Error(
+      error.response?.data?.message || "Erro ao alterar status do template"
+    );
   }
 };
 
-export const criarDocumentoAPartirDoTemplate = async (templateId: number, data: CreateDocumentFromTemplateData, user: User | null) => {
+export const criarDocumentoAPartirDoTemplate = async (
+  templateId: number,
+  data: CreateDocumentFromTemplateData,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.post(`/document-templates/${templateId}/create-document`, data, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-    });
+    const response = await apiClient.post(
+      `/document-templates/${templateId}/create-document`,
+      data,
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao criar documento a partir do template');
+    throw new Error(
+      error.response?.data?.message ||
+        "Erro ao criar documento a partir do template"
+    );
   }
 };
 
 export const obterEstatisticasTemplates = async (user: User | null) => {
   try {
-    const response = await apiClient.get('/document-templates/stats', {
+    const response = await apiClient.get("/document-templates/stats", {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
     });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao obter estatísticas dos templates');
+    throw new Error(
+      error.response?.data?.message ||
+        "Erro ao obter estatísticas dos templates"
+    );
   }
 };
 
 export const obterTemplatesLixeira = async (user: User | null) => {
   try {
-    const response = await apiClient.get('/document-templates/trashed', {
+    const response = await apiClient.get("/document-templates/trashed", {
       headers: {
         Authorization: `Bearer ${user?.token}`,
       },
     });
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao obter templates na lixeira');
+    throw new Error(
+      error.response?.data?.message || "Erro ao obter templates na lixeira"
+    );
   }
 };
 
-export const restaurarTemplateDocumento = async (templateId: number, user: User | null) => {
+export const restaurarTemplateDocumento = async (
+  templateId: number,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.post('/document-templates/restore', {
-      template_id: templateId // API espera template_id, não template_ids
-    }, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
+    const response = await apiClient.post(
+      "/document-templates/restore",
+      {
+        template_id: templateId, // API espera template_id, não template_ids
       },
-    });
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao restaurar template de documento');
+    throw new Error(
+      error.response?.data?.message || "Erro ao restaurar template de documento"
+    );
   }
 };
 
-export const debugTemplateDocumento = async (templateId: number, user: User | null) => {
+export const debugTemplateDocumento = async (
+  templateId: number,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.get(`/document-templates/debug/${templateId}`, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-      },
-    });
+    const response = await apiClient.get(
+      `/document-templates/debug/${templateId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao obter debug do template');
+    throw new Error(
+      error.response?.data?.message || "Erro ao obter debug do template"
+    );
   }
 };
 
@@ -927,7 +1207,7 @@ export interface CreateTemplateFromHtmlData {
   default_fields?: string;
   is_active?: boolean;
   is_default?: boolean;
-  type?: 'default' | 'custom';
+  type?: "default" | "custom";
   styles: {
     font_family: string;
     font_size: number;
@@ -935,16 +1215,26 @@ export interface CreateTemplateFromHtmlData {
   };
 }
 
-export const criarTemplateDocumentoFromHtml = async (data: CreateTemplateFromHtmlData, user: User | null) => {
+export const criarTemplateDocumentoFromHtml = async (
+  data: CreateTemplateFromHtmlData,
+  user: User | null
+) => {
   try {
-    const response = await apiClient.post('/document-templates/from-html', data, {
-      headers: {
-        Authorization: `Bearer ${user?.token}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    const response = await apiClient.post(
+      "/document-templates/from-html",
+      data,
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
     return response.data;
   } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Erro ao criar template de documento a partir do HTML');
+    throw new Error(
+      error.response?.data?.message ||
+        "Erro ao criar template de documento a partir do HTML"
+    );
   }
 };

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation, Outlet, Navigate } from 'react-router-dom';
-import { Home, Users, Calendar, DollarSign, Settings, Menu, LogOut, X, Shield, PartyPopper, FileCheck2 } from 'lucide-react';
+import { Home, Users, Calendar, DollarSign, Settings, Menu, LogOut, X, Shield, PartyPopper, FileCheck2, Camera } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Layout() {
@@ -26,6 +26,7 @@ export default function Layout() {
     { path: '/calendario', icon: Calendar, label: 'Agenda' },
     { path: '/financeiro', icon: DollarSign, label: 'Financeiro' },
     { path: '/lumidocs', icon: FileCheck2, label: 'Lumi.Doc' },
+    { path: '/lumiphoto', icon: Camera, label: 'Lumi Photo' },
     { path: '/novidades', icon: PartyPopper, label: 'Novidades' },
     { path: '/configuracoes', icon: Settings, label: 'Configurações' },
   ];
@@ -51,9 +52,8 @@ export default function Layout() {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center px-6 py-3 text-gray-700 hover:bg-gray-100 ${
-                  isActivePath(item.path) ? 'bg-blue-50 text-blue-600' : ''
-                }`}
+                className={`flex items-center px-6 py-3 text-gray-700 hover:bg-gray-100 ${isActivePath(item.path) ? 'bg-blue-50 text-blue-600' : ''
+                  }`}
               >
                 <Icon className="h-5 w-5 mr-3" />
                 {item.label}
@@ -65,9 +65,8 @@ export default function Layout() {
           {isAdmin && (
             <Link
               to="/admin"
-              className={`flex items-center px-6 py-3 text-gray-700 hover:bg-gray-100 ${
-                isActivePath('/admin') ? 'bg-blue-50 text-blue-600' : ''
-              }`}
+              className={`flex items-center px-6 py-3 text-gray-700 hover:bg-gray-100 ${isActivePath('/admin') ? 'bg-blue-50 text-blue-600' : ''
+                }`}
             >
               <Shield className="h-5 w-5 mr-3" />
               Admin
@@ -116,9 +115,8 @@ export default function Layout() {
                     key={item.path}
                     to={item.path}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 ${
-                      isActivePath(item.path) ? 'bg-blue-50 text-blue-600' : ''
-                    }`}
+                    className={`flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 ${isActivePath(item.path) ? 'bg-blue-50 text-blue-600' : ''
+                      }`}
                   >
                     <Icon className="h-5 w-5 mr-3" />
                     {item.label}
@@ -131,9 +129,8 @@ export default function Layout() {
                 <Link
                   to="/admin"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 ${
-                    isActivePath('/admin') ? 'bg-blue-50 text-blue-600' : ''
-                  }`}
+                  className={`flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 ${isActivePath('/admin') ? 'bg-blue-50 text-blue-600' : ''
+                    }`}
                 >
                   <Shield className="h-5 w-5 mr-3" />
                   Admin

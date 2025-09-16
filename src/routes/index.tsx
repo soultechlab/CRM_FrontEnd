@@ -20,6 +20,10 @@ import News from '../components/news/News';
 import { Documentos } from '../components/lumidocs/Documentos';
 import { Modelos } from '../components/lumidocs/Modelos';
 import { DocumentEditor } from '../components/lumidocs/DocumentEditor';
+import { LumiPhoto } from '../components/lumiphoto/LumiPhoto';
+import { NewProject } from '../components/lumiphoto/NewProject';
+import { Delivery } from '../components/lumiphoto/Delivery';
+import { NewDelivery } from '../components/lumiphoto/NewDelivery';
 
 export default function AppRoutes() {
   const { isLoading } = useAuth();
@@ -61,6 +65,10 @@ export default function AppRoutes() {
         <Route path="lumidocs" element={<Documentos />} />
         <Route path="modelos" element={<Modelos />} />
         <Route path="criar-modelo" element={<DocumentEditor />} />
+        <Route path="lumiphoto" element={<LumiPhoto />} />
+        <Route path="lumiphoto/new-project" element={<NewProject />} />
+        <Route path="lumiphoto/delivery" element={<Delivery />} />
+        <Route path="lumiphoto/delivery/new" element={<NewDelivery />} />
       </Route>
 
       {/* Catch all route */}
