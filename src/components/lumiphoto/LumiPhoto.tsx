@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from "react-router-dom";
 import {
-  FolderPlus, Upload, Eye, Heart, Trash2,
-  Archive, Send, Pencil, Filter,
-  Search, Image,
+  FolderPlus, Eye, Heart, Trash2,
+  Archive, Send, Pencil, Filter, Image,
 } from 'lucide-react';
 import { Modal } from './components/Modal';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { PhotoUpload } from './components/PhotoUpload';
 import { PhotoViewer } from './components/PhotoViewer';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
+import { ProjectDetailsOffcanvas } from './components/ProjectDetailsOffcanvas';
 import { useAuth } from '../../contexts/AuthContext';
 
 const MOCK_PROJECTS = [
@@ -55,6 +55,7 @@ export function LumiPhoto() {
   const [selectedStatus, setSelectedStatus] = useState<ProjectStatus>("enviada");
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isDetailsOffcanvasOpen, setIsDetailsOffcanvasOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isPhotosViewModalOpen, setIsPhotosViewModalOpen] = useState(false);
   const [isAllProjectsModalOpen, setIsAllProjectsModalOpen] = useState(false);
@@ -93,7 +94,7 @@ export function LumiPhoto() {
 
   const openProjectDetails = (projectId: number) => {
     setSelectedProjectId(projectId);
-    setIsDetailsModalOpen(true);
+    setIsDetailsOffcanvasOpen(true);
   };
 
   const openDeleteConfirmation = (projectId: number, permanent: boolean = false) => {
@@ -202,7 +203,7 @@ export function LumiPhoto() {
             onClick={() => openProjectDetails(project.id)}
             className="px-3 py-1 me-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded"
           >
-            Ver mais
+            Ver detalhes
           </button>
         )}
       </>
@@ -719,6 +720,12 @@ export function LumiPhoto() {
           </div>
         </div>
       </Modal>
+
+      <ProjectDetailsOffcanvas
+        isOpen={isDetailsOffcanvasOpen}
+        onClose={() => setIsDetailsOffcanvasOpen(false)}
+        project={findSelectedProject()}
+      />
     </div>
   );
 }

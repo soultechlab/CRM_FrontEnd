@@ -13,6 +13,7 @@ import { ConfirmationModal } from './components/ConfirmationModal';
 import { PhotoUpload } from './components/PhotoUpload';
 import { PhotoViewer } from './components/PhotoViewer';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
+import { DeliveryDetailsOffcanvas } from './components/DeliveryDetailsOffcanvas';
 import { useAuth } from '../../contexts/AuthContext';
 
 const MOCK_PROJECTS = [
@@ -57,6 +58,7 @@ export function Delivery() {
     const [selectedStatus, setSelectedStatus] = useState<ProjectStatus>("enviada");
     const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+    const [isDetailsOffcanvasOpen, setIsDetailsOffcanvasOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isPhotosViewModalOpen, setIsPhotosViewModalOpen] = useState(false);
     const [isAllProjectsModalOpen, setIsAllProjectsModalOpen] = useState(false);
@@ -95,7 +97,7 @@ export function Delivery() {
 
     const openProjectDetails = (projectId: number) => {
         setSelectedProjectId(projectId);
-        setIsDetailsModalOpen(true);
+        setIsDetailsOffcanvasOpen(true);
     };
 
     const openDeleteConfirmation = (projectId: number, permanent: boolean = false) => {
@@ -195,7 +197,7 @@ export function Delivery() {
                         onClick={() => openProjectDetails(project.id)}
                         className="px-3 py-1 me-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded"
                     >
-                        Ver mais
+                        Ver detalhes
                     </button>
                 )}
             </>
@@ -655,6 +657,12 @@ export function Delivery() {
                     </div>
                 </div>
             </Modal>
+
+            <DeliveryDetailsOffcanvas
+                isOpen={isDetailsOffcanvasOpen}
+                onClose={() => setIsDetailsOffcanvasOpen(false)}
+                project={findSelectedProject()}
+            />
         </div>
     );
 }
