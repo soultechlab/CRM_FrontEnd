@@ -32,6 +32,9 @@ export function LumiDocsHeader({ onNewDocumentClick, onNewModelClick }: LumiDocs
         <div className="flex items-center gap-3">
           <FileSignature className="w-8 h-8 text-blue-600" />
           <h1 className="text-xl font-bold text-gray-800">lumi.doc</h1>
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium text-white border border-blue-700" style={{ backgroundColor: '#1d4ed8' }}>
+            VERSÃO BETA
+          </span>
         </div>
         <div className="flex items-center space-x-4 sm:space-x-6">
           <nav className="hidden md:flex space-x-6">
