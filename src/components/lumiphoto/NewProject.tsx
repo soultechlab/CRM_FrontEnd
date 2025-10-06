@@ -1,7 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ChevronLeft, Upload, Copy, X, Calendar, Camera, Eye, Star, Info, CheckCircle, AlertCircle, Palette, Shield, Clock, DollarSign, HelpCircle, Save } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
+import { criarProjetoLumiPhoto, obterProjetoLumiPhoto, atualizarProjetoLumiPhoto } from '../../services/apiService';
+import { toast } from 'react-toastify';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface FormData {
   projectName: string;
@@ -28,6 +31,9 @@ interface FormData {
 
 export function NewProject() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { projectId } = useParams<{ projectId: string }>();
+  const isEditMode = !!projectId;
 
   const [formData, setFormData] = useState<FormData>({
     projectName: '',
@@ -61,6 +67,58 @@ export function NewProject() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [isLoadingProject, setIsLoadingProject] = useState(false);
+
+  // Carregar dados do projeto se estiver em modo de edição
+  useEffect(() => {
+    const loadProject = async () => {
+      if (!isEditMode || !projectId || !user) {
+        return;
+      }
+
+      try {
+        setIsLoadingProject(true);
+        const project = await obterProjetoLumiPhoto(parseInt(projectId), user);
+
+        // Preencher o formulário com os dados do projeto
+        setFormData({
+          projectName: project.name || '',
+          description: project.description || '',
+          clientName: project.client_name || '',
+          clientEmail: project.client_email || '',
+          contractedPhotos: project.contracted_photos || 50,
+          maxSelections: project.max_selections || 50,
+          allowExtraPhotos: project.allow_extra_photos || false,
+          extraPhotosType: project.extra_photos_type || 'individual',
+          extraPhotoPrice: project.extra_photo_price || 20,
+          requirePassword: project.require_password || false,
+          password: project.access_password || '',
+          linkExpiration: project.link_expiration || 30,
+          addWatermark: project.add_watermark || false,
+          watermarkText: project.watermark_text || '',
+          watermarkPosition: project.watermark_position || 'bottom-right',
+          projectDate: project.project_date || '',
+          projectType: project.project_type || '',
+          clientPhone: project.client_phone || '',
+          deliveryDate: project.delivery_date || '',
+          allowDownload: project.allow_download !== undefined ? project.allow_download : true,
+        });
+
+        if (project.share_link) {
+          setShareLink(project.share_link);
+        }
+      } catch (error: any) {
+        console.error('Erro ao carregar projeto:', error);
+        toast.error('Erro ao carregar dados do projeto');
+        navigate('/lumiphoto');
+      } finally {
+        setIsLoadingProject(false);
+      }
+    };
+
+    loadProject();
+  }, [isEditMode, projectId, user, navigate]);
 
   // Validation functions
   const validateEmail = (email: string): boolean => {
@@ -160,9 +218,112 @@ export function NewProject() {
     navigator.clipboard.writeText(shareLink);
   };
 
-  const handleCreateProject = () => {
-    console.log('Creating project with data:', formData);
-    console.log('Uploaded files:', uploadedFiles);
+  const handleCreateProject = async () => {
+    // Validar campos obrigatórios
+    if (!formData.projectName.trim()) {
+      toast.error('Nome do projeto é obrigatório');
+      return;
+    }
+    if (!formData.clientEmail.trim()) {
+      toast.error('Email do cliente é obrigatório');
+      return;
+    }
+    if (!validateEmail(formData.clientEmail)) {
+      toast.error('Email do cliente inválido');
+      return;
+    }
+    if (!formData.projectType) {
+      toast.error('Tipo de projeto é obrigatório');
+      return;
+    }
+    if (!formData.projectDate) {
+      toast.error('Data do projeto é obrigatória');
+      return;
+    }
+    if (!formData.contractedPhotos || formData.contractedPhotos < 1) {
+      toast.error('Número de fotos contratadas é obrigatório e deve ser maior que 0');
+      return;
+    }
+    if (!formData.maxSelections || formData.maxSelections < 1) {
+      toast.error('Número máximo de seleções é obrigatório e deve ser maior que 0');
+      return;
+    }
+    if (!formData.linkExpiration || formData.linkExpiration < 1) {
+      toast.error('Expiração do link é obrigatória e deve ser maior que 0');
+      return;
+    }
+
+    // Validar preço de foto extra se venda de fotos extras estiver ativada
+    if (formData.allowExtraPhotos && (!formData.extraPhotoPrice || formData.extraPhotoPrice < 0)) {
+      toast.error('Preço por foto extra é obrigatório quando venda de fotos extras está ativada');
+      return;
+    }
+
+    // Validar senha se proteção estiver ativada
+    if (formData.requirePassword && !formData.password.trim()) {
+      toast.error('Senha de acesso é obrigatória quando a proteção com senha está ativada');
+      return;
+    }
+
+    if (!user || !user.token) {
+      toast.error('Você precisa estar logado para criar um projeto');
+      return;
+    }
+
+    try {
+      setIsCreatingProject(true);
+
+      // Gerar share_link se ainda não foi gerado
+      let linkToSend = shareLink;
+      if (!linkToSend) {
+        const slug = formData.projectName.toLowerCase().replace(/\s+/g, '-');
+        const token = Math.random().toString(36).substring(2, 10);
+        linkToSend = `https://lumiphoto.com/project/${slug}-${token}`;
+        setShareLink(linkToSend);
+      }
+
+      const projectData = {
+        name: formData.projectName,
+        client_email: formData.clientEmail,
+        client_name: formData.clientName || undefined,
+        client_phone: formData.clientPhone || undefined,
+        description: formData.description || undefined,
+        project_type: formData.projectType || undefined,
+        project_date: formData.projectDate || undefined,
+        delivery_date: formData.deliveryDate || undefined,
+        contracted_photos: formData.contractedPhotos,
+        max_selections: formData.maxSelections,
+        allow_extra_photos: formData.allowExtraPhotos,
+        extra_photos_type: formData.extraPhotosType,
+        extra_photo_price: formData.extraPhotoPrice,
+        require_password: formData.requirePassword,
+        access_password: formData.password || undefined,
+        link_expiration: formData.linkExpiration,
+        share_link: linkToSend,
+        add_watermark: formData.addWatermark,
+        watermark_text: formData.watermarkText || undefined,
+        watermark_position: formData.watermarkPosition,
+        allow_download: formData.allowDownload,
+      };
+
+      if (isEditMode && projectId) {
+        // Atualizar projeto existente
+        await atualizarProjetoLumiPhoto(parseInt(projectId), projectData, user);
+        toast.success('Projeto atualizado com sucesso!');
+      } else {
+        // Criar novo projeto
+        await criarProjetoLumiPhoto(projectData, user);
+        toast.success('Projeto criado com sucesso!');
+      }
+
+      // Redirecionar para o dashboard do LumiPhoto
+      navigate('/lumiphoto');
+
+    } catch (error: any) {
+      toast.error(error.message || `Erro ao ${isEditMode ? 'atualizar' : 'criar'} projeto`);
+    } finally {
+      setIsCreatingProject(false);
+    }
   };
 
   const handleSaveAsDraft = () => {
@@ -177,11 +338,25 @@ export function NewProject() {
     <div className="min-h-screen bg-gray-50">
       <LumiPhotoHeader delivery={true} />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Novo Projeto</h1>
-          <p className="text-gray-600">Crie um novo álbum para compartilhar com seu cliente</p>
+      {isLoadingProject ? (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-900 font-medium text-lg">Carregando projeto...</p>
+            </div>
+          </div>
         </div>
+      ) : (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              {isEditMode ? 'Editar Projeto' : 'Novo Projeto'}
+            </h1>
+            <p className="text-gray-600">
+              {isEditMode ? 'Atualize as informações do seu projeto' : 'Crie um novo álbum para compartilhar com seu cliente'}
+            </p>
+          </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="bg-white rounded-lg shadow-sm p-6">
@@ -258,7 +433,7 @@ export function NewProject() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tipo de Projeto
+                    Tipo de Projeto <span className="text-red-500">*</span>
                   </label>
                   <select
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -283,7 +458,7 @@ export function NewProject() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Data do Projeto
+                    Data do Projeto <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
@@ -400,26 +575,28 @@ export function NewProject() {
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Número de fotos contratadas
+                  Número de fotos contratadas <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
+                  min="0"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   value={formData.contractedPhotos}
-                  onChange={(e) => handleInputChange('contractedPhotos', parseInt(e.target.value))}
+                  onChange={(e) => handleInputChange('contractedPhotos', parseInt(e.target.value) || 0)}
                 />
                 <p className="text-xs text-gray-500 mt-1">Número de fotos inclusas no contrato original</p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Número máximo de seleções
+                  Número máximo de seleções <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
+                  min="0"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   value={formData.maxSelections}
-                  onChange={(e) => handleInputChange('maxSelections', parseInt(e.target.value))}
+                  onChange={(e) => handleInputChange('maxSelections', parseInt(e.target.value) || 0)}
                 />
                 <p className="text-xs text-gray-500 mt-1">Limite quantas fotos o cliente pode selecionar</p>
               </div>
@@ -491,7 +668,7 @@ export function NewProject() {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Preço por foto extra (R$)
+                        Preço por foto extra (R$) <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="number"
@@ -527,7 +704,7 @@ export function NewProject() {
                 {formData.requirePassword && (
                   <div className="ml-6 mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Senha de acesso
+                      Senha de acesso <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -536,6 +713,9 @@ export function NewProject() {
                       value={formData.password}
                       onChange={(e) => handleInputChange('password', e.target.value)}
                     />
+                    {formData.requirePassword && !formData.password.trim() && (
+                      <p className="text-xs text-red-500 mt-1">Este campo é obrigatório</p>
+                    )}
                   </div>
                 )}
 
@@ -562,13 +742,14 @@ export function NewProject() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Expiração do link (dias)
+                  Expiração do link (dias) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
+                  min="0"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   value={formData.linkExpiration}
-                  onChange={(e) => handleInputChange('linkExpiration', parseInt(e.target.value))}
+                  onChange={(e) => handleInputChange('linkExpiration', parseInt(e.target.value) || 0)}
                 />
                 <p className="text-xs text-gray-500 mt-1">Define por quantos dias o link de seleção ficará ativo</p>
               </div>
@@ -680,20 +861,36 @@ export function NewProject() {
             <X className="h-4 w-4 inline mr-1" />
             Cancelar
           </button>
-          <button
-            onClick={handleSaveAsDraft}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
-          >
-            Salvar como Rascunho
-          </button>
+          {!isEditMode && (
+            <button
+              onClick={handleSaveAsDraft}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+            >
+              Salvar como Rascunho
+            </button>
+          )}
           <button
             onClick={handleCreateProject}
             className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
           >
-            Criar Projeto
+            {isEditMode ? 'Atualizar Projeto' : 'Criar Projeto'}
           </button>
         </div>
+
+        {/* Loading Overlay */}
+        {isCreatingProject && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-8 flex flex-col items-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mb-4"></div>
+              <p className="text-gray-900 font-medium text-lg">
+                {isEditMode ? 'Atualizando projeto...' : 'Criando projeto...'}
+              </p>
+              <p className="text-gray-500 text-sm mt-2">Aguarde enquanto processamos suas informações</p>
+            </div>
+          </div>
+        )}
       </div>
+      )}
     </div>
   );
 }

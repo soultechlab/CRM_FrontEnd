@@ -11,15 +11,15 @@ import { PhotoViewer } from './components/PhotoViewer';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
 import { ProjectDetailsOffcanvas } from './components/ProjectDetailsOffcanvas';
 import { useAuth } from '../../contexts/AuthContext';
-
-const MOCK_PROJECTS = [
-  { id: 1, name: "Casamento Ana & Pedro", date: "10/06/2023", photos: 254, views: 128, selections: 45, status: "enviada" as const, clientEmail: "ana.pedro@gmail.com" },
-  { id: 2, name: "Ensaio Pré-Wedding Carla", date: "22/05/2023", photos: 89, views: 76, selections: 15, status: "rascunho" as const, clientEmail: "carla@exemplo.com" },
-  { id: 3, name: "Festa de 15 anos - Maria", date: "03/04/2023", photos: 320, views: 187, selections: 62, status: "em_selecao" as const, clientEmail: "maria15@exemplo.com" },
-  { id: 4, name: "Formatura João", date: "15/03/2023", photos: 150, views: 90, selections: 30, status: "finalizada" as const, clientEmail: "joao@exemplo.com" },
-  { id: 5, name: "Ensaio Gestante Júlia", date: "20/02/2023", photos: 75, views: 60, selections: 20, status: "arquivada" as const, clientEmail: "julia@exemplo.com" },
-  { id: 6, name: "Aniversário 1 ano - Pedro", date: "10/01/2023", photos: 200, views: 0, selections: 0, status: "excluida" as const, clientEmail: "pedro@exemplo.com" },
-];
+import {
+  obterProjetosLumiPhoto,
+  atualizarStatusProjetoLumiPhoto,
+  excluirProjetoLumiPhoto,
+  restaurarProjetoLumiPhoto,
+  obterDashboardLumiPhoto,
+  LumiPhotoProject as APILumiPhotoProject,
+  LumiPhotoDashboardStats,
+} from '../../services/apiService';
 
 type ProjectStatus = "all" | "rascunho" | "enviada" | "em_selecao" | "finalizada" | "arquivada" | "excluida";
 
@@ -51,8 +51,8 @@ export function LumiPhoto() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [projects, setProjects] = useState(MOCK_PROJECTS);
-  const [selectedStatus, setSelectedStatus] = useState<ProjectStatus>("enviada");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedStatus, setSelectedStatus] = useState<ProjectStatus>("all");
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDetailsOffcanvasOpen, setIsDetailsOffcanvasOpen] = useState(false);
@@ -63,11 +63,57 @@ export function LumiPhoto() {
   const [isPermanentDelete, setIsPermanentDelete] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
   const [totalUploads, setTotalUploads] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [dashboardStats, setDashboardStats] = useState<LumiPhotoDashboardStats | null>(null);
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
+
+  // Carregar projetos da API
+  useEffect(() => {
+    loadProjects();
+    loadDashboardStats();
+  }, [selectedStatus]);
+
+  const loadProjects = async () => {
+    try {
+      setLoading(true);
+      const response = await obterProjetosLumiPhoto(
+        { status: selectedStatus },
+        user
+      );
+
+      // Mapear dados da API para o formato do componente
+      const mappedProjects: Project[] = response.data.map((project: APILumiPhotoProject) => ({
+        id: project.id,
+        name: project.name,
+        date: project.date,
+        photos: project.photos,
+        views: project.views,
+        selections: project.selections,
+        status: project.status,
+        clientEmail: project.clientEmail,
+      }));
+
+      setProjects(mappedProjects);
+    } catch (error) {
+      console.error('Erro ao carregar projetos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadDashboardStats = async () => {
+    try {
+      const stats = await obterDashboardLumiPhoto(user);
+      setDashboardStats(stats);
+      setTotalUploads(stats.total_photos);
+    } catch (error) {
+      console.error('Erro ao carregar estatísticas:', error);
+    }
+  };
 
   useEffect(() => {
     const uploadsCount = projects.reduce((total, project) => {
@@ -108,44 +154,75 @@ export function LumiPhoto() {
     setIsPhotosViewModalOpen(true);
   };
 
-  const handleDeleteProject = () => {
+  const handleDeleteProject = async () => {
     if (selectedProjectId === null) return;
 
-    if (isPermanentDelete) {
-      setProjects(projects.filter(project => project.id !== selectedProjectId));
-    } else {
+    try {
+      if (isPermanentDelete) {
+        // Deletar permanentemente via API
+        await excluirProjetoLumiPhoto(selectedProjectId, user);
+        setProjects(projects.filter(project => project.id !== selectedProjectId));
+      } else {
+        // Soft delete - apenas atualiza status para "excluida"
+        await atualizarStatusProjetoLumiPhoto(selectedProjectId, "excluida", user);
+        setProjects(projects.map(project =>
+          project.id === selectedProjectId
+            ? { ...project, status: "excluida" as const }
+            : project
+        ));
+      }
+
+      setIsDeleteModalOpen(false);
+      await loadDashboardStats(); // Atualizar estatísticas
+    } catch (error) {
+      console.error('Erro ao deletar projeto:', error);
+      alert('Erro ao deletar projeto. Tente novamente.');
+    }
+  };
+
+  const handleArchiveProject = async (projectId: number) => {
+    try {
+      await atualizarStatusProjetoLumiPhoto(projectId, "arquivada", user);
       setProjects(projects.map(project =>
-        project.id === selectedProjectId
-          ? { ...project, status: "excluida" as const }
+        project.id === projectId
+          ? { ...project, status: "arquivada" as const }
           : project
       ));
+      await loadDashboardStats();
+    } catch (error) {
+      console.error('Erro ao arquivar projeto:', error);
+      alert('Erro ao arquivar projeto. Tente novamente.');
     }
-
-    setIsDeleteModalOpen(false);
   };
 
-  const handleArchiveProject = (projectId: number) => {
-    setProjects(projects.map(project =>
-      project.id === projectId
-        ? { ...project, status: "arquivada" as const }
-        : project
-    ));
+  const handleRestoreProject = async (projectId: number) => {
+    try {
+      await restaurarProjetoLumiPhoto(projectId, user);
+      setProjects(projects.map(project =>
+        project.id === projectId
+          ? { ...project, status: "em_selecao" as const }
+          : project
+      ));
+      await loadDashboardStats();
+    } catch (error) {
+      console.error('Erro ao restaurar projeto:', error);
+      alert('Erro ao restaurar projeto. Tente novamente.');
+    }
   };
 
-  const handleRestoreProject = (projectId: number) => {
-    setProjects(projects.map(project =>
-      project.id === projectId
-        ? { ...project, status: "em_selecao" as const }
-        : project
-    ));
-  };
-
-  const handleSendProject = (projectId: number) => {
-    setProjects(projects.map(project =>
-      project.id === projectId
-        ? { ...project, status: "enviada" as const }
-        : project
-    ));
+  const handleSendProject = async (projectId: number) => {
+    try {
+      await atualizarStatusProjetoLumiPhoto(projectId, "enviada", user);
+      setProjects(projects.map(project =>
+        project.id === projectId
+          ? { ...project, status: "enviada" as const }
+          : project
+      ));
+      await loadDashboardStats();
+    } catch (error) {
+      console.error('Erro ao enviar projeto:', error);
+      alert('Erro ao enviar projeto. Tente novamente.');
+    }
   };
 
   const checkUploadLimit = () => {
@@ -214,7 +291,11 @@ export function LumiPhoto() {
         {project.status === "rascunho" && (
           <>
             <button
-              onClick={() => handleNewProject()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                navigate(`/lumiphoto/edit-project/${project.id}`);
+              }}
               className="px-3 py-1.5 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded"
             >
               <Pencil className="h-4 w-4" />
@@ -370,8 +451,10 @@ export function LumiPhoto() {
                 <FolderPlus className="h-5 w-5 text-blue-600 mr-2" />
                 <span className="text-sm font-medium text-blue-900">Projetos Ativos</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{projects.filter(p => p.status !== 'excluida' && p.status !== 'arquivada').length}</p>
-              <p className="text-xs text-gray-600">+2 este mês</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {dashboardStats ? dashboardStats.active_projects : projects.filter(p => p.status !== 'excluida' && p.status !== 'arquivada').length}
+              </p>
+              <p className="text-xs text-gray-600">Projetos em andamento</p>
             </div>
 
             <div className="bg-white border rounded-lg p-4">
@@ -379,8 +462,10 @@ export function LumiPhoto() {
                 <Eye className="h-5 w-5 text-blue-600 mr-2" />
                 <span className="text-sm font-medium text-blue-900">Visualizações</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{projects.reduce((acc, p) => acc + p.views, 0).toLocaleString()}</p>
-              <p className="text-xs text-gray-600">+86 na última semana</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {dashboardStats ? dashboardStats.total_views.toLocaleString() : projects.reduce((acc, p) => acc + p.views, 0).toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-600">Total de visualizações</p>
             </div>
 
             <div className="bg-white border rounded-lg p-4">
@@ -388,8 +473,12 @@ export function LumiPhoto() {
                 <Heart className="h-5 w-5 text-blue-600 mr-2" />
                 <span className="text-sm font-medium text-blue-900">Seleções</span>
               </div>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{projects.reduce((acc, p) => acc + p.selections, 0).toLocaleString()}</p>
-              <p className="text-xs text-gray-600">Taxa de 31.2%</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {dashboardStats ? dashboardStats.total_selections.toLocaleString() : projects.reduce((acc, p) => acc + p.selections, 0).toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-600">
+                Taxa de {dashboardStats ? dashboardStats.selection_rate : '0'}%
+              </p>
             </div>
 
             <div className="bg-white border rounded-lg p-4">
@@ -401,14 +490,14 @@ export function LumiPhoto() {
               </div>
 
               <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
-                <span>888 fotos</span>
+                <span>{dashboardStats ? dashboardStats.total_photos : totalUploads} fotos</span>
                 <span>5.000 máximo</span>
               </div>
 
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className="bg-blue-600 h-2 rounded-full"
-                  style={{ width: `${(888 / 5000) * 100}%` }}
+                  style={{ width: `${((dashboardStats ? dashboardStats.total_photos : totalUploads) / 5000) * 100}%` }}
                 />
               </div>
             </div>
@@ -455,8 +544,13 @@ export function LumiPhoto() {
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {filteredProjects.length === 0 ? (
-              <div className="text-center py-12">
+            {loading ? (
+              <div className="col-span-3 text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Carregando projetos...</p>
+              </div>
+            ) : filteredProjects.length === 0 ? (
+              <div className="col-span-3 text-center py-12">
                 <FolderPlus className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum projeto encontrado</h3>
                 <p className="text-gray-500 mb-4">Crie seu primeiro projeto para começar</p>

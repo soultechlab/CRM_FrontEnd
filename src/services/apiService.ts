@@ -20,7 +20,7 @@ if (!API_BASE_URL) {
 }
 
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: `${API_BASE_URL}`,
   headers: {
     "Content-Type": "application/json",
   },
@@ -1235,6 +1235,289 @@ export const criarTemplateDocumentoFromHtml = async (
     throw new Error(
       error.response?.data?.message ||
         "Erro ao criar template de documento a partir do HTML"
+    );
+  }
+};
+
+// LumiPhoto - Projects
+
+export interface LumiPhotoProject {
+  id: number;
+  name: string;
+  clientEmail: string;
+  client_email?: string;
+  client_name?: string;
+  client_phone?: string;
+  status:
+    | "rascunho"
+    | "enviada"
+    | "em_selecao"
+    | "finalizada"
+    | "arquivada"
+    | "excluida";
+  photos: number;
+  views: number;
+  selections: number;
+  description?: string;
+  date: string;
+  project_type?: string;
+  project_date?: string;
+  delivery_date?: string;
+  contracted_photos?: number;
+  max_selections?: number;
+  allow_extra_photos?: boolean;
+  extra_photos_type?: 'individual' | 'packages' | 'both';
+  extra_photo_price?: number;
+  require_password?: boolean;
+  access_password?: string;
+  link_expiration?: number;
+  share_link?: string;
+  add_watermark?: boolean;
+  watermark_text?: string;
+  watermark_position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center';
+  allow_download?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LumiPhotoProjectFilters {
+  status?:
+    | "all"
+    | "rascunho"
+    | "enviada"
+    | "em_selecao"
+    | "finalizada"
+    | "arquivada"
+    | "excluida";
+  name?: string;
+  client_email?: string;
+  page?: number;
+}
+
+export interface CreateLumiPhotoProjectData {
+  name: string;
+  client_email?: string;
+  client_name?: string;
+  client_phone?: string;
+  description?: string;
+  project_type?: string;
+  project_date?: string;
+  delivery_date?: string;
+  contracted_photos?: number;
+  max_selections?: number;
+  allow_extra_photos?: boolean;
+  extra_photos_type?: 'individual' | 'packages' | 'both';
+  extra_photo_price?: number;
+  require_password?: boolean;
+  access_password?: string;
+  link_expiration?: number;
+  share_link?: string;
+  add_watermark?: boolean;
+  watermark_text?: string;
+  watermark_position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center';
+  allow_download?: boolean;
+}
+
+export interface UpdateLumiPhotoProjectData {
+  name?: string;
+  client_email?: string;
+  client_name?: string;
+  client_phone?: string;
+  description?: string;
+  project_type?: string;
+  project_date?: string;
+  delivery_date?: string;
+  contracted_photos?: number;
+  max_selections?: number;
+  allow_extra_photos?: boolean;
+  extra_photos_type?: 'individual' | 'packages' | 'both';
+  extra_photo_price?: number;
+  require_password?: boolean;
+  access_password?: string;
+  link_expiration?: number;
+  share_link?: string;
+  add_watermark?: boolean;
+  watermark_text?: string;
+  watermark_position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center';
+  allow_download?: boolean;
+  photos_count?: number;
+  views_count?: number;
+  selections_count?: number;
+}
+
+export interface LumiPhotoDashboardStats {
+  active_projects: number;
+  total_views: number;
+  total_selections: number;
+  total_photos: number;
+  selection_rate: number;
+}
+
+export const obterProjetosLumiPhoto = async (
+  filters: LumiPhotoProjectFilters,
+  user: User | null
+) => {
+  try {
+    const response = await apiClient.get("/lumiphoto/projects", {
+      params: filters,
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(
+      error.response?.data?.message || "Erro ao obter projetos LumiPhoto"
+    );
+  }
+};
+
+export const criarProjetoLumiPhoto = async (
+  data: CreateLumiPhotoProjectData,
+  user: User | null
+): Promise<LumiPhotoProject> => {
+  try {
+    const response = await apiClient.post("/lumiphoto/projects", data, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data.data;
+  } catch (error: any) {
+    throw new Error(
+      error.response?.data?.message || "Erro ao criar projeto LumiPhoto"
+    );
+  }
+};
+
+export const obterProjetoLumiPhoto = async (
+  projectId: number,
+  user: User | null
+): Promise<LumiPhotoProject> => {
+  try {
+    const response = await apiClient.get(`/lumiphoto/projects/${projectId}`, {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    // O Laravel Resource retorna os dados dentro de { data: {...} }
+    return response.data.data || response.data;
+  } catch (error: any) {
+    throw new Error(
+      error.response?.data?.message || "Erro ao obter projeto LumiPhoto"
+    );
+  }
+};
+
+export const atualizarProjetoLumiPhoto = async (
+  projectId: number,
+  data: UpdateLumiPhotoProjectData,
+  user: User | null
+): Promise<LumiPhotoProject> => {
+  try {
+    const response = await apiClient.put(
+      `/lumiphoto/projects/${projectId}`,
+      data,
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
+    return response.data.data || response.data;
+  } catch (error: any) {
+    throw new Error(
+      error.response?.data?.message || "Erro ao atualizar projeto LumiPhoto"
+    );
+  }
+};
+
+export const excluirProjetoLumiPhoto = async (
+  projectId: number,
+  user: User | null
+) => {
+  try {
+    const response = await apiClient.delete(
+      `/lumiphoto/projects/${projectId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
+    return response.data;
+  } catch (error: any) {
+    throw new Error(
+      error.response?.data?.message || "Erro ao excluir projeto LumiPhoto"
+    );
+  }
+};
+
+export const atualizarStatusProjetoLumiPhoto = async (
+  projectId: number,
+  status:
+    | "rascunho"
+    | "enviada"
+    | "em_selecao"
+    | "finalizada"
+    | "arquivada"
+    | "excluida",
+  user: User | null
+): Promise<LumiPhotoProject> => {
+  try {
+    const response = await apiClient.patch(
+      `/lumiphoto/projects/${projectId}/status`,
+      { status },
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
+    return response.data;
+  } catch (error: any) {
+    throw new Error(
+      error.response?.data?.message ||
+        "Erro ao atualizar status do projeto LumiPhoto"
+    );
+  }
+};
+
+export const restaurarProjetoLumiPhoto = async (
+  projectId: number,
+  user: User | null
+): Promise<LumiPhotoProject> => {
+  try {
+    const response = await apiClient.post(
+      `/lumiphoto/projects/${projectId}/restore`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${user?.token}`,
+        },
+      }
+    );
+    return response.data;
+  } catch (error: any) {
+    throw new Error(
+      error.response?.data?.message || "Erro ao restaurar projeto LumiPhoto"
+    );
+  }
+};
+
+export const obterDashboardLumiPhoto = async (
+  user: User | null
+): Promise<LumiPhotoDashboardStats> => {
+  try {
+    const response = await apiClient.get("/lumiphoto/dashboard", {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+      },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(
+      error.response?.data?.message || "Erro ao obter dashboard LumiPhoto"
     );
   }
 };

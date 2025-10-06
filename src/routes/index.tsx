@@ -67,6 +67,7 @@ export default function AppRoutes() {
         <Route path="criar-modelo" element={<DocumentEditor />} />
         <Route path="lumiphoto" element={<LumiPhoto />} />
         <Route path="lumiphoto/new-project" element={<NewProject />} />
+        <Route path="lumiphoto/edit-project/:projectId" element={<NewProject />} />
         <Route path="lumiphoto/delivery" element={<Delivery />} />
         <Route path="lumiphoto/delivery/new" element={<NewDelivery />} />
       </Route>
