@@ -15,15 +15,15 @@ import { PhotoViewer } from './components/PhotoViewer';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
 import { DeliveryDetailsOffcanvas } from './components/DeliveryDetailsOffcanvas';
 import { useAuth } from '../../contexts/AuthContext';
-
-const MOCK_PROJECTS = [
-    { id: 1, name: "Casamento Ana & Pedro", date: "10/06/2023", photos: 254, downloads: 128, status: "enviada" as const, clientEmail: "ana.pedro@gmail.com" },
-    { id: 2, name: "Ensaio Pré-Wedding Carla", date: "22/05/2023", photos: 89, downloads: 76, status: "criado" as const, clientEmail: "carla@exemplo.com" },
-    { id: 3, name: "Festa de 15 anos - Maria", date: "03/04/2023", photos: 320, downloads: 187, status: "baixada" as const, clientEmail: "maria15@exemplo.com" },
-    { id: 4, name: "Formatura João", date: "15/03/2023", photos: 150, downloads: 90, status: "expirada" as const, clientEmail: "joao@exemplo.com" },
-    { id: 5, name: "Ensaio Gestante Júlia", date: "20/02/2023", photos: 75, downloads: 60, status: "expirada" as const, clientEmail: "julia@exemplo.com" },
-    { id: 6, name: "Aniversário 1 ano - Pedro", date: "10/01/2023", photos: 200, downloads: 0, status: "excluida" as const, clientEmail: "pedro@exemplo.com" },
-];
+import {
+    obterEntregasLumiPhoto,
+    excluirEntregaLumiPhoto,
+    enviarNotificacaoEntregaLumiPhoto,
+    obterAtividadesLumiPhoto,
+    LumiPhotoDelivery,
+    LumiPhotoActivity
+} from '../../services/lumiPhotoService';
+import { toast } from 'react-toastify';
 
 type ProjectStatus = "all" | "criado" | "enviada" | "baixada" | "expirada" | "excluida";
 
@@ -54,7 +54,7 @@ export function Delivery() {
     const { user } = useAuth();
     const navigate = useNavigate();
 
-    const [projects, setProjects] = useState(MOCK_PROJECTS);
+    const [deliveries, setDeliveries] = useState<any[]>([]);
     const [selectedStatus, setSelectedStatus] = useState<ProjectStatus>("enviada");
     const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -66,25 +66,125 @@ export function Delivery() {
     const [isPermanentDelete, setIsPermanentDelete] = useState(false);
     const [showFilters, setShowFilters] = useState(true);
     const [totalUploads, setTotalUploads] = useState(0);
+    const [loading, setLoading] = useState(true);
 
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [isViewerOpen, setIsViewerOpen] = useState(false);
     const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
     const [photos, setPhotos] = useState<Photo[]>([]);
+    const [activities, setActivities] = useState<LumiPhotoActivity[]>([]);
+    const [loadingActivities, setLoadingActivities] = useState(false);
+    const [deliveryStats, setDeliveryStats] = useState({
+        activeDeliveries: 0,
+        totalDownloads: 0,
+        expiredDeliveries: 0,
+        totalPhotos: 0
+    });
+
+    // Carregar entregas da API
+    useEffect(() => {
+        loadDeliveries();
+        loadActivities();
+    }, []);
+
+    const loadActivities = async () => {
+        try {
+            setLoadingActivities(true);
+            const data = await obterAtividadesLumiPhoto(user);
+            console.log('🔔 Atividades carregadas:', data);
+
+            // Filtrar apenas atividades relacionadas a entregas
+            const deliveryActivities = Array.isArray(data)
+                ? data.filter((activity: LumiPhotoActivity) =>
+                    activity.type.includes('delivery') ||
+                    activity.type.includes('download') ||
+                    activity.type.includes('view')
+                  ).slice(0, 5) // Pegar apenas as 5 mais recentes
+                : [];
+
+            setActivities(deliveryActivities);
+        } catch (error: any) {
+            console.error('❌ Erro ao carregar atividades:', error);
+        } finally {
+            setLoadingActivities(false);
+        }
+    };
+
+    const loadDeliveries = async () => {
+        try {
+            setLoading(true);
+            const data = await obterEntregasLumiPhoto(user);
+
+            console.log('📦 Dados brutos da API:', data);
+
+            // Mapear dados da API para o formato do componente
+            const mappedDeliveries = Array.isArray(data) ? data.map((delivery: LumiPhotoDelivery) => ({
+                id: delivery.id,
+                name: delivery.name,
+                date: new Date(delivery.created_at).toLocaleDateString('pt-BR'),
+                photos: 0, // Será populado quando tivermos a relação
+                downloads: delivery.download_count || 0,
+                status: mapDeliveryStatus(delivery.status),
+                clientEmail: delivery.recipient_email || '',
+                deliveryToken: delivery.delivery_token,
+                recipientName: delivery.recipient_name
+            })) : [];
+
+            console.log('📊 Entregas mapeadas:', mappedDeliveries);
+            console.log('📈 Total de entregas:', mappedDeliveries.length);
+
+            setDeliveries(mappedDeliveries);
+
+            // Calcular estatísticas
+            const stats = {
+                activeDeliveries: mappedDeliveries.filter(d =>
+                    d.status !== 'excluida' && d.status !== 'expirada'
+                ).length,
+                totalDownloads: mappedDeliveries.reduce((acc, d) => acc + d.downloads, 0),
+                expiredDeliveries: mappedDeliveries.filter(d => d.status === 'expirada').length,
+                totalPhotos: mappedDeliveries.reduce((acc, d) => acc + d.photos, 0)
+            };
+
+            setDeliveryStats(stats);
+
+            if (mappedDeliveries.length === 0) {
+                toast.info('Nenhuma entrega encontrada. Crie sua primeira entrega!', {
+                    autoClose: 3000
+                });
+            }
+        } catch (error: any) {
+            console.error('❌ Erro ao carregar entregas:', error);
+            console.error('Detalhes do erro:', error.response?.data || error.message);
+            toast.error(`Erro ao carregar entregas: ${error.response?.data?.message || error.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const mapDeliveryStatus = (status: string): ProjectStatus => {
+        const statusMap: Record<string, ProjectStatus> = {
+            'pending': 'criado',
+            'sent': 'enviada',
+            'viewed': 'enviada',
+            'downloaded': 'baixada',
+            'completed': 'baixada'
+        };
+        return statusMap[status] || 'criado';
+    };
 
     useEffect(() => {
-        const uploadsCount = projects.reduce((total, project) => {
-            if (project.status !== "excluida") {
-                return total + project.photos;
+        const uploadsCount = deliveries.reduce((total, delivery) => {
+            if (delivery.status !== "excluida") {
+                return total + delivery.photos;
             }
             return total;
         }, 0);
 
         setTotalUploads(uploadsCount);
-    }, [projects]);
+    }, [deliveries]);
 
-    const filteredProjects = projects.filter(project => {
-        if (selectedStatus !== "all" && project.status !== selectedStatus) {
+    const filteredDeliveries = deliveries.filter(delivery => {
+        if (selectedStatus !== "all" && delivery.status !== selectedStatus) {
             return false;
         }
         return true;
@@ -92,7 +192,7 @@ export function Delivery() {
 
     const findSelectedProject = () => {
         if (selectedProjectId === null) return null;
-        return projects.find(project => project.id === selectedProjectId) || null;
+        return deliveries.find(delivery => delivery.id === selectedProjectId) || null;
     };
 
     const openProjectDetails = (projectId: number) => {
@@ -111,36 +211,41 @@ export function Delivery() {
         setIsPhotosViewModalOpen(true);
     };
 
-    const handleDeleteProject = () => {
+    const handleDeleteProject = async () => {
         if (selectedProjectId === null) return;
 
-        if (isPermanentDelete) {
-            setProjects(projects.filter(project => project.id !== selectedProjectId));
-        } else {
-            setProjects(projects.map(project =>
-                project.id === selectedProjectId
-                    ? { ...project, status: "excluida" as const }
-                    : project
-            ));
+        try {
+            await excluirEntregaLumiPhoto(selectedProjectId, user);
+            setDeliveries(deliveries.filter(delivery => delivery.id !== selectedProjectId));
+            toast.success('Entrega excluída com sucesso!');
+            setIsDeleteModalOpen(false);
+            await loadDeliveries(); // Recarregar lista
+        } catch (error: any) {
+            console.error('Erro ao excluir entrega:', error);
+            toast.error(error.message || 'Erro ao excluir entrega');
         }
-
-        setIsDeleteModalOpen(false);
     };
 
     const handleRestoreProject = (projectId: number) => {
-        setProjects(projects.map(project =>
-            project.id === projectId
-                ? { ...project, status: "criado" as const }
-                : project
-        ));
+        // Não aplicável para entregas
+        toast.info('Função de restauração não disponível para entregas');
     };
 
-    const handleSendProject = (projectId: number) => {
-        setProjects(projects.map(project =>
-            project.id === projectId
-                ? { ...project, status: "enviada" as const }
-                : project
-        ));
+    const handleSendProject = async (deliveryId: number) => {
+        try {
+            await enviarNotificacaoEntregaLumiPhoto(deliveryId, user);
+            toast.success('Notificação enviada com sucesso!');
+
+            // Atualizar status local
+            setDeliveries(deliveries.map(delivery =>
+                delivery.id === deliveryId
+                    ? { ...delivery, status: "enviada" as const }
+                    : delivery
+            ));
+        } catch (error: any) {
+            console.error('Erro ao enviar notificação:', error);
+            toast.error(error.message || 'Erro ao enviar notificação');
+        }
     };
 
     const checkUploadLimit = () => {
@@ -312,8 +417,8 @@ export function Delivery() {
                                 <FolderPlus className="h-5 w-5 text-green-600 mr-2" />
                                 <span className="text-sm font-medium text-green-900">Entregas Ativas</span>
                             </div>
-                            <p className="text-2xl font-bold text-gray-900 mt-1">{projects.filter(p => p.status !== 'excluida' && p.status !== 'expirada').length}</p>
-                            <p className="text-xs text-gray-600">+1 este mês</p>
+                            <p className="text-2xl font-bold text-gray-900 mt-1">{deliveryStats.activeDeliveries}</p>
+                            <p className="text-xs text-gray-600">Entregas em andamento</p>
                         </div>
 
                         <div className="bg-white border rounded-lg p-4">
@@ -321,8 +426,8 @@ export function Delivery() {
                                 <Download className="h-5 w-5 text-green-600 mr-2" />
                                 <span className="text-sm font-medium text-green-900">Downloads</span>
                             </div>
-                            <p className="text-2xl font-bold text-gray-900 mt-1">{projects.reduce((acc, p) => acc + p.downloads, 0).toLocaleString()}</p>
-                            <p className="text-xs text-gray-600">+28 na última semana</p>
+                            <p className="text-2xl font-bold text-gray-900 mt-1">{deliveryStats.totalDownloads.toLocaleString()}</p>
+                            <p className="text-xs text-gray-600">Total de downloads</p>
                         </div>
 
                         <div className="bg-white border rounded-lg p-4">
@@ -330,8 +435,8 @@ export function Delivery() {
                                 <Clock className="h-5 w-5 text-green-600 mr-2" />
                                 <span className="text-sm font-medium text-green-900">Expirados</span>
                             </div>
-                            <p className="text-2xl font-bold text-gray-900 mt-1">1</p>
-                            <p className="text-xs text-gray-600">1 este mês</p>
+                            <p className="text-2xl font-bold text-gray-900 mt-1">{deliveryStats.expiredDeliveries}</p>
+                            <p className="text-xs text-gray-600">Entregas expiradas</p>
                         </div>
 
                         <div className="bg-white border rounded-lg p-4">
@@ -343,14 +448,14 @@ export function Delivery() {
                             </div>
 
                             <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
-                                <span>504 fotos</span>
+                                <span>{deliveryStats.totalPhotos} fotos</span>
                                 <span>5.000 máximo</span>
                             </div>
 
                             <div className="w-full bg-gray-200 rounded-full h-2">
                                 <div
                                     className="bg-green-600 h-2 rounded-full"
-                                    style={{ width: `${(888 / 5000) * 100}%` }}
+                                    style={{ width: `${(deliveryStats.totalPhotos / 5000) * 100}%` }}
                                 />
                             </div>
                         </div>
@@ -390,8 +495,8 @@ export function Delivery() {
                                         {option.label}
                                         <span className="ml-2 bg-white text-gray-600 px-2 py-1 rounded-full text-xs">
                                             {option.value === "all"
-                                                ? projects.length
-                                                : projects.filter((p) => p.status === option.value).length}
+                                                ? deliveries.length
+                                                : deliveries.filter((p) => p.status === option.value).length}
                                         </span>
                                     </button>
                                 ))}
@@ -400,8 +505,13 @@ export function Delivery() {
                     }
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {filteredProjects.length === 0 ? (
-                            <div className="text-center py-12">
+                        {loading ? (
+                            <div className="col-span-3 text-center py-12">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+                                <p className="text-gray-500">Carregando entregas...</p>
+                            </div>
+                        ) : filteredDeliveries.length === 0 ? (
+                            <div className="col-span-3 text-center py-12">
                                 <FolderPlus className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                                 <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma entrega encontrada</h3>
                                 <p className="text-gray-500 mb-4">Crie sua primeira entrega para começar</p>
@@ -414,7 +524,7 @@ export function Delivery() {
                                 </button>
                             </div>
                         ) : (
-                            filteredProjects.map((project) => {
+                            filteredDeliveries.map((project) => {
                                 return (
                                     <div
                                         key={project.id}
@@ -446,45 +556,63 @@ export function Delivery() {
                             Entregas Recentes
                         </h2>
 
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full table-auto">
-                                <thead>
-                                    <tr className="text-left text-sm text-gray-600">
-                                        <th className="py-3 px-4 font-medium">Nome do Projeto</th>
-                                        <th className="py-3 px-4 font-medium">Data</th>
-                                        <th className="py-3 px-4 font-medium">Fotos</th>
-                                        <th className="py-3 px-4 font-medium">Downloads</th>
-                                        <th className="py-3 px-4 font-medium">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {projects
-                                        .filter((p) => p.status !== "excluida")
-                                        .slice(0, 5)
-                                        .map((p) => (
-                                            <tr key={p.id} className="text-gray-900">
-                                                <td className="py-4 px-4">
-                                                    <div className="flex items-start gap-2">
-                                                        <div className="leading-snug">
-                                                            <div className="font-medium break-words">{p.name}</div>
+                        {loading ? (
+                            <div className="text-center py-8">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-3"></div>
+                                <p className="text-sm text-gray-500">Carregando entregas...</p>
+                            </div>
+                        ) : deliveries.filter((p) => p.status !== "excluida").length === 0 ? (
+                            <div className="text-center py-8">
+                                <FolderPlus className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                                <p className="text-gray-500">Nenhuma entrega recente</p>
+                                <p className="text-xs text-gray-400 mt-2">
+                                    Suas entregas aparecerão aqui após criação
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full table-auto">
+                                    <thead>
+                                        <tr className="text-left text-sm text-gray-600">
+                                            <th className="py-3 px-4 font-medium">Nome do Projeto</th>
+                                            <th className="py-3 px-4 font-medium">Data</th>
+                                            <th className="py-3 px-4 font-medium">Fotos</th>
+                                            <th className="py-3 px-4 font-medium">Downloads</th>
+                                            <th className="py-3 px-4 font-medium">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y">
+                                        {deliveries
+                                            .filter((p) => p.status !== "excluida")
+                                            .slice(0, 5)
+                                            .map((p) => (
+                                                <tr key={p.id} className="text-gray-900">
+                                                    <td className="py-4 px-4">
+                                                        <div className="flex items-start gap-2">
+                                                            <div className="leading-snug">
+                                                                <div className="font-medium break-words">{p.name}</div>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </td>
-                                                <td className="py-4 px-4 text-gray-700">{p.date}</td>
-                                                <td className="py-4 px-4 text-gray-700">{p.photos}</td>
-                                                <td className="py-4 px-4 text-gray-700">{p.downloads}</td>
-                                                <td className="py-4 px-4 text-gray-700">{p.status}</td>
-                                            </tr>
-                                        ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                                    </td>
+                                                    <td className="py-4 px-4 text-gray-700">{p.date}</td>
+                                                    <td className="py-4 px-4 text-gray-700">{p.photos}</td>
+                                                    <td className="py-4 px-4 text-gray-700">{p.downloads}</td>
+                                                    <td className="py-4 px-4 text-gray-700">{p.status}</td>
+                                                </tr>
+                                            ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
 
                     <div className="bg-white rounded-xl border p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-2xl font-bold text-gray-900">Atividade de Downloads</h2>
-                            <button className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 border rounded-lg shadow-sm text-sm font-medium text-gray-900 bg-white hover:bg-gray-100 transition-colors">
+                            <button
+                                onClick={() => setIsAllActivitiesModalOpen(true)}
+                                className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 border rounded-lg shadow-sm text-sm font-medium text-gray-900 bg-white hover:bg-gray-100 transition-colors"
+                            >
                                 Ver Todas as Atividades
                             </button>
                         </div>
@@ -492,37 +620,61 @@ export function Delivery() {
                             Últimas entregas e interações dos clientes
                         </p>
 
-                        <div className="space-y-4">
-                            <div className="flex items-start gap-3">
-                                <ArrowDownToLine className="h-6 w-6 text-green-500" />
-                                <div>
-                                    <p className="font-medium text-gray-900">Ana & Pedro baixaram 95 fotos</p>
-                                    <p className="text-sm text-gray-500">
-                                        Da entrega "Casamento Ana & Pedro – Editadas" • Há 2 dias
-                                    </p>
-                                </div>
+                        {loadingActivities ? (
+                            <div className="text-center py-8">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
+                                <p className="text-sm text-gray-500">Carregando atividades...</p>
                             </div>
+                        ) : activities.length === 0 ? (
+                            <div className="text-center py-8">
+                                <Eye className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                                <p className="text-gray-500">Nenhuma atividade recente</p>
+                                <p className="text-xs text-gray-400 mt-2">
+                                    As atividades aparecerão aqui quando houver interações
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {activities.map((activity) => {
+                                    const getActivityIcon = () => {
+                                        if (activity.type.includes('download')) return <ArrowDownToLine className="h-6 w-6 text-green-500" />;
+                                        if (activity.type.includes('delivery_sent')) return <Send className="h-6 w-6 text-green-500" />;
+                                        if (activity.type.includes('expired')) return <Timer className="h-6 w-6 text-yellow-500" />;
+                                        if (activity.type.includes('view')) return <Eye className="h-6 w-6 text-blue-500" />;
+                                        return <Clock className="h-6 w-6 text-gray-500" />;
+                                    };
 
-                            <div className="flex items-start gap-3">
-                                <Timer className="h-6 w-6 text-yellow-500" />
-                                <div>
-                                    <p className="font-medium text-gray-900">Entrega expirada</p>
-                                    <p className="text-sm text-gray-500">
-                                        O link de "Ensaio Pré-Wedding Carla – Finais" expirou • Há 1 semana
-                                    </p>
-                                </div>
-                            </div>
+                                    const getRelativeTime = (dateString: string) => {
+                                        const date = new Date(dateString);
+                                        const now = new Date();
+                                        const diffMs = now.getTime() - date.getTime();
+                                        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                                        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                                        const diffMinutes = Math.floor(diffMs / (1000 * 60));
 
-                            <div className="flex items-start gap-3">
-                                <Send className="h-6 w-6 text-green-500" />
-                                <div>
-                                    <p className="font-medium text-gray-900">Nova entrega enviada</p>
-                                    <p className="text-sm text-gray-500">
-                                        Fotos de "Ensaio Gestante Júlia – HDR" enviadas • Há 1 semana
-                                    </p>
-                                </div>
+                                        if (diffMinutes < 60) return `Há ${diffMinutes} minuto${diffMinutes !== 1 ? 's' : ''}`;
+                                        if (diffHours < 24) return `Há ${diffHours} hora${diffHours !== 1 ? 's' : ''}`;
+                                        if (diffDays === 1) return 'Há 1 dia';
+                                        if (diffDays < 7) return `Há ${diffDays} dias`;
+                                        if (diffDays < 30) return `Há ${Math.floor(diffDays / 7)} semana${Math.floor(diffDays / 7) !== 1 ? 's' : ''}`;
+                                        return date.toLocaleDateString('pt-BR');
+                                    };
+
+                                    return (
+                                        <div key={activity.id} className="flex items-start gap-3">
+                                            {getActivityIcon()}
+                                            <div>
+                                                <p className="font-medium text-gray-900">{activity.description}</p>
+                                                <p className="text-sm text-gray-500">
+                                                    {getRelativeTime(activity.created_at)}
+                                                    {activity.ip_address && ` • IP: ${activity.ip_address}`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        </div>
+                        )}
                     </div>
 
                 </div>
@@ -626,7 +778,7 @@ export function Delivery() {
             >
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {projects.map((project) => (
+                        {deliveries.map((project) => (
                             <div key={project.id} className="border border-gray-200 rounded-lg p-4">
                                 <h4 className="font-semibold text-gray-900">{project.name}</h4>
                                 <p className="text-sm text-gray-600">{project.clientEmail}</p>

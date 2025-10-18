@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { ChevronLeft, Upload, Copy, X, Calendar, Camera, Eye, Star, Info, CheckCircle, AlertCircle, Palette, Shield, Clock, DollarSign, HelpCircle, Save } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
-import { criarProjetoLumiPhoto, obterProjetoLumiPhoto, atualizarProjetoLumiPhoto } from '../../services/apiService';
+import { criarProjetoLumiPhoto, obterProjetoLumiPhoto, atualizarProjetoLumiPhoto } from '../../services/lumiPhotoService';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -81,7 +81,13 @@ export function NewProject() {
         setIsLoadingProject(true);
         const project = await obterProjetoLumiPhoto(parseInt(projectId), user);
 
-        // Preencher o formulário com os dados do projeto
+        // Preencher o formulário com os dados do projeto e o share_link
+        if (project.share_link) {
+          const baseUrl = window.location.origin;
+          const fullLink = `${baseUrl}/api/v1/public/lumiphoto/gallery/${project.share_link}`;
+          setShareLink(fullLink);
+        }
+
         setFormData({
           projectName: project.name || '',
           description: project.description || '',
@@ -105,9 +111,6 @@ export function NewProject() {
           allowDownload: project.allow_download !== undefined ? project.allow_download : true,
         });
 
-        if (project.share_link) {
-          setShareLink(project.share_link);
-        }
       } catch (error: any) {
         console.error('Erro ao carregar projeto:', error);
         toast.error('Erro ao carregar dados do projeto');
@@ -207,11 +210,32 @@ export function NewProject() {
   };
 
   const generateShareLink = () => {
+    if (!isEditMode || !projectId) {
+      toast.warning('Salve o projeto primeiro para gerar o link de compartilhamento');
+      return;
+    }
+
     setIsGeneratingLink(true);
-    setTimeout(() => {
-      setShareLink(`https://lumiphoto.com/project/${Date.now()}`);
-      setIsGeneratingLink(false);
-    }, 1000);
+
+    // Recarregar dados do projeto para obter o share_link atualizado
+    obterProjetoLumiPhoto(parseInt(projectId), user)
+      .then((project) => {
+        if (project.share_link) {
+          // Usar a base URL do ambiente ou localhost
+          const baseUrl = window.location.origin;
+          const fullLink = `${baseUrl}/api/v1/public/lumiphoto/gallery/${project.share_link}`;
+          setShareLink(fullLink);
+          toast.success('Link gerado com sucesso!');
+        } else {
+          toast.error('Projeto ainda não possui link de compartilhamento. O link será gerado automaticamente ao criar/atualizar o projeto.');
+        }
+        setIsGeneratingLink(false);
+      })
+      .catch((error) => {
+        console.error('Erro ao obter link:', error);
+        toast.error('Erro ao gerar link de compartilhamento');
+        setIsGeneratingLink(false);
+      });
   };
 
   const copyToClipboard = () => {
@@ -273,15 +297,6 @@ export function NewProject() {
     try {
       setIsCreatingProject(true);
 
-      // Gerar share_link se ainda não foi gerado
-      let linkToSend = shareLink;
-      if (!linkToSend) {
-        const slug = formData.projectName.toLowerCase().replace(/\s+/g, '-');
-        const token = Math.random().toString(36).substring(2, 10);
-        linkToSend = `https://lumiphoto.com/project/${slug}-${token}`;
-        setShareLink(linkToSend);
-      }
-
       const projectData = {
         name: formData.projectName,
         client_email: formData.clientEmail,
@@ -299,21 +314,30 @@ export function NewProject() {
         require_password: formData.requirePassword,
         access_password: formData.password || undefined,
         link_expiration: formData.linkExpiration,
-        share_link: linkToSend,
+        // share_link será gerado automaticamente pelo backend
         add_watermark: formData.addWatermark,
         watermark_text: formData.watermarkText || undefined,
         watermark_position: formData.watermarkPosition,
         allow_download: formData.allowDownload,
       };
 
+      let createdOrUpdatedProject;
+
       if (isEditMode && projectId) {
         // Atualizar projeto existente
-        await atualizarProjetoLumiPhoto(parseInt(projectId), projectData, user);
+        createdOrUpdatedProject = await atualizarProjetoLumiPhoto(parseInt(projectId), projectData, user);
         toast.success('Projeto atualizado com sucesso!');
       } else {
         // Criar novo projeto
-        await criarProjetoLumiPhoto(projectData, user);
+        createdOrUpdatedProject = await criarProjetoLumiPhoto(projectData, user);
         toast.success('Projeto criado com sucesso!');
+      }
+
+      // Obter e exibir o share_link gerado pelo backend
+      if (createdOrUpdatedProject?.share_link) {
+        const baseUrl = window.location.origin;
+        const fullLink = `${baseUrl}/api/v1/public/lumiphoto/gallery/${createdOrUpdatedProject.share_link}`;
+        setShareLink(fullLink);
       }
 
       // Redirecionar para o dashboard do LumiPhoto
@@ -774,7 +798,7 @@ export function NewProject() {
                       type="text"
                       value={shareLink}
                       readOnly
-                      className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm"
+                      className="flex-1 min-w-0 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm"
                     />
                     <button
                       onClick={copyToClipboard}

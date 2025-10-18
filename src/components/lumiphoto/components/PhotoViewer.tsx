@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { X, Download, Heart, Trash2, RotateCcw, ZoomIn, ZoomOut, MoreVertical } from 'lucide-react';
+import { useAuth } from '../../../contexts/AuthContext';
+import { obterUrlDownloadFotoLumiPhoto, excluirFotoLumiPhoto } from '../../../services/lumiPhotoService';
+import { toast } from 'react-toastify';
 
 interface Photo {
   id: string;
@@ -15,16 +18,20 @@ interface Photo {
 }
 
 interface PhotoViewerProps {
+  projectId: number;
   photo: Photo;
   isOpen: boolean;
   onClose: () => void;
-  onDelete: () => void;
-  onRestore: () => void;
+  onDelete?: () => void;
+  onRestore?: () => void;
+  onPhotoDeleted?: () => void;
 }
 
-export function PhotoViewer({ photo, isOpen, onClose, onDelete, onRestore }: PhotoViewerProps) {
+export function PhotoViewer({ projectId, photo, isOpen, onClose, onDelete, onRestore, onPhotoDeleted }: PhotoViewerProps) {
+  const { user } = useAuth();
   const [zoom, setZoom] = useState(1);
   const [showActions, setShowActions] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -36,13 +43,52 @@ export function PhotoViewer({ photo, isOpen, onClose, onDelete, onRestore }: Pho
     setZoom(prev => Math.max(prev - 0.25, 0.5));
   };
 
-  const handleDownload = () => {
-    const link = document.createElement('a');
-    link.href = photo.url;
-    link.download = photo.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async () => {
+    try {
+      toast.info('Preparando download...');
+
+      // Obter URL de download da API
+      const downloadUrl = await obterUrlDownloadFotoLumiPhoto(
+        projectId,
+        parseInt(photo.id),
+        user
+      );
+
+      // Criar link temporário e fazer download
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = photo.name;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success('Download iniciado!');
+    } catch (error: any) {
+      console.error('Erro ao fazer download:', error);
+      toast.error(error.message || 'Erro ao fazer download da foto');
+    }
+  };
+
+  const handleDeletePhoto = async () => {
+    if (!window.confirm(`Tem certeza que deseja excluir a foto "${photo.name}"?`)) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      await excluirFotoLumiPhoto(projectId, parseInt(photo.id), user);
+      toast.success('Foto excluída com sucesso!');
+
+      if (onPhotoDeleted) onPhotoDeleted();
+      if (onDelete) onDelete();
+      onClose();
+    } catch (error: any) {
+      console.error('Erro ao excluir foto:', error);
+      toast.error(error.message || 'Erro ao excluir foto');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -126,13 +172,14 @@ export function PhotoViewer({ photo, isOpen, onClose, onDelete, onRestore }: Pho
                   ) : (
                     <button
                       onClick={() => {
-                        onDelete();
+                        handleDeletePhoto();
                         setShowActions(false);
                       }}
-                      className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                      disabled={deleting}
+                      className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Trash2 className="h-4 w-4" />
-                      Mover para lixeira
+                      {deleting ? 'Excluindo...' : 'Excluir foto'}
                     </button>
                   )}
                 </div>

@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Palette, Shield, Eye, Lock, Download, Globe, Activity, Info, AlertTriangle } from 'lucide-react';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
+import { useAuth } from '../../contexts/AuthContext';
+import { criarEntregaLumiPhoto, obterProjetosLumiPhoto, LumiPhotoProject } from '../../services/lumiPhotoService';
+import { toast } from 'react-toastify';
 
 interface DeliveryFormData {
     name: string;
+    projectId: number;
     clientEmail: string;
     expirationDays: number;
 
@@ -25,10 +29,15 @@ interface DeliveryFormData {
 }
 
 export function NewDelivery() {
+    const { user } = useAuth();
     const navigate = useNavigate();
     const [currentStep, setCurrentStep] = useState<'details' | 'layout' | 'security'>('details');
+    const [isCreating, setIsCreating] = useState(false);
+    const [projects, setProjects] = useState<LumiPhotoProject[]>([]);
+    const [loadingProjects, setLoadingProjects] = useState(true);
     const [formData, setFormData] = useState<DeliveryFormData>({
         name: '',
+        projectId: 0,
         clientEmail: '',
         expirationDays: 7,
 
@@ -47,6 +56,36 @@ export function NewDelivery() {
         showMetadata: false,
         trackDownloads: true
     });
+
+    // Carregar projetos disponíveis
+    useEffect(() => {
+        loadProjects();
+    }, []);
+
+    const loadProjects = async () => {
+        try {
+            setLoadingProjects(true);
+            const response = await obterProjetosLumiPhoto({ status: 'all' }, user);
+            const projectsData = Array.isArray(response.data) ? response.data : [];
+
+            // Filtrar apenas projetos que podem ter entregas (não excluídos)
+            const availableProjects = projectsData.filter((p: LumiPhotoProject) =>
+                p.status !== 'excluida' && p.status !== 'arquivada'
+            );
+
+            setProjects(availableProjects);
+
+            // Se houver projetos, selecionar o primeiro por padrão
+            if (availableProjects.length > 0) {
+                setFormData(prev => ({ ...prev, projectId: availableProjects[0].id }));
+            }
+        } catch (error) {
+            console.error('Erro ao carregar projetos:', error);
+            toast.error('Erro ao carregar projetos disponíveis');
+        } finally {
+            setLoadingProjects(false);
+        }
+    };
 
     const handleInputChange = (field: keyof DeliveryFormData, value: string | number | boolean) => {
         setFormData(prev => ({
@@ -75,7 +114,7 @@ export function NewDelivery() {
 
     const isStepValid = () => {
         if (currentStep === 'details') {
-            return formData.name.trim() && formData.clientEmail.trim();
+            return formData.name.trim() && formData.clientEmail.trim() && formData.projectId > 0;
         }
         if (currentStep === 'security' && formData.requirePassword) {
             return formData.password.trim().length >= 4;
@@ -83,11 +122,35 @@ export function NewDelivery() {
         return true;
     };
 
-    const handleCreateDelivery = () => {
-        // Here you would typically send the data to your API
-        console.log('Creating delivery with data:', formData);
-        // Navigate back to delivery list or show success message
-        navigate('/lumiphoto/delivery');
+    const handleCreateDelivery = async () => {
+        try {
+            setIsCreating(true);
+
+            // Preparar dados para a API
+            const deliveryData = {
+                name: formData.name,
+                recipient_email: formData.clientEmail,
+                recipient_name: '', // Pode ser adicionado ao formulário se necessário
+                message: `Suas fotos estão prontas para download!`,
+                project_id: formData.projectId,
+                allow_individual_downloads: formData.allowDownload,
+                allow_zip_download: formData.allowDownload,
+                watermark_enabled: formData.showWatermark,
+                expires_at: formData.expirationDays > 0
+                    ? new Date(Date.now() + formData.expirationDays * 24 * 60 * 60 * 1000).toISOString()
+                    : undefined
+            };
+
+            const createdDelivery = await criarEntregaLumiPhoto(deliveryData, user);
+
+            toast.success('Entrega criada com sucesso!');
+            navigate('/lumiphoto/delivery');
+        } catch (error: any) {
+            console.error('Erro ao criar entrega:', error);
+            toast.error(error.message || 'Erro ao criar entrega');
+        } finally {
+            setIsCreating(false);
+        }
     };
 
     const renderStepContent = () => {
@@ -95,6 +158,46 @@ export function NewDelivery() {
             case 'details':
                 return (
                     <div className="space-y-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Projeto de origem *
+                            </label>
+                            {loadingProjects ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+                                    <span className="ml-2 text-sm text-gray-500">Carregando projetos...</span>
+                                </div>
+                            ) : projects.length === 0 ? (
+                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                    <p className="text-sm text-amber-800">
+                                        Você precisa criar um projeto antes de criar uma entrega.
+                                    </p>
+                                    <button
+                                        onClick={() => navigate('/lumiphoto/new-project')}
+                                        className="mt-2 text-sm font-medium text-amber-900 hover:text-amber-700 underline"
+                                    >
+                                        Criar novo projeto
+                                    </button>
+                                </div>
+                            ) : (
+                                <select
+                                    value={formData.projectId}
+                                    onChange={(e) => handleInputChange('projectId', parseInt(e.target.value))}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-colors"
+                                >
+                                    <option value="0">Selecione um projeto</option>
+                                    {projects.map((project) => (
+                                        <option key={project.id} value={project.id}>
+                                            {project.name} ({project.photos_count || 0} fotos)
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
+                            <p className="text-sm text-gray-500 mt-1">
+                                Selecione o projeto que contém as fotos para esta entrega
+                            </p>
+                        </div>
+
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Nome da entrega

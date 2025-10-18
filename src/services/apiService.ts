@@ -20,7 +20,7 @@ if (!API_BASE_URL) {
 }
 
 const apiClient = axios.create({
-  baseURL: `${API_BASE_URL}`,
+  baseURL: `${API_BASE_URL}/api/v1`,
   headers: {
     "Content-Type": "application/json",
   },
@@ -43,7 +43,7 @@ export const testarConectividadeAPI = async (user: User | null) => {
     }
 
     // Testar o endpoint de documentos
-    const testResponse = await fetch(`${API_BASE_URL}/documents`, {
+    const testResponse = await fetch(`${API_BASE_URL}/api/v1/documents`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${user?.token}`,
@@ -523,7 +523,7 @@ export const criarDocumento = async (
       throw new Error("Arquivo PDF inválido ou corrompido");
     }
 
-    const response = await fetch(`${API_BASE_URL}/documents`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/documents`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${user?.token}`,
@@ -1034,7 +1034,7 @@ export const atualizarTemplateDocumento = async (
     }
 
     const response = await fetch(
-      `${API_BASE_URL}/document-templates/${templateId}`,
+      `${API_BASE_URL}/api/v1/document-templates/${templateId}`,
       {
         method: "POST", // Usar POST com _method=PUT conforme especificação
         headers: {

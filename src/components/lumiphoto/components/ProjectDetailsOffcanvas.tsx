@@ -1,6 +1,9 @@
-import { useState } from 'react';
-import { Eye, Heart, Calendar, Mail, User, CheckCircle, Clock, Archive, Send, Pencil, XCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Eye, Heart, Calendar, Mail, User, CheckCircle, Clock, Archive, Send, Pencil, XCircle, Activity as ActivityIcon } from 'lucide-react';
 import { Offcanvas } from './Offcanvas';
+import { useAuth } from '../../../contexts/AuthContext';
+import { obterAtividadesProjetoLumiPhoto, LumiPhotoActivity } from '../../../services/lumiPhotoService';
+import { toast } from 'react-toastify';
 
 interface Project {
   id: number;
@@ -21,7 +24,31 @@ interface ProjectDetailsOffcanvasProps {
 }
 
 export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDetailsOffcanvasProps) {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'selections' | 'activities' | 'share'>('overview');
+  const [activities, setActivities] = useState<LumiPhotoActivity[]>([]);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && project && activeTab === 'activities') {
+      loadActivities();
+    }
+  }, [isOpen, project, activeTab]);
+
+  const loadActivities = async () => {
+    if (!project) return;
+
+    try {
+      setLoadingActivities(true);
+      const data = await obterAtividadesProjetoLumiPhoto(project.id, user);
+      setActivities(data);
+    } catch (error: any) {
+      console.error('Erro ao carregar atividades:', error);
+      toast.error('Erro ao carregar atividades do projeto');
+    } finally {
+      setLoadingActivities(false);
+    }
+  };
 
   if (!project) return null;
 
@@ -37,20 +64,8 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
     'IMG_0042.jpg', 'IMG_0056.jpg', 'IMG_0067.jpg', 'IMG_0078.jpg'
   ];
 
-  const mockActivities = [
-    {
-      action: 'Visualizou a galeria',
-      timestamp: '10/06/2023 14:25'
-    },
-    {
-      action: 'Selecionou 3 fotos',
-      timestamp: '10/06/2023 14:40'
-    },
-    {
-      action: 'Selecionou mais 5 fotos',
-      timestamp: '10/06/2023 15:10'
-    }
-  ];
+  // Atividades recentes para overview (pegar as 3 primeiras)
+  const recentActivities = activities.slice(0, 3);
 
   const getProjectStatusColor = (status: string) => {
     switch (status) {
@@ -133,12 +148,26 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
       <div>
         <h4 className="text-lg font-semibold text-gray-900 mb-4">Atividade Recente</h4>
         <div className="space-y-3">
-          {mockActivities.map((activity, index) => (
-            <div key={index} className="flex flex-col sm:flex-row sm:justify-between sm:items-center text-sm bg-gray-50 p-3 rounded-lg">
-              <span className="text-gray-900 font-medium">{activity.action}</span>
-              <span className="text-gray-500 text-xs sm:text-sm mt-1 sm:mt-0">{activity.timestamp}</span>
+          {recentActivities.length > 0 ? (
+            recentActivities.map((activity) => (
+              <div key={activity.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center text-sm bg-gray-50 p-3 rounded-lg">
+                <span className="text-gray-900 font-medium">{activity.description}</span>
+                <span className="text-gray-500 text-xs sm:text-sm mt-1 sm:mt-0">
+                  {new Date(activity.created_at).toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-4 text-gray-500 text-sm">
+              Nenhuma atividade recente
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
@@ -179,14 +208,40 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
   const renderActivities = () => (
     <div className="p-4 sm:p-6">
       <h4 className="text-lg font-semibold text-gray-900 mb-4">Todas as Atividades</h4>
-      <div className="space-y-4">
-        {mockActivities.map((activity, index) => (
-          <div key={index} className="border-l-2 border-blue-200 pl-4 pb-4 bg-gray-50 rounded-r-lg pr-4 py-3">
-            <div className="text-sm font-medium text-gray-900">{activity.action}</div>
-            <div className="text-xs text-gray-500 mt-1">{activity.timestamp}</div>
-          </div>
-        ))}
-      </div>
+      {loadingActivities ? (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
+          <p className="text-sm text-gray-500">Carregando atividades...</p>
+        </div>
+      ) : activities.length === 0 ? (
+        <div className="text-center py-8">
+          <ActivityIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-500">Nenhuma atividade registrada</p>
+          <p className="text-xs text-gray-400 mt-2">
+            As atividades do projeto aparecerão aqui
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4 max-h-[400px] overflow-y-auto">
+          {activities.map((activity) => (
+            <div key={activity.id} className="border-l-2 border-blue-200 pl-4 pb-4 bg-gray-50 rounded-r-lg pr-4 py-3">
+              <div className="text-sm font-medium text-gray-900">{activity.description}</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {new Date(activity.created_at).toLocaleDateString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </div>
+              {activity.ip_address && (
+                <div className="text-xs text-gray-400 mt-1">IP: {activity.ip_address}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 

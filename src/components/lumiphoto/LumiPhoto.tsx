@@ -10,6 +10,7 @@ import { PhotoUpload } from './components/PhotoUpload';
 import { PhotoViewer } from './components/PhotoViewer';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
 import { ProjectDetailsOffcanvas } from './components/ProjectDetailsOffcanvas';
+import { AllActivitiesModal } from './components/AllActivitiesModal';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   obterProjetosLumiPhoto,
@@ -17,9 +18,11 @@ import {
   excluirProjetoLumiPhoto,
   restaurarProjetoLumiPhoto,
   obterDashboardLumiPhoto,
+  obterAtividadesLumiPhoto,
   LumiPhotoProject as APILumiPhotoProject,
   LumiPhotoDashboardStats,
-} from '../../services/apiService';
+  LumiPhotoActivity,
+} from '../../services/lumiPhotoService';
 
 type ProjectStatus = "all" | "rascunho" | "enviada" | "em_selecao" | "finalizada" | "arquivada" | "excluida";
 
@@ -70,12 +73,41 @@ export function LumiPhoto() {
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [activities, setActivities] = useState<LumiPhotoActivity[]>([]);
+  const [loadingActivities, setLoadingActivities] = useState(false);
 
   // Carregar projetos da API
   useEffect(() => {
     loadProjects();
     loadDashboardStats();
+    loadActivities();
   }, [selectedStatus]);
+
+  const loadActivities = async () => {
+    try {
+      setLoadingActivities(true);
+      const data = await obterAtividadesLumiPhoto(user);
+      console.log('🔔 Atividades carregadas:', data);
+
+      // Filtrar apenas atividades relacionadas a projetos (excluir entregas)
+      const projectActivities = Array.isArray(data)
+        ? data.filter((activity: LumiPhotoActivity) =>
+            !activity.type.includes('delivery') &&
+            (activity.type.includes('project') ||
+             activity.type.includes('photo') ||
+             activity.type.includes('gallery') ||
+             activity.type.includes('selection') ||
+             activity.type.includes('comment'))
+          ).slice(0, 5) // Pegar apenas as 5 mais recentes
+        : [];
+
+      setActivities(projectActivities);
+    } catch (error: any) {
+      console.error('❌ Erro ao carregar atividades:', error);
+    } finally {
+      setLoadingActivities(false);
+    }
+  };
 
   const loadProjects = async () => {
     try {
@@ -89,12 +121,12 @@ export function LumiPhoto() {
       const mappedProjects: Project[] = response.data.map((project: APILumiPhotoProject) => ({
         id: project.id,
         name: project.name,
-        date: project.date,
-        photos: project.photos,
-        views: project.views,
-        selections: project.selections,
+        date: project.created_at || project.project_date || new Date().toISOString(),
+        photos: project.photos_count || 0,
+        views: project.views_count || 0,
+        selections: project.selections_count || 0,
         status: project.status,
-        clientEmail: project.clientEmail,
+        clientEmail: project.client_email || '',
       }));
 
       setProjects(mappedProjects);
@@ -273,21 +305,8 @@ export function LumiPhoto() {
   ];
 
   const renderProjectActions = (project: Project) => {
-    const leftButtons = (
-      <>
-        {["rascunho", "enviada", "em_selecao", "finalizada", "arquivada"].includes(project.status) && (
-          <button
-            onClick={() => openProjectDetails(project.id)}
-            className="px-3 py-1 me-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded"
-          >
-            Ver detalhes
-          </button>
-        )}
-      </>
-    );
-
     const rightButtons = (
-      <div className="flex items-center space-x-2">
+      <div className="flex flex-wrap items-center gap-2 justify-end">
         {project.status === "rascunho" && (
           <>
             <button
@@ -418,8 +437,17 @@ export function LumiPhoto() {
     );
 
     return (
-      <div className="flex justify-between items-center w-full">
-        <div>{leftButtons}</div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between w-full">
+        <div className="flex flex-wrap items-center gap-2">
+          {["rascunho", "enviada", "em_selecao", "finalizada", "arquivada"].includes(project.status) && (
+            <button
+              onClick={() => openProjectDetails(project.id)}
+              className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded"
+            >
+              Ver detalhes
+            </button>
+          )}
+        </div>
         {rightButtons}
       </div>
     );
@@ -578,10 +606,8 @@ export function LumiPhoto() {
                       <span>{project.selections} seleções</span>
                     </div>
 
-                    <div className="flex items-center justify-between mt-4">
-                      <div className="flex gap-2">
-                        {renderProjectActions(project)}
-                      </div>
+                    <div className="mt-4">
+                      {renderProjectActions(project)}
                     </div>
                   </div>
                 );
@@ -596,45 +622,63 @@ export function LumiPhoto() {
               Projetos Recentes
             </h2>
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full table-auto">
-                <thead>
-                  <tr className="text-left text-sm text-gray-600">
-                    <th className="py-3 px-4 font-medium">Nome do Projeto</th>
-                    <th className="py-3 px-4 font-medium">Data</th>
-                    <th className="py-3 px-4 font-medium">Fotos</th>
-                    <th className="py-3 px-4 font-medium">Visualizações</th>
-                    <th className="py-3 px-4 font-medium">Seleções</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {projects
-                    .filter((p) => p.status !== "excluida")
-                    .slice(0, 5)
-                    .map((p) => (
-                      <tr key={p.id} className="text-gray-900">
-                        <td className="py-4 px-4">
-                          <div className="flex items-start gap-2">
-                            <div className="leading-snug">
-                              <div className="font-medium break-words">{p.name}</div>
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
+                <p className="text-sm text-gray-500">Carregando projetos...</p>
+              </div>
+            ) : projects.filter((p) => p.status !== "excluida").length === 0 ? (
+              <div className="text-center py-8">
+                <FolderPlus className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-500">Nenhum projeto recente</p>
+                <p className="text-xs text-gray-400 mt-2">
+                  Seus projetos aparecerão aqui após criação
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full table-auto">
+                  <thead>
+                    <tr className="text-left text-sm text-gray-600">
+                      <th className="py-3 px-4 font-medium">Nome do Projeto</th>
+                      <th className="py-3 px-4 font-medium">Data</th>
+                      <th className="py-3 px-4 font-medium">Fotos</th>
+                      <th className="py-3 px-4 font-medium">Visualizações</th>
+                      <th className="py-3 px-4 font-medium">Seleções</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {projects
+                      .filter((p) => p.status !== "excluida")
+                      .slice(0, 5)
+                      .map((p) => (
+                        <tr key={p.id} className="text-gray-900">
+                          <td className="py-4 px-4">
+                            <div className="flex items-start gap-2">
+                              <div className="leading-snug">
+                                <div className="font-medium break-words">{p.name}</div>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 text-gray-700">{p.date}</td>
-                        <td className="py-4 px-4 text-gray-700">{p.photos}</td>
-                        <td className="py-4 px-4 text-gray-700">{p.views}</td>
-                        <td className="py-4 px-4 text-gray-700">{p.selections}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
+                          </td>
+                          <td className="py-4 px-4 text-gray-700">{p.date}</td>
+                          <td className="py-4 px-4 text-gray-700">{p.photos}</td>
+                          <td className="py-4 px-4 text-gray-700">{p.views}</td>
+                          <td className="py-4 px-4 text-gray-700">{p.selections}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-xl border p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-gray-900">Atividade Recente</h2>
-              <button className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 border rounded-lg shadow-sm text-sm font-medium text-gray-900 bg-white hover:bg-gray-100 transition-colors">
+              <button
+                onClick={() => setIsAllActivitiesModalOpen(true)}
+                className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 border rounded-lg shadow-sm text-sm font-medium text-gray-900 bg-white hover:bg-gray-100 transition-colors"
+              >
                 Ver Todas as Atividades
               </button>
             </div>
@@ -642,41 +686,63 @@ export function LumiPhoto() {
               Últimas interações dos clientes
             </p>
 
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <Heart className="h-6 w-6 text-blue-400" />
-                <div>
-                  <p className="font-medium text-gray-900">Ana selecionou 15 fotos</p>
-                  <p className="text-sm text-gray-500">
-                    No projeto "Casamento Ana & Pedro" • Há 2 horas
-                  </p>
-                </div>
+            {loadingActivities ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
+                <p className="text-sm text-gray-500">Carregando atividades...</p>
               </div>
+            ) : activities.length === 0 ? (
+              <div className="text-center py-8">
+                <Eye className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-500">Nenhuma atividade recente</p>
+                <p className="text-xs text-gray-400 mt-2">
+                  As atividades aparecerão aqui quando houver interações
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {activities.map((activity) => {
+                  const getActivityIcon = () => {
+                    if (activity.type.includes('selection')) return <Heart className="h-6 w-6 text-pink-500" />;
+                    if (activity.type.includes('gallery_viewed')) return <Eye className="h-6 w-6 text-blue-400" />;
+                    if (activity.type.includes('photo_uploaded')) return <Image className="h-6 w-6 text-green-500" />;
+                    if (activity.type.includes('project_created')) return <FolderPlus className="h-6 w-6 text-blue-500" />;
+                    if (activity.type.includes('project_sent')) return <Send className="h-6 w-6 text-green-500" />;
+                    if (activity.type.includes('comment')) return <Heart className="h-6 w-6 text-purple-500" />;
+                    return <Eye className="h-6 w-6 text-blue-400" />;
+                  };
 
-              <div className="flex items-start gap-3">
-                <Eye className="h-6 w-6 text-blue-400" />
-                <div>
-                  <p className="font-medium text-gray-900">
-                    Carla visualizou a galeria
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    No projeto "Ensaio Pré-Wedding Carla" • Há 1 dia
-                  </p>
-                </div>
-              </div>
+                  const getRelativeTime = (dateString: string) => {
+                    const date = new Date(dateString);
+                    const now = new Date();
+                    const diffMs = now.getTime() - date.getTime();
+                    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                    const diffMinutes = Math.floor(diffMs / (1000 * 60));
 
-              <div className="flex items-start gap-3">
-                <Eye className="h-6 w-6 text-blue-400" />
-                <div>
-                  <p className="font-medium text-gray-900">
-                    Maria visualizou a galeria
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    No projeto "Festa de 15 anos - Maria" • Há 2 dias
-                  </p>
-                </div>
+                    if (diffMinutes < 60) return `Há ${diffMinutes} minuto${diffMinutes !== 1 ? 's' : ''}`;
+                    if (diffHours < 24) return `Há ${diffHours} hora${diffHours !== 1 ? 's' : ''}`;
+                    if (diffDays === 1) return 'Há 1 dia';
+                    if (diffDays < 7) return `Há ${diffDays} dias`;
+                    if (diffDays < 30) return `Há ${Math.floor(diffDays / 7)} semana${Math.floor(diffDays / 7) !== 1 ? 's' : ''}`;
+                    return date.toLocaleDateString('pt-BR');
+                  };
+
+                  return (
+                    <div key={activity.id} className="flex items-start gap-3">
+                      {getActivityIcon()}
+                      <div>
+                        <p className="font-medium text-gray-900">{activity.description}</p>
+                        <p className="text-sm text-gray-500">
+                          {getRelativeTime(activity.created_at)}
+                          {activity.ip_address && ` • IP: ${activity.ip_address}`}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
