@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Palette, Shield, Eye, Lock, Download, Globe, Activity, Info, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Palette, Shield, Lock, Download, Globe, Info, AlertTriangle, Upload, X, CheckCircle, Image } from 'lucide-react';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
 import { useAuth } from '../../contexts/AuthContext';
 import { criarEntregaLumiPhoto, obterProjetosLumiPhoto, LumiPhotoProject } from '../../services/lumiPhotoService';
@@ -12,52 +12,43 @@ interface DeliveryFormData {
     clientEmail: string;
     expirationDays: number;
 
-    // Layout settings
     logoUrl: string;
     primaryColor: string;
     backgroundColor: string;
-    showWatermark: boolean;
     galleryLayout: 'grid' | 'masonry' | 'slideshow';
 
-    // Security settings
     requirePassword: boolean;
     password: string;
     allowDownload: boolean;
-    allowRightClick: boolean;
     showMetadata: boolean;
-    trackDownloads: boolean;
 }
 
 export function NewDelivery() {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const [currentStep, setCurrentStep] = useState<'details' | 'layout' | 'security'>('details');
+    const [currentStep, setCurrentStep] = useState<'details' | 'photos' | 'layout' | 'security'>('details');
     const [isCreating, setIsCreating] = useState(false);
     const [projects, setProjects] = useState<LumiPhotoProject[]>([]);
     const [loadingProjects, setLoadingProjects] = useState(true);
+    const [dragActive, setDragActive] = useState(false);
+    const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
     const [formData, setFormData] = useState<DeliveryFormData>({
         name: '',
         projectId: 0,
         clientEmail: '',
         expirationDays: 7,
-
-        // Layout defaults
         logoUrl: '',
         primaryColor: '#10B981',
         backgroundColor: '#FFFFFF',
-        showWatermark: true,
         galleryLayout: 'grid',
-
-        // Security defaults
         requirePassword: false,
         password: '',
         allowDownload: true,
-        allowRightClick: false,
-        showMetadata: false,
-        trackDownloads: true
+        showMetadata: false
     });
 
-    // Carregar projetos disponíveis
     useEffect(() => {
         loadProjects();
     }, []);
@@ -68,14 +59,12 @@ export function NewDelivery() {
             const response = await obterProjetosLumiPhoto({ status: 'all' }, user);
             const projectsData = Array.isArray(response.data) ? response.data : [];
 
-            // Filtrar apenas projetos que podem ter entregas (não excluídos)
             const availableProjects = projectsData.filter((p: LumiPhotoProject) =>
                 p.status !== 'excluida' && p.status !== 'arquivada'
             );
 
             setProjects(availableProjects);
 
-            // Se houver projetos, selecionar o primeiro por padrão
             if (availableProjects.length > 0) {
                 setFormData(prev => ({ ...prev, projectId: availableProjects[0].id }));
             }
@@ -94,8 +83,42 @@ export function NewDelivery() {
         }));
     };
 
+    const handleDrag = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setDragActive(true);
+        } else if (e.type === "dragleave") {
+            setDragActive(false);
+        }
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            const files = Array.from(e.dataTransfer.files);
+            setUploadedFiles(prev => [...prev, ...files]);
+        }
+    }, []);
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            const files = Array.from(e.target.files);
+            setUploadedFiles(prev => [...prev, ...files]);
+        }
+    };
+
+    const removeFile = (index: number) => {
+        setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
     const handleNext = () => {
         if (currentStep === 'details') {
+            setCurrentStep('photos');
+        } else if (currentStep === 'photos') {
             setCurrentStep('layout');
         } else if (currentStep === 'layout') {
             setCurrentStep('security');
@@ -106,6 +129,8 @@ export function NewDelivery() {
         if (currentStep === 'security') {
             setCurrentStep('layout');
         } else if (currentStep === 'layout') {
+            setCurrentStep('photos');
+        } else if (currentStep === 'photos') {
             setCurrentStep('details');
         } else {
             navigate('/lumiphoto/delivery');
@@ -126,24 +151,56 @@ export function NewDelivery() {
         try {
             setIsCreating(true);
 
-            // Preparar dados para a API
-            const deliveryData = {
+            const deliveryData: any = {
                 name: formData.name,
-                recipient_email: formData.clientEmail,
-                recipient_name: '', // Pode ser adicionado ao formulário se necessário
-                message: `Suas fotos estão prontas para download!`,
-                project_id: formData.projectId,
-                allow_individual_downloads: formData.allowDownload,
-                allow_zip_download: formData.allowDownload,
-                watermark_enabled: formData.showWatermark,
-                expires_at: formData.expirationDays > 0
-                    ? new Date(Date.now() + formData.expirationDays * 24 * 60 * 60 * 1000).toISOString()
-                    : undefined
+                client_email: formData.clientEmail,
+                project_id: formData.projectId || undefined,
+                expiration_days: formData.expirationDays,
+                layout_settings: {
+                    logoUrl: formData.logoUrl,
+                    primaryColor: formData.primaryColor,
+                    backgroundColor: formData.backgroundColor,
+                    galleryLayout: formData.galleryLayout
+                },
+                security_settings: {
+                    requirePassword: formData.requirePassword,
+                    password: formData.password || undefined,
+                    allowDownload: formData.allowDownload,
+                    showMetadata: formData.showMetadata
+                },
+                status: 'pending'
             };
 
             const createdDelivery = await criarEntregaLumiPhoto(deliveryData, user);
-
             toast.success('Entrega criada com sucesso!');
+
+            if (uploadedFiles.length > 0 && createdDelivery?.id) {
+                try {
+                    setIsUploadingPhotos(true);
+                    setUploadProgress(0);
+
+                    toast.info(`Enviando ${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's' : ''}...`);
+
+                    // await uploadFotosParaEntregaLumiPhoto(
+                    //     createdDelivery.id,
+                    //     uploadedFiles,
+                    //     user,
+                    //     (progress) => {
+                    //         setUploadProgress(progress);
+                    //     }
+                    // );
+
+                    toast.success(`${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's enviadas' : ' enviada'} com sucesso!`);
+                    setUploadedFiles([]);
+                } catch (uploadError: any) {
+                    console.error('Erro ao fazer upload das fotos:', uploadError);
+                    toast.error('Entrega criada, mas houve erro ao enviar algumas fotos. Você pode enviá-las depois.');
+                } finally {
+                    setIsUploadingPhotos(false);
+                    setUploadProgress(0);
+                }
+            }
+
             navigate('/lumiphoto/delivery');
         } catch (error: any) {
             console.error('Erro ao criar entrega:', error);
@@ -243,6 +300,110 @@ export function NewDelivery() {
                                 Após este período, o link expira e o cliente não poderá mais baixar as fotos
                             </p>
                         </div>
+                    </div>
+                );
+            case 'photos':
+                return (
+                    <div className="space-y-6">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                            <div className="flex items-start">
+                                <Image className="h-5 w-5 text-blue-600 mt-0.5 mr-2" />
+                                <div>
+                                    <h3 className="text-sm font-medium text-blue-900">
+                                        Upload de Fotos
+                                    </h3>
+                                    <p className="text-sm text-blue-700 mt-1">
+                                        Adicione as fotos que serão incluídas nesta entrega
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between mb-4">
+                            {uploadedFiles.length > 0 && (
+                                <div className="flex items-center space-x-4 text-sm">
+                                    <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">
+                                        {uploadedFiles.length} arquivo{uploadedFiles.length !== 1 ? 's' : ''}
+                                    </div>
+                                    <div className="text-gray-500">
+                                        {(uploadedFiles.reduce((acc, file) => acc + file.size, 0) / (1024 * 1024)).toFixed(1)} MB
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div
+                            className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${dragActive ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-gray-400'
+                                }`}
+                            onDragEnter={handleDrag}
+                            onDragLeave={handleDrag}
+                            onDragOver={handleDrag}
+                            onDrop={handleDrop}
+                        >
+                            <Upload className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                            <p className="text-lg text-gray-700 mb-2 font-medium">
+                                Arraste e solte arquivos aqui
+                            </p>
+                            <p className="text-sm text-gray-500 mb-6">
+                                ou clique no botão abaixo para selecionar
+                            </p>
+                            <input
+                                type="file"
+                                multiple
+                                accept="image/*"
+                                onChange={handleFileSelect}
+                                className="hidden"
+                                id="file-upload-delivery"
+                            />
+                            <label
+                                htmlFor="file-upload-delivery"
+                                className="inline-flex items-center px-6 py-3 bg-white border-2 border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors"
+                            >
+                                <Upload className="h-4 w-4 mr-2" />
+                                Selecionar Arquivos
+                            </label>
+                            <p className="text-xs text-gray-400 mt-4">
+                                Suporte para JPG, PNG, RAW (máximo 20MB por arquivo)
+                            </p>
+                        </div>
+
+                        {uploadedFiles.length > 0 && (
+                            <div className="mt-6 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-sm font-medium text-gray-700 flex items-center">
+                                        <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                                        Arquivos selecionados ({uploadedFiles.length})
+                                    </h4>
+                                    <button
+                                        onClick={() => setUploadedFiles([])}
+                                        className="text-xs text-red-600 hover:text-red-800 font-medium"
+                                    >
+                                        Limpar todos
+                                    </button>
+                                </div>
+                                <div className="space-y-2 max-h-60 overflow-y-auto">
+                                    {uploadedFiles.map((file, index) => (
+                                        <div key={index} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
+                                            <div className="flex items-center flex-1 min-w-0">
+                                                <div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded flex items-center justify-center mr-3">
+                                                    <Image className="h-5 w-5 text-green-600" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm text-gray-700 truncate font-medium">{file.name}</p>
+                                                    <p className="text-xs text-gray-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => removeFile(index)}
+                                                className="ml-4 text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 );
             case 'layout':
@@ -362,24 +523,6 @@ export function NewDelivery() {
                                 </button>
                             </div>
                         </div>
-
-                        <div className="border-t pt-6">
-                            <div className="flex items-center">
-                                <input
-                                    id="show-watermark"
-                                    type="checkbox"
-                                    checked={formData.showWatermark}
-                                    onChange={(e) => handleInputChange('showWatermark', e.target.checked)}
-                                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                                />
-                                <label htmlFor="show-watermark" className="ml-2 block text-sm text-gray-900">
-                                    Exibir marca d'água nas imagens
-                                </label>
-                            </div>
-                            <p className="text-sm text-gray-500 mt-1 ml-6">
-                                Adiciona uma marca d'água sutil para proteger suas imagens
-                            </p>
-                        </div>
                     </div>
                 );
             case 'security':
@@ -454,42 +597,6 @@ export function NewDelivery() {
                             <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                                 <div>
                                     <div className="flex items-center">
-                                        <Eye className="h-4 w-4 text-gray-600 mr-2" />
-                                        <span className="text-sm font-medium text-gray-900">Desabilitar clique direito</span>
-                                    </div>
-                                    <p className="text-sm text-gray-500 mt-1">
-                                        Impede salvamento via clique direito
-                                    </p>
-                                </div>
-                                <input
-                                    type="checkbox"
-                                    checked={!formData.allowRightClick}
-                                    onChange={(e) => handleInputChange('allowRightClick', !e.target.checked)}
-                                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                                />
-                            </div>
-
-                            <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                                <div>
-                                    <div className="flex items-center">
-                                        <Activity className="h-4 w-4 text-gray-600 mr-2" />
-                                        <span className="text-sm font-medium text-gray-900">Rastrear downloads</span>
-                                    </div>
-                                    <p className="text-sm text-gray-500 mt-1">
-                                        Monitora quais fotos foram baixadas
-                                    </p>
-                                </div>
-                                <input
-                                    type="checkbox"
-                                    checked={formData.trackDownloads}
-                                    onChange={(e) => handleInputChange('trackDownloads', e.target.checked)}
-                                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                                />
-                            </div>
-
-                            <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                                <div>
-                                    <div className="flex items-center">
                                         <Info className="h-4 w-4 text-gray-600 mr-2" />
                                         <span className="text-sm font-medium text-gray-900">Exibir metadados</span>
                                     </div>
@@ -516,7 +623,7 @@ export function NewDelivery() {
                                         Importante sobre a segurança
                                     </h3>
                                     <p className="text-sm text-amber-700 mt-1">
-                                        Lembre-se de que estas são medidas básicas de proteção. Para maior segurança, considere usar marcas d'água e limitar o tempo de acesso.
+                                        Lembre-se de que estas são medidas básicas de proteção. Para maior segurança, considere limitar o tempo de acesso e usar senha para proteção.
                                     </p>
                                 </div>
                             </div>
@@ -556,6 +663,15 @@ export function NewDelivery() {
                                             }`}
                                     >
                                         Detalhes
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentStep('photos')}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${currentStep === 'photos'
+                                            ? 'bg-blue-100 text-blue-800'
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                    >
+                                        Fotos
                                     </button>
                                     <button
                                         onClick={() => setCurrentStep('layout')}
@@ -600,6 +716,35 @@ export function NewDelivery() {
                     </div>
                 </div>
             </div>
+
+            {/* Loading Overlay */}
+            {(isCreating || isUploadingPhotos) && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-8 flex flex-col items-center max-w-md w-full mx-4">
+                        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-600 mb-4"></div>
+                        <p className="text-gray-900 font-medium text-lg text-center">
+                            {isUploadingPhotos
+                                ? `Enviando fotos (${uploadProgress}%)...`
+                                : 'Criando entrega...'
+                            }
+                        </p>
+                        <p className="text-gray-500 text-sm mt-2 text-center">
+                            {isUploadingPhotos
+                                ? `Aguarde enquanto enviamos ${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's' : ''} para o servidor`
+                                : 'Aguarde enquanto processamos suas informações'
+                            }
+                        </p>
+                        {isUploadingPhotos && (
+                            <div className="w-full bg-gray-200 rounded-full h-2 mt-4">
+                                <div
+                                    className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                                    style={{ width: `${uploadProgress}%` }}
+                                ></div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
