@@ -180,7 +180,17 @@ export function PublicGallery() {
   };
 
   const resolvePreviewUrl = (photo: GalleryPhoto) => {
-    return photo.thumbnail_url || photo.watermarked_url || photo.digital_ocean_url;
+    if (gallery?.add_watermark) {
+      return photo.watermarked_url || photo.thumbnail_url || photo.digital_ocean_url;
+    }
+    return photo.thumbnail_url || photo.digital_ocean_url;
+  };
+
+  const resolveDownloadUrl = (photo: GalleryPhoto) => {
+    if (gallery?.add_watermark) {
+      return photo.watermarked_url || null;
+    }
+    return photo.digital_ocean_url;
   };
 
   const renderLoading = () => (
@@ -279,7 +289,7 @@ export function PublicGallery() {
           <div className="flex-1 overflow-auto mt-4">
             <div className="w-full h-full flex items-center justify-center bg-gray-50 rounded-2xl p-2">
               <img
-                src={fullPhoto.watermarked_url || fullPhoto.digital_ocean_url}
+                src={gallery.add_watermark ? (fullPhoto.watermarked_url || fullPhoto.thumbnail_url || fullPhoto.digital_ocean_url) : (fullPhoto.watermarked_url || fullPhoto.digital_ocean_url)}
                 alt={fullPhoto.original_name || 'Foto selecionada'}
                 className="max-h-[70vh] max-w-full object-contain"
               />
@@ -292,9 +302,9 @@ export function PublicGallery() {
                 {fullPhoto.original_name || `Foto ${fullPhoto.id}`}
               </p>
             </div>
-            {gallery?.allow_download && (
+            {gallery?.allow_download && resolveDownloadUrl(fullPhoto) && (
               <a
-                href={fullPhoto.digital_ocean_url}
+                href={resolveDownloadUrl(fullPhoto) as string}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-blue-600 text-white font-medium hover:bg-blue-500 transition-colors"
@@ -507,14 +517,14 @@ export function PublicGallery() {
                           >
                             <Eye className="h-4 w-4" />
                           </button>
-                          {gallery.allow_download && (
+                          {gallery.allow_download && resolveDownloadUrl(photo) && (
                             <a
-                              href={photo.digital_ocean_url}
+                              href={resolveDownloadUrl(photo) as string}
                               target="_blank"
                               rel="noreferrer"
                               onClick={event => event.stopPropagation()}
                               className="p-2 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
-                              aria-label="Baixar original"
+                              aria-label="Baixar foto"
                             >
                               <Download className="h-4 w-4" />
                             </a>
