@@ -1,6 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from './Modal';
-import { Image } from 'lucide-react';
+import { Image, Download, Trash2, X, Eye } from 'lucide-react';
+import { useAuth } from '../../../contexts/AuthContext';
+import { obterFotosLumiPhoto, LumiPhotoPhoto, excluirFotoLumiPhoto } from '../../../services/lumiPhotoService';
+import { toast } from 'react-toastify';
+import { PhotoViewer } from './PhotoViewer';
 
 interface Project {
   id: number;
@@ -19,33 +23,161 @@ interface PhotosViewModalProps {
   project: Project | null;
 }
 
-export function PhotosViewModal({ 
-  isOpen, 
-  onClose, 
-  project 
+export function PhotosViewModal({
+  isOpen,
+  onClose,
+  project
 }: PhotosViewModalProps) {
+  const { user } = useAuth();
+  const [photos, setPhotos] = useState<LumiPhotoPhoto[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<LumiPhotoPhoto | null>(null);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && project) {
+      loadPhotos();
+    }
+  }, [isOpen, project]);
+
+  const loadPhotos = async () => {
+    if (!project) return;
+
+    try {
+      setLoading(true);
+      const response = await obterFotosLumiPhoto(project.id, user);
+
+      // A resposta pode vir como array direto ou dentro de data
+      const photosList = Array.isArray(response) ? response : response.data || [];
+      setPhotos(photosList);
+    } catch (error: any) {
+      console.error('Erro ao carregar fotos:', error);
+      toast.error('Erro ao carregar fotos do projeto');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePhotoClick = (photo: LumiPhotoPhoto) => {
+    setSelectedPhoto(photo);
+    setIsViewerOpen(true);
+  };
+
+  const handlePhotoDeleted = async () => {
+    // Recarregar fotos após exclusão
+    await loadPhotos();
+  };
+
   if (!project) return null;
 
   return (
-    <Modal 
-      isOpen={isOpen} 
-      onClose={onClose}
-      title="Fotos do Projeto"
-      size="xl"
-    >
-      <div>
-        <div className="mb-4">
-          <h4 className="font-semibold text-gray-900">{project.name}</h4>
-          <p className="text-gray-600">{project.photos} fotos disponíveis</p>
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Fotos do Projeto"
+        size="xl"
+      >
+        <div>
+          <div className="mb-4">
+            <h4 className="font-semibold text-gray-900">{project.name}</h4>
+            <p className="text-gray-600">
+              {loading ? 'Carregando...' : `${photos.length} foto${photos.length !== 1 ? 's' : ''} disponível${photos.length !== 1 ? 'eis' : ''}`}
+            </p>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-500">Carregando fotos...</p>
+            </div>
+          ) : photos.length === 0 ? (
+            <div className="text-center py-12">
+              <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500">Nenhuma foto encontrada</p>
+              <p className="text-sm text-gray-400 mt-2">
+                As fotos enviadas para este projeto aparecerão aqui
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto">
+              {photos.map((photo) => (
+                <div
+                  key={photo.id}
+                  className="relative group cursor-pointer rounded-lg overflow-hidden border border-gray-200 hover:border-blue-500 transition-all"
+                  onClick={() => handlePhotoClick(photo)}
+                >
+                  {/* Thumbnail */}
+                  <div className="aspect-square bg-gray-100 flex items-center justify-center">
+                    {photo.thumbnail_url || photo.digital_ocean_url ? (
+                      <img
+                        src={photo.thumbnail_url || photo.digital_ocean_url}
+                        alt={photo.original_name}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <Image className="h-8 w-8 text-gray-400" />
+                    )}
+                  </div>
+
+                  {/* Overlay com ações */}
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePhotoClick(photo);
+                      }}
+                      className="p-2 bg-white rounded-full hover:bg-gray-100 transition-colors"
+                      title="Visualizar"
+                    >
+                      <Eye className="h-5 w-5 text-gray-700" />
+                    </button>
+                  </div>
+
+                  {/* Nome do arquivo (truncado) */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-2">
+                    <p className="text-xs text-white truncate" title={photo.original_name}>
+                      {photo.original_name}
+                    </p>
+                  </div>
+
+                  {/* Badge de seleção */}
+                  {photo.is_selected && (
+                    <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
+                      Selecionada
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="text-center py-8">
-          <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-500">Visualizador de fotos em desenvolvimento</p>
-          <p className="text-sm text-gray-400 mt-2">
-            Em breve você poderá visualizar e gerenciar as fotos deste projeto aqui
-          </p>
-        </div>
-      </div>
-    </Modal>
+      </Modal>
+
+      {/* Photo Viewer */}
+      {selectedPhoto && (
+        <PhotoViewer
+          projectId={project.id}
+          photo={{
+            id: selectedPhoto.id.toString(),
+            name: selectedPhoto.original_name,
+            url: selectedPhoto.digital_ocean_url,
+            thumbnail: selectedPhoto.thumbnail_url || selectedPhoto.digital_ocean_url,
+            size: selectedPhoto.file_size,
+            type: selectedPhoto.mime_type,
+            uploadDate: new Date(selectedPhoto.upload_date).toLocaleDateString('pt-BR'),
+            isFavorite: selectedPhoto.is_selected,
+            isDeleted: false,
+          }}
+          isOpen={isViewerOpen}
+          onClose={() => {
+            setIsViewerOpen(false);
+            setSelectedPhoto(null);
+          }}
+          onPhotoDeleted={handlePhotoDeleted}
+        />
+      )}
+    </>
   );
 }

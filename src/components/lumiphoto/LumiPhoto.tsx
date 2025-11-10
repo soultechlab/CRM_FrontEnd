@@ -35,6 +35,15 @@ interface Project {
   selections: number;
   status: ProjectStatus;
   clientEmail: string;
+  clientName?: string;
+  shareLink?: string;
+  shareToken?: string;
+  maxSelections?: number | null;
+  contractedPhotos?: number | null;
+  allowDownload?: boolean;
+  requirePassword?: boolean;
+  accessPassword?: string | null;
+  linkExpiration?: number | null;
 }
 
 interface Photo {
@@ -60,7 +69,6 @@ export function LumiPhoto() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDetailsOffcanvasOpen, setIsDetailsOffcanvasOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isPhotosViewModalOpen, setIsPhotosViewModalOpen] = useState(false);
   const [isAllProjectsModalOpen, setIsAllProjectsModalOpen] = useState(false);
   const [isAllActivitiesModalOpen, setIsAllActivitiesModalOpen] = useState(false);
   const [isPermanentDelete, setIsPermanentDelete] = useState(false);
@@ -127,6 +135,15 @@ export function LumiPhoto() {
         selections: project.selections_count || 0,
         status: project.status,
         clientEmail: project.client_email || '',
+        clientName: project.client_name || undefined,
+        shareLink: project.share_link || undefined,
+        shareToken: project.share_token || undefined,
+        maxSelections: project.max_selections ?? null,
+        contractedPhotos: project.contracted_photos ?? null,
+        allowDownload: project.allow_download ?? false,
+        requirePassword: project.require_password ?? false,
+        accessPassword: project.access_password ?? null,
+        linkExpiration: project.link_expiration ?? null,
       }));
 
       setProjects(mappedProjects);
@@ -179,11 +196,6 @@ export function LumiPhoto() {
     setSelectedProjectId(projectId);
     setIsPermanentDelete(permanent);
     setIsDeleteModalOpen(true);
-  };
-
-  const openPhotosViewModal = (projectId: number) => {
-    setSelectedProjectId(projectId);
-    setIsPhotosViewModalOpen(true);
   };
 
   const handleDeleteProject = async () => {
@@ -425,14 +437,6 @@ export function LumiPhoto() {
           </>
         )}
 
-        {["enviada", "em_selecao", "finalizada", "arquivada"].includes(project.status) && (
-          <button
-            onClick={() => openPhotosViewModal(project.id)}
-            className="px-3 py-1.5 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
-        )}
       </div>
     );
 
@@ -816,26 +820,6 @@ export function LumiPhoto() {
                 <label className="text-sm font-medium text-gray-500">Seleções</label>
                 <p className="text-gray-900">{findSelectedProject()?.selections}</p>
               </div>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      <Modal
-        isOpen={isPhotosViewModalOpen}
-        onClose={() => setIsPhotosViewModalOpen(false)}
-        title="Fotos do Projeto"
-        size="xl"
-      >
-        {findSelectedProject() && (
-          <div>
-            <div className="mb-4">
-              <h4 className="font-semibold text-gray-900">{findSelectedProject()?.name}</h4>
-              <p className="text-gray-600">{findSelectedProject()?.photos} fotos disponíveis</p>
-            </div>
-            <div className="text-center py-8">
-              <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">Visualizador de fotos em desenvolvimento</p>
             </div>
           </div>
         )}

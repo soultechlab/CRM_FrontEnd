@@ -35,6 +35,7 @@ export interface LumiPhotoProject {
   access_password?: string;
   link_expiration?: number;
   share_link?: string;
+  share_token?: string;
   add_watermark?: boolean;
   watermark_text?: string;
   watermark_position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center';
@@ -49,19 +50,36 @@ export interface LumiPhotoProject {
 export interface LumiPhotoPhoto {
   id: number;
   project_id: number;
-  file_path: string;
-  thumbnail_path?: string;
+  filename: string;
+  original_name: string;
+  digital_ocean_url: string;
+  thumbnail_url: string | null;
+  watermarked_url: string | null;
   file_size: number;
   mime_type: string;
-  original_name: string;
-  width?: number;
-  height?: number;
+  width: number | null;
+  height: number | null;
+  has_watermark: boolean;
   is_selected: boolean;
-  selection_note?: string;
-  order?: number;
-  tags?: string[];
+  selection_order: number | null;
+  upload_date: string;
+  metadata?: {
+    camera?: string;
+    iso?: string;
+    aperture?: string;
+    shutter_speed?: string;
+    [key: string]: any;
+  };
   created_at: string;
   updated_at: string;
+}
+
+export interface LumiPhotoBulkUploadResult {
+  photos: LumiPhotoPhoto[];
+  failed: {
+    name: string;
+    message: string;
+  }[];
 }
 
 export interface LumiPhotoDelivery {
@@ -231,9 +249,29 @@ export const obterFotosLumiPhoto = async (projectId: number, user: User | null) 
   return response.data.data || response.data;
 };
 
-export const uploadFotoLumiPhoto = async (projectId: number, file: File, user: User | null) => {
+export const uploadFotoLumiPhoto = async (
+  projectId: number,
+  file: File,
+  user: User | null,
+  options?: {
+    applyWatermark?: boolean;
+    watermarkText?: string;
+    watermarkPosition?: string;
+  }
+) => {
   const formData = new FormData();
-  formData.append("photo", file);
+  formData.append("file", file);
+
+  // Adicionar opções de watermark se fornecidas
+  if (options?.applyWatermark) {
+    formData.append("apply_watermark", "true");
+    if (options.watermarkText) {
+      formData.append("watermark_text", options.watermarkText);
+    }
+    if (options.watermarkPosition) {
+      formData.append("watermark_position", options.watermarkPosition);
+    }
+  }
 
   const response = await apiClient.post(`/lumiphoto/projects/${projectId}/photos`, formData, {
     headers: {
@@ -248,12 +286,30 @@ export const uploadFotosEmLoteLumiPhoto = async (
   projectId: number,
   files: File[],
   user: User | null,
-  onProgress?: (progress: number) => void
-) => {
+  onProgress?: (progress: number) => void,
+  options?: {
+    applyWatermark?: boolean;
+    watermarkText?: string;
+    watermarkPosition?: string;
+  }
+): Promise<LumiPhotoBulkUploadResult> => {
   const formData = new FormData();
+
+  // Adicionar arquivos no formato que o Laravel espera: files[]
   files.forEach((file) => {
-    formData.append("photos[]", file);
+    formData.append('files[]', file);
   });
+
+  // Adicionar opções de watermark se fornecidas
+  if (options?.applyWatermark) {
+    formData.append("apply_watermark", "true");
+    if (options.watermarkText) {
+      formData.append("watermark_text", options.watermarkText);
+    }
+    if (options.watermarkPosition) {
+      formData.append("watermark_position", options.watermarkPosition);
+    }
+  }
 
   const response = await apiClient.post(
     `/lumiphoto/projects/${projectId}/photos/bulk-upload`,
@@ -271,7 +327,28 @@ export const uploadFotosEmLoteLumiPhoto = async (
       },
     }
   );
-  return response.data.data || response.data;
+
+  const payload = response.data as
+    | LumiPhotoPhoto[]
+    | {
+        data?: LumiPhotoPhoto[];
+        failed?: {
+          name: string;
+          message: string;
+        }[];
+      };
+
+  if (Array.isArray(payload)) {
+    return {
+      photos: payload,
+      failed: [],
+    };
+  }
+
+  return {
+    photos: payload.data ?? [],
+    failed: payload.failed ?? [],
+  };
 };
 
 export const atualizarFotoLumiPhoto = async (

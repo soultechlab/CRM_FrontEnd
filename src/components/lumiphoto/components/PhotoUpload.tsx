@@ -17,6 +17,11 @@ interface Photo {
   isDeleted?: boolean;
 }
 
+interface FailedFile {
+  name: string;
+  message?: string;
+}
+
 interface PhotoUploadProps {
   projectId: number;
   onUpload: (photo: Photo) => void;
@@ -32,6 +37,7 @@ export function PhotoUpload({ projectId, onUpload, onClose, onComplete }: PhotoU
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedCount, setUploadedCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
+  const [failedFiles, setFailedFiles] = useState<FailedFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = (e: React.DragEvent) => {
@@ -62,7 +68,16 @@ export function PhotoUpload({ projectId, onUpload, onClose, onComplete }: PhotoU
   };
 
   const handleFiles = (files: File[]) => {
-    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    // Formatos RAW suportados
+    const rawExtensions = ['.cr2', '.cr3', '.nef', '.arw', '.dng', '.raf', '.orf', '.rw2', '.pef'];
+
+    const imageFiles = files.filter(file => {
+      const fileName = file.name.toLowerCase();
+      const isRaw = rawExtensions.some(ext => fileName.endsWith(ext));
+      const isImage = file.type.startsWith('image/');
+      return isImage || isRaw;
+    });
+
     setSelectedFiles(prev => [...prev, ...imageFiles]);
   };
 
@@ -76,19 +91,27 @@ export function PhotoUpload({ projectId, onUpload, onClose, onComplete }: PhotoU
     setUploading(true);
     setUploadedCount(0);
     setFailedCount(0);
+    setFailedFiles([]);
+    setUploadProgress(0);
+
+    let successfulUploads = 0;
+    let failedUploads = 0;
+    let failedFileDetails: FailedFile[] = [];
 
     try {
-      // Validar tamanho dos arquivos (máx 10MB)
-      const maxSize = 10 * 1024 * 1024; // 10MB
+      const maxSize = 100 * 1024 * 1024; // 100MB
       const invalidFiles = selectedFiles.filter(file => file.size > maxSize);
 
       if (invalidFiles.length > 0) {
-        toast.error(`${invalidFiles.length} arquivo(s) excedem o tamanho máximo de 10MB`);
-        setUploading(false);
+        failedUploads = invalidFiles.length;
+        failedFileDetails = invalidFiles.map(file => ({
+          name: file.name,
+          message: 'Arquivo excede 100MB',
+        }));
+        toast.error(`${invalidFiles.length} arquivo(s) excedem o tamanho máximo de 100MB`);
         return;
       }
 
-      // Se for apenas 1 arquivo, usar upload individual
       if (selectedFiles.length === 1) {
         try {
           const uploadedPhoto = await uploadFotoLumiPhoto(projectId, selectedFiles[0], user);
@@ -96,79 +119,98 @@ export function PhotoUpload({ projectId, onUpload, onClose, onComplete }: PhotoU
           const photo: Photo = {
             id: uploadedPhoto.id.toString(),
             name: uploadedPhoto.original_name,
-            url: uploadedPhoto.file_path,
-            thumbnail: uploadedPhoto.thumbnail_path || uploadedPhoto.file_path,
+            url: uploadedPhoto.digital_ocean_url,
+            thumbnail: uploadedPhoto.thumbnail_url || uploadedPhoto.digital_ocean_url,
             size: uploadedPhoto.file_size,
             type: uploadedPhoto.mime_type,
             uploadDate: new Date(uploadedPhoto.created_at).toLocaleDateString('pt-BR'),
-            tags: uploadedPhoto.tags || [],
+            tags: [],
             isFavorite: false,
             isDeleted: false
           };
 
           onUpload(photo);
-          setUploadedCount(1);
+          successfulUploads = 1;
           toast.success('Foto enviada com sucesso!');
         } catch (error: any) {
           console.error('Erro ao fazer upload:', error);
-          toast.error(error.message || 'Erro ao fazer upload da foto');
-          setFailedCount(1);
+          failedUploads = 1;
+          failedFileDetails = [{
+            name: selectedFiles[0].name,
+            message: error?.message,
+          }];
+          toast.error(error?.message || 'Erro ao fazer upload da foto');
+        }
+      } else {
+        const { photos: uploadedPhotos, failed } = await uploadFotosEmLoteLumiPhoto(
+          projectId,
+          selectedFiles,
+          user,
+          (progress) => setUploadProgress(progress)
+        );
+
+        uploadedPhotos.forEach((uploadedPhoto) => {
+          const photo: Photo = {
+            id: uploadedPhoto.id.toString(),
+            name: uploadedPhoto.original_name,
+            url: uploadedPhoto.digital_ocean_url,
+            thumbnail: uploadedPhoto.thumbnail_url || uploadedPhoto.digital_ocean_url,
+            size: uploadedPhoto.file_size,
+            type: uploadedPhoto.mime_type,
+            uploadDate: new Date(uploadedPhoto.created_at).toLocaleDateString('pt-BR'),
+            tags: [],
+            isFavorite: false,
+            isDeleted: false
+          };
+
+          onUpload(photo);
+        });
+
+        successfulUploads = uploadedPhotos.length;
+
+        if (successfulUploads > 0) {
+          toast.success(`${successfulUploads} foto(s) enviada(s) com sucesso!`);
+        }
+
+        if (failed.length > 0) {
+          failedUploads = failed.length;
+          failedFileDetails = failed.map(file => ({
+            name: file.name,
+            message: file.message,
+          }));
+          toast.warn(`${failedUploads} arquivo(s) não foram enviados.`);
+        }
+
+        if (successfulUploads === 0 && failedUploads === 0) {
+          toast.info('Nenhum arquivo foi processado.');
         }
       }
-      // Se for múltiplos arquivos, usar bulk upload
-      else {
-        try {
-          const uploadedPhotos = await uploadFotosEmLoteLumiPhoto(
-            projectId,
-            selectedFiles,
-            user,
-            (progress) => setUploadProgress(progress)
-          );
-
-          // Processar fotos retornadas
-          if (Array.isArray(uploadedPhotos)) {
-            uploadedPhotos.forEach((uploadedPhoto: any) => {
-              const photo: Photo = {
-                id: uploadedPhoto.id.toString(),
-                name: uploadedPhoto.original_name,
-                url: uploadedPhoto.file_path,
-                thumbnail: uploadedPhoto.thumbnail_path || uploadedPhoto.file_path,
-                size: uploadedPhoto.file_size,
-                type: uploadedPhoto.mime_type,
-                uploadDate: new Date(uploadedPhoto.created_at).toLocaleDateString('pt-BR'),
-                tags: uploadedPhoto.tags || [],
-                isFavorite: false,
-                isDeleted: false
-              };
-
-              onUpload(photo);
-            });
-
-            setUploadedCount(uploadedPhotos.length);
-            toast.success(`${uploadedPhotos.length} foto(s) enviada(s) com sucesso!`);
-          }
-        } catch (error: any) {
-          console.error('Erro ao fazer upload em lote:', error);
-          toast.error(error.message || 'Erro ao fazer upload das fotos');
-          setFailedCount(selectedFiles.length);
-        }
+    } catch (error: any) {
+      console.error('Erro no processo de upload:', error);
+      if (failedUploads === 0) {
+        failedUploads = selectedFiles.length;
+        failedFileDetails = selectedFiles.map(file => ({ name: file.name }));
       }
+      toast.error(error?.message || 'Erro ao processar upload');
+    } finally {
+      setUploadedCount(successfulUploads);
+      setFailedCount(failedUploads);
+      setFailedFiles(failedFileDetails);
+      setUploading(false);
 
-      // Limpar arquivos selecionados e fechar modal após sucesso
+      const shouldClose = successfulUploads > 0 && failedUploads === 0;
+      const failedNames = new Set(failedFileDetails.map(file => file.name));
+
       setTimeout(() => {
-        setSelectedFiles([]);
+        setSelectedFiles(prev =>
+          failedNames.size > 0 ? prev.filter(file => failedNames.has(file.name)) : []
+        );
         setUploadProgress(0);
         if (onComplete) onComplete();
-        if (uploadedCount > 0 && failedCount === 0) {
+        if (shouldClose) {
           onClose();
         }
       }, 1500);
-
-    } catch (error: any) {
-      console.error('Erro no processo de upload:', error);
-      toast.error('Erro ao processar upload');
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -205,7 +247,7 @@ export function PhotoUpload({ projectId, onUpload, onClose, onComplete }: PhotoU
           ref={fileInputRef}
           type="file"
           multiple
-          accept="image/*"
+          accept="image/*,.cr2,.cr3,.nef,.arw,.dng,.raf,.orf,.rw2,.pef"
           onChange={handleChange}
           className="hidden"
         />
@@ -224,7 +266,10 @@ export function PhotoUpload({ projectId, onUpload, onClose, onComplete }: PhotoU
           </button>
         </p>
         <p className="text-xs text-gray-500">
-          Suporta: JPG, PNG, GIF, WebP (máx. 10MB por arquivo)
+          Suporta: JPG, PNG, GIF, WebP e RAW (CR2, CR3, NEF, ARW, DNG, RAF, ORF, RW2, PEF)
+        </p>
+        <p className="text-xs text-gray-500 mt-1">
+          Máximo: 100MB por arquivo
         </p>
       </div>
 
@@ -277,6 +322,16 @@ export function PhotoUpload({ projectId, onUpload, onClose, onComplete }: PhotoU
                   {failedCount} foto(s) falharam no upload
                 </span>
               </div>
+              {failedFiles.length > 0 && (
+                <ul className="mt-2 text-xs text-red-700 list-disc list-inside space-y-1">
+                  {failedFiles.map((file, index) => (
+                    <li key={`${file.name}-${index}`}>
+                      <span className="font-semibold">{file.name}</span>
+                      {file.message && ` — ${file.message}`}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </div>

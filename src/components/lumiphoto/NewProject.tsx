@@ -2,9 +2,10 @@ import { useState, useCallback, useEffect } from 'react';
 import { ChevronLeft, Upload, Copy, X, Calendar, Camera, Eye, Star, Info, CheckCircle, AlertCircle, Palette, Shield, Clock, DollarSign, HelpCircle, Save } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
-import { criarProjetoLumiPhoto, obterProjetoLumiPhoto, atualizarProjetoLumiPhoto } from '../../services/lumiPhotoService';
+import { criarProjetoLumiPhoto, obterProjetoLumiPhoto, atualizarProjetoLumiPhoto, uploadFotosEmLoteLumiPhoto } from '../../services/lumiPhotoService';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
+import { buildPublicGalleryShareUrl } from '../../utils/lumiphotoPublic';
 
 interface FormData {
   projectName: string;
@@ -69,6 +70,11 @@ export function NewProject() {
   const [isAutoSaving, setIsAutoSaving] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isLoadingProject, setIsLoadingProject] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+
+  const buildPublicGalleryUrl = (shareLink?: string | null, shareToken?: string | null) =>
+    buildPublicGalleryShareUrl(shareToken, shareLink);
 
   // Carregar dados do projeto se estiver em modo de edição
   useEffect(() => {
@@ -82,10 +88,9 @@ export function NewProject() {
         const project = await obterProjetoLumiPhoto(parseInt(projectId), user);
 
         // Preencher o formulário com os dados do projeto e o share_link
-        if (project.share_link) {
-          const baseUrl = window.location.origin;
-          const fullLink = `${baseUrl}/api/v1/public/lumiphoto/gallery/${project.share_link}`;
-          setShareLink(fullLink);
+        const resolvedLink = buildPublicGalleryUrl(project.share_link, project.share_token);
+        if (resolvedLink) {
+          setShareLink(resolvedLink);
         }
 
         setFormData({
@@ -220,11 +225,9 @@ export function NewProject() {
     // Recarregar dados do projeto para obter o share_link atualizado
     obterProjetoLumiPhoto(parseInt(projectId), user)
       .then((project) => {
-        if (project.share_link) {
-          // Usar a base URL do ambiente ou localhost
-          const baseUrl = window.location.origin;
-          const fullLink = `${baseUrl}/api/v1/public/lumiphoto/gallery/${project.share_link}`;
-          setShareLink(fullLink);
+        const resolvedLink = buildPublicGalleryUrl(project.share_link, project.share_token);
+        if (resolvedLink) {
+          setShareLink(resolvedLink);
           toast.success('Link gerado com sucesso!');
         } else {
           toast.error('Projeto ainda não possui link de compartilhamento. O link será gerado automaticamente ao criar/atualizar o projeto.');
@@ -334,10 +337,51 @@ export function NewProject() {
       }
 
       // Obter e exibir o share_link gerado pelo backend
-      if (createdOrUpdatedProject?.share_link) {
-        const baseUrl = window.location.origin;
-        const fullLink = `${baseUrl}/api/v1/public/lumiphoto/gallery/${createdOrUpdatedProject.share_link}`;
-        setShareLink(fullLink);
+      if (createdOrUpdatedProject?.share_link || createdOrUpdatedProject?.share_token) {
+        const resolvedLink = buildPublicGalleryUrl(
+          createdOrUpdatedProject.share_link,
+          createdOrUpdatedProject.share_token
+        );
+        if (resolvedLink) {
+          setShareLink(resolvedLink);
+        }
+      }
+
+      // Upload de fotos se houver arquivos selecionados
+      if (uploadedFiles.length > 0 && createdOrUpdatedProject?.id) {
+        try {
+          setIsUploadingPhotos(true);
+          setUploadProgress(0);
+
+          toast.info(`Enviando ${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's' : ''}...`);
+
+          // Preparar opções de watermark se aplicável
+          const uploadOptions = formData.addWatermark ? {
+            applyWatermark: true,
+            watermarkText: formData.watermarkText,
+            watermarkPosition: formData.watermarkPosition,
+          } : undefined;
+
+          // Upload em lote
+          await uploadFotosEmLoteLumiPhoto(
+            createdOrUpdatedProject.id,
+            uploadedFiles,
+            user,
+            (progress) => {
+              setUploadProgress(progress);
+            },
+            uploadOptions
+          );
+
+          toast.success(`${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's enviadas' : ' enviada'} com sucesso!`);
+          setUploadedFiles([]); // Limpar arquivos após upload
+        } catch (uploadError: any) {
+          console.error('Erro ao fazer upload das fotos:', uploadError);
+          toast.error('Projeto criado, mas houve erro ao enviar algumas fotos. Você pode enviá-las depois.');
+        } finally {
+          setIsUploadingPhotos(false);
+          setUploadProgress(0);
+        }
       }
 
       // Redirecionar para o dashboard do LumiPhoto
@@ -902,14 +946,30 @@ export function NewProject() {
         </div>
 
         {/* Loading Overlay */}
-        {isCreatingProject && (
+        {(isCreatingProject || isUploadingPhotos) && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-8 flex flex-col items-center">
+            <div className="bg-white rounded-lg p-8 flex flex-col items-center max-w-md w-full mx-4">
               <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mb-4"></div>
-              <p className="text-gray-900 font-medium text-lg">
-                {isEditMode ? 'Atualizando projeto...' : 'Criando projeto...'}
+              <p className="text-gray-900 font-medium text-lg text-center">
+                {isUploadingPhotos
+                  ? `Enviando fotos (${uploadProgress}%)...`
+                  : (isEditMode ? 'Atualizando projeto...' : 'Criando projeto...')
+                }
               </p>
-              <p className="text-gray-500 text-sm mt-2">Aguarde enquanto processamos suas informações</p>
+              <p className="text-gray-500 text-sm mt-2 text-center">
+                {isUploadingPhotos
+                  ? `Aguarde enquanto enviamos ${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's' : ''} para o servidor`
+                  : 'Aguarde enquanto processamos suas informações'
+                }
+              </p>
+              {isUploadingPhotos && (
+                <div className="w-full bg-gray-200 rounded-full h-2 mt-4">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+              )}
             </div>
           </div>
         )}

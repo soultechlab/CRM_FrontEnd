@@ -24,6 +24,7 @@ import { LumiPhoto } from '../components/lumiphoto/LumiPhoto';
 import { NewProject } from '../components/lumiphoto/NewProject';
 import { Delivery } from '../components/lumiphoto/Delivery';
 import { NewDelivery } from '../components/lumiphoto/NewDelivery';
+import { PublicGallery } from '../components/lumiphoto/public/PublicGallery';
 
 export default function AppRoutes() {
   const { isLoading } = useAuth();
@@ -45,6 +46,7 @@ export default function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/cadastro" element={<RegisterPage />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/galeria/:shareToken" element={<PublicGallery />} />
 
       {/* Admin Routes */}
       <Route path="/admin" element={<AdminLayout />}>

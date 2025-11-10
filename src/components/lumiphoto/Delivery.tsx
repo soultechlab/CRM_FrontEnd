@@ -12,6 +12,7 @@ import { Modal } from './components/Modal';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { PhotoUpload } from './components/PhotoUpload';
 import { PhotoViewer } from './components/PhotoViewer';
+import { PhotosViewModal } from './components/PhotosViewModal';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
 import { DeliveryDetailsOffcanvas } from './components/DeliveryDetailsOffcanvas';
 import { useAuth } from '../../contexts/AuthContext';
@@ -750,25 +751,11 @@ export function Delivery() {
                 )}
             </Modal>
 
-            <Modal
+            <PhotosViewModal
                 isOpen={isPhotosViewModalOpen}
                 onClose={() => setIsPhotosViewModalOpen(false)}
-                title="Fotos do Projeto"
-                size="xl"
-            >
-                {findSelectedProject() && (
-                    <div>
-                        <div className="mb-4">
-                            <h4 className="font-semibold text-gray-900">{findSelectedProject()?.name}</h4>
-                            <p className="text-gray-600">{findSelectedProject()?.photos} fotos disponíveis</p>
-                        </div>
-                        <div className="text-center py-8">
-                            <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                            <p className="text-gray-500">Visualizador de fotos em desenvolvimento</p>
-                        </div>
-                    </div>
-                )}
-            </Modal>
+                project={findSelectedProject()}
+            />
 
             <Modal
                 isOpen={isAllProjectsModalOpen}
