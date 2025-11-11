@@ -27,9 +27,12 @@ interface PhotoUploadProps {
   onUpload: (photo: Photo) => void;
   onClose: () => void;
   onComplete?: () => void;
+  addWatermark?: boolean;
+  watermarkText?: string;
+  watermarkPosition?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center';
 }
 
-export function PhotoUpload({ projectId, onUpload, onClose, onComplete }: PhotoUploadProps) {
+export function PhotoUpload({ projectId, onUpload, onClose, onComplete, addWatermark, watermarkText, watermarkPosition }: PhotoUploadProps) {
   const { user } = useAuth();
   const [dragActive, setDragActive] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -114,7 +117,16 @@ export function PhotoUpload({ projectId, onUpload, onClose, onComplete }: PhotoU
 
       if (selectedFiles.length === 1) {
         try {
-          const uploadedPhoto = await uploadFotoLumiPhoto(projectId, selectedFiles[0], user);
+          const uploadedPhoto = await uploadFotoLumiPhoto(
+            projectId,
+            selectedFiles[0],
+            user,
+            {
+              applyWatermark: addWatermark,
+              watermarkText,
+              watermarkPosition,
+            }
+          );
 
           const photo: Photo = {
             id: uploadedPhoto.id.toString(),
@@ -146,7 +158,12 @@ export function PhotoUpload({ projectId, onUpload, onClose, onComplete }: PhotoU
           projectId,
           selectedFiles,
           user,
-          (progress) => setUploadProgress(progress)
+          (progress) => setUploadProgress(progress),
+          {
+            applyWatermark: addWatermark,
+            watermarkText: watermarkText,
+            watermarkPosition: watermarkPosition,
+          }
         );
 
         uploadedPhotos.forEach((uploadedPhoto) => {
