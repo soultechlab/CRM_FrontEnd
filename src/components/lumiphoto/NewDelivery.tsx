@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Palette, Shield, Lock, Download, Globe, Info, AlertTriangle, Upload, X, CheckCircle, Image } from 'lucide-react';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
 import { useAuth } from '../../contexts/AuthContext';
-import { criarEntregaLumiPhoto, obterProjetosLumiPhoto, LumiPhotoProject } from '../../services/lumiPhotoService';
+import { criarEntregaLumiPhoto, obterProjetosLumiPhoto, uploadFotosEntregaLumiPhoto, uploadLogoEntregaLumiPhoto, LumiPhotoProject } from '../../services/lumiPhotoService';
 import { toast } from 'react-toastify';
 
 interface DeliveryFormData {
@@ -34,6 +34,7 @@ export function NewDelivery() {
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+    const [isUploadingLogo, setIsUploadingLogo] = useState(false);
     const [formData, setFormData] = useState<DeliveryFormData>({
         name: '',
         projectId: 0,
@@ -111,6 +112,30 @@ export function NewDelivery() {
         }
     };
 
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || !e.target.files[0]) {
+            return;
+        }
+
+        const file = e.target.files[0];
+
+        try {
+            setIsUploadingLogo(true);
+            const result = await uploadLogoEntregaLumiPhoto(file, user);
+            setFormData(prev => ({
+                ...prev,
+                logoUrl: result.url,
+            }));
+            toast.success('Logo enviada com sucesso!');
+        } catch (error: any) {
+            console.error('Erro ao enviar logo:', error);
+            toast.error(error.response?.data?.message || 'Erro ao enviar logo');
+        } finally {
+            setIsUploadingLogo(false);
+            e.target.value = '';
+        }
+    };
+
     const removeFile = (index: number) => {
         setUploadedFiles(prev => prev.filter((_, i) => i !== index));
     };
@@ -157,16 +182,22 @@ export function NewDelivery() {
                 project_id: formData.projectId || undefined,
                 expiration_days: formData.expirationDays,
                 layout_settings: {
-                    logoUrl: formData.logoUrl,
-                    primaryColor: formData.primaryColor,
-                    backgroundColor: formData.backgroundColor,
-                    galleryLayout: formData.galleryLayout
+                    logo_url: formData.logoUrl || null,
+                    primary_color: formData.primaryColor,
+                    background_color: formData.backgroundColor,
+                    gallery_layout: formData.galleryLayout,
+                    show_logo: !!formData.logoUrl,
+                    show_photographer_name: false
                 },
                 security_settings: {
-                    requirePassword: formData.requirePassword,
-                    password: formData.password || undefined,
-                    allowDownload: formData.allowDownload,
-                    showMetadata: formData.showMetadata
+                    require_password: formData.requirePassword,
+                    password: formData.requirePassword ? formData.password : undefined,
+                    allow_download: formData.allowDownload,
+                    allow_individual_download: formData.allowDownload,
+                    allow_zip_download: formData.allowDownload,
+                    show_metadata: formData.showMetadata,
+                    disable_right_click: false,
+                    add_watermark_on_view: false
                 },
                 status: 'pending'
             };
@@ -181,20 +212,24 @@ export function NewDelivery() {
 
                     toast.info(`Enviando ${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's' : ''}...`);
 
-                    // await uploadFotosParaEntregaLumiPhoto(
-                    //     createdDelivery.id,
-                    //     uploadedFiles,
-                    //     user,
-                    //     (progress) => {
-                    //         setUploadProgress(progress);
-                    //     }
-                    // );
+                    await uploadFotosEntregaLumiPhoto(
+                        createdDelivery.id,
+                        uploadedFiles,
+                        {
+                            onProgress: (progress) => {
+                                setUploadProgress(progress);
+                            }
+                        },
+                        user
+                    );
 
                     toast.success(`${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's enviadas' : ' enviada'} com sucesso!`);
                     setUploadedFiles([]);
                 } catch (uploadError: any) {
-                    console.error('Erro ao fazer upload das fotos:', uploadError);
-                    toast.error('Entrega criada, mas houve erro ao enviar algumas fotos. Você pode enviá-las depois.');
+                    console.error('Erro detalhado ao fazer upload das fotos:', uploadError);
+                    console.error('Response:', uploadError.response?.data);
+                    const errorMsg = uploadError.response?.data?.message || uploadError.message || 'Erro desconhecido';
+                    toast.error(`Erro ao enviar fotos: ${errorMsg}`);
                 } finally {
                     setIsUploadingPhotos(false);
                     setUploadProgress(0);
@@ -409,6 +444,82 @@ export function NewDelivery() {
             case 'layout':
                 return (
                     <div className="space-y-6">
+                        {/* Preview da Galeria */}
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6">
+                            <div className="flex items-center mb-4">
+                                <Palette className="h-5 w-5 text-blue-600 mr-2" />
+                                <h3 className="text-sm font-semibold text-blue-900">
+                                    Preview da Galeria
+                                </h3>
+                            </div>
+                            <div
+                                className="rounded-lg overflow-hidden shadow-lg"
+                                style={{
+                                    backgroundColor: formData.backgroundColor,
+                                    minHeight: '200px'
+                                }}
+                            >
+                                <div className="p-6">
+                                    {formData.logoUrl && (
+                                        <div className="mb-4 text-center">
+                                            <img
+                                                src={formData.logoUrl}
+                                                alt="Logo Preview"
+                                                className="h-12 mx-auto object-contain"
+                                                onError={(e) => {
+                                                    e.currentTarget.style.display = 'none';
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+                                    <div
+                                        className="text-center py-8"
+                                        style={{ color: formData.primaryColor }}
+                                    >
+                                        <h3 className="text-2xl font-bold mb-2" style={{ color: formData.primaryColor }}>
+                                            {formData.name || 'Nome da Entrega'}
+                                        </h3>
+                                        <p className="text-sm opacity-75">
+                                            Layout: {formData.galleryLayout === 'grid' ? 'Grade' : formData.galleryLayout === 'masonry' ? 'Mosaico' : 'Slideshow'}
+                                        </p>
+                                    </div>
+
+                                    {/* Simulação do layout */}
+                                    <div className="mt-4">
+                                        {formData.galleryLayout === 'grid' && (
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {[1, 2, 3, 4, 5, 6].map(i => (
+                                                    <div
+                                                        key={i}
+                                                        className="aspect-square rounded bg-white/20 backdrop-blur-sm"
+                                                        style={{ borderColor: formData.primaryColor }}
+                                                    ></div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {formData.galleryLayout === 'masonry' && (
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <div className="aspect-[3/4] rounded bg-white/20 backdrop-blur-sm"></div>
+                                                <div className="aspect-square rounded bg-white/20 backdrop-blur-sm"></div>
+                                                <div className="aspect-[4/3] rounded bg-white/20 backdrop-blur-sm"></div>
+                                                <div className="aspect-square rounded bg-white/20 backdrop-blur-sm"></div>
+                                                <div className="aspect-[3/4] rounded bg-white/20 backdrop-blur-sm"></div>
+                                                <div className="aspect-square rounded bg-white/20 backdrop-blur-sm"></div>
+                                            </div>
+                                        )}
+                                        {formData.galleryLayout === 'slideshow' && (
+                                            <div className="aspect-video rounded bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                <div className="text-center" style={{ color: formData.primaryColor }}>
+                                                    <Image className="h-16 w-16 mx-auto mb-2 opacity-50" />
+                                                    <p className="text-sm opacity-75">Modo Slideshow</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -457,18 +568,48 @@ export function NewDelivery() {
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                URL do Logo (opcional)
+                                Logo da galeria
                             </label>
-                            <input
-                                type="url"
-                                value={formData.logoUrl}
-                                onChange={(e) => handleInputChange('logoUrl', e.target.value)}
-                                placeholder="https://exemplo.com/logo.png"
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-colors"
-                            />
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleLogoUpload}
+                                    className="hidden"
+                                    id="delivery-logo-upload"
+                                />
+                                <label
+                                    htmlFor="delivery-logo-upload"
+                                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors"
+                                >
+                                    <Image className="h-4 w-4 mr-2 text-gray-500" />
+                                    {isUploadingLogo ? 'Enviando...' : 'Enviar logo'}
+                                </label>
+                                {formData.logoUrl && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleInputChange('logoUrl', '')}
+                                        className="text-sm text-red-600 hover:text-red-800 font-medium"
+                                    >
+                                        Remover
+                                    </button>
+                                )}
+                            </div>
                             <p className="text-sm text-gray-500 mt-1">
-                                Adicione seu logo personalizado à galeria
+                                Formatos aceitos: JPG, PNG, WEBP, SVG (máx. 5MB)
                             </p>
+                            {formData.logoUrl && (
+                                <div className="mt-4 flex items-center gap-4 bg-white border border-gray-200 rounded-lg p-3">
+                                    <img
+                                        src={formData.logoUrl}
+                                        alt="Logo preview"
+                                        className="h-16 object-contain"
+                                    />
+                                    <div className="text-sm text-gray-600 break-all">
+                                        {formData.logoUrl}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div>
@@ -528,6 +669,40 @@ export function NewDelivery() {
             case 'security':
                 return (
                     <div className="space-y-6">
+                        {/* Resumo da Configuração */}
+                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6">
+                            <div className="flex items-center mb-4">
+                                <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                                <h3 className="text-sm font-semibold text-green-900">
+                                    Resumo da Entrega
+                                </h3>
+                            </div>
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between py-2 border-b border-green-200">
+                                    <span className="text-sm text-gray-600">Nome:</span>
+                                    <span className="text-sm font-medium text-gray-900">{formData.name || '-'}</span>
+                                </div>
+                                <div className="flex items-center justify-between py-2 border-b border-green-200">
+                                    <span className="text-sm text-gray-600">Cliente:</span>
+                                    <span className="text-sm font-medium text-gray-900">{formData.clientEmail || '-'}</span>
+                                </div>
+                                <div className="flex items-center justify-between py-2 border-b border-green-200">
+                                    <span className="text-sm text-gray-600">Fotos selecionadas:</span>
+                                    <span className="text-sm font-medium text-gray-900">{uploadedFiles.length} arquivo{uploadedFiles.length !== 1 ? 's' : ''}</span>
+                                </div>
+                                <div className="flex items-center justify-between py-2 border-b border-green-200">
+                                    <span className="text-sm text-gray-600">Layout:</span>
+                                    <span className="text-sm font-medium text-gray-900">
+                                        {formData.galleryLayout === 'grid' ? 'Grade' : formData.galleryLayout === 'masonry' ? 'Mosaico' : 'Slideshow'}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between py-2">
+                                    <span className="text-sm text-gray-600">Expira em:</span>
+                                    <span className="text-sm font-medium text-gray-900">{formData.expirationDays} dias</span>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                             <div className="flex items-start">
                                 <Shield className="h-5 w-5 text-blue-600 mt-0.5 mr-2" />

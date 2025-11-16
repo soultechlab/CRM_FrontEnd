@@ -25,9 +25,10 @@ interface PhotoViewerProps {
   onDelete?: () => void;
   onRestore?: () => void;
   onPhotoDeleted?: () => void;
+  readOnly?: boolean;
 }
 
-export function PhotoViewer({ projectId, photo, isOpen, onClose, onDelete, onRestore, onPhotoDeleted }: PhotoViewerProps) {
+export function PhotoViewer({ projectId, photo, isOpen, onClose, onDelete, onRestore, onPhotoDeleted, readOnly = false }: PhotoViewerProps) {
   const { user } = useAuth();
   const [zoom, setZoom] = useState(1);
   const [showActions, setShowActions] = useState(false);
@@ -137,54 +138,55 @@ export function PhotoViewer({ projectId, photo, isOpen, onClose, onDelete, onRes
               <Download className="h-5 w-5" />
             </button>
             
-            <div className="relative">
-              <button
-                onClick={() => setShowActions(!showActions)}
-                className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
-              >
-                <MoreVertical className="h-5 w-5" />
-              </button>
-              
-              {showActions && (
-                <div className="absolute right-0 top-12 bg-white rounded-lg shadow-lg py-2 min-w-48">
-                  <button
-                    onClick={() => {
-                      // Toggle favorite
-                      setShowActions(false);
-                    }}
-                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    <Heart className={`h-4 w-4 ${photo.isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
-                    {photo.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-                  </button>
-                  
-                  {photo.isDeleted ? (
+            {!readOnly && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowActions(!showActions)}
+                  className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                >
+                  <MoreVertical className="h-5 w-5" />
+                </button>
+                
+                {showActions && (
+                  <div className="absolute right-0 top-12 bg-white rounded-lg shadow-lg py-2 min-w-48">
                     <button
                       onClick={() => {
-                        onRestore();
                         setShowActions(false);
                       }}
                       className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     >
-                      <RotateCcw className="h-4 w-4" />
-                      Restaurar foto
+                      <Heart className={`h-4 w-4 ${photo.isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
+                      {photo.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                     </button>
-                  ) : (
+                    
+                    {photo.isDeleted ? (
                     <button
                       onClick={() => {
-                        handleDeletePhoto();
+                        onRestore?.();
                         setShowActions(false);
                       }}
-                      disabled={deleting}
-                      className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {deleting ? 'Excluindo...' : 'Excluir foto'}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+                        className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        Restaurar foto
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          handleDeletePhoto();
+                          setShowActions(false);
+                        }}
+                        disabled={deleting}
+                        className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {deleting ? 'Excluindo...' : 'Excluir foto'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             
             <button
               onClick={onClose}

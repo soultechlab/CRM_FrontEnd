@@ -2,16 +2,15 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from "react-router-dom";
 import {
     FolderPlus, Eye, Trash2,
-    Archive, Send, Pencil, Filter, Image,
+    Archive, Send, Pencil, Filter,
     ArrowDownToLine,
     Timer,
     Download,
     Clock,
+    Copy,
 } from 'lucide-react';
 import { Modal } from './components/Modal';
 import { ConfirmationModal } from './components/ConfirmationModal';
-import { PhotoUpload } from './components/PhotoUpload';
-import { PhotoViewer } from './components/PhotoViewer';
 import { PhotosViewModal } from './components/PhotosViewModal';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
 import { DeliveryDetailsOffcanvas } from './components/DeliveryDetailsOffcanvas';
@@ -22,9 +21,11 @@ import {
     enviarNotificacaoEntregaLumiPhoto,
     obterAtividadesLumiPhoto,
     LumiPhotoDelivery,
-    LumiPhotoActivity
+    LumiPhotoActivity,
+    LumiPhotoPhoto
 } from '../../services/lumiPhotoService';
 import { toast } from 'react-toastify';
+import { buildDeliveryShareUrl } from '../../utils/lumiphotoPublic';
 
 type ProjectStatus = "all" | "criado" | "enviada" | "baixada" | "expirada" | "excluida";
 
@@ -35,30 +36,25 @@ interface Project {
     photos: number;
     downloads: number;
     status: ProjectStatus;
+    rawStatus: string;
     clientEmail: string;
-}
-
-interface Photo {
-    id: string;
-    name: string;
-    url: string;
-    thumbnail: string;
-    size: number;
-    type: string;
-    uploadDate: string;
-    tags?: string[];
-    isFavorite?: boolean;
-    isDeleted?: boolean;
+    deliveryToken?: string;
+    projectId?: number | null;
+    expiresAt?: string | null;
+    expirationDays?: number | null;
+    layout_settings?: LumiPhotoDelivery['layout_settings'];
+    security_settings?: LumiPhotoDelivery['security_settings'];
+    photosList?: LumiPhotoPhoto[];
+    zip_url?: string | null;
 }
 
 export function Delivery() {
     const { user } = useAuth();
     const navigate = useNavigate();
 
-    const [deliveries, setDeliveries] = useState<any[]>([]);
-    const [selectedStatus, setSelectedStatus] = useState<ProjectStatus>("enviada");
+    const [deliveries, setDeliveries] = useState<Project[]>([]);
+    const [selectedStatus, setSelectedStatus] = useState<ProjectStatus>("all");
     const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
-    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
     const [isDetailsOffcanvasOpen, setIsDetailsOffcanvasOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isPhotosViewModalOpen, setIsPhotosViewModalOpen] = useState(false);
@@ -68,11 +64,6 @@ export function Delivery() {
     const [showFilters, setShowFilters] = useState(true);
     const [totalUploads, setTotalUploads] = useState(0);
     const [loading, setLoading] = useState(true);
-
-    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-    const [isViewerOpen, setIsViewerOpen] = useState(false);
-    const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
-    const [photos, setPhotos] = useState<Photo[]>([]);
     const [activities, setActivities] = useState<LumiPhotoActivity[]>([]);
     const [loadingActivities, setLoadingActivities] = useState(false);
     const [deliveryStats, setDeliveryStats] = useState({
@@ -114,36 +105,51 @@ export function Delivery() {
     const loadDeliveries = async () => {
         try {
             setLoading(true);
-            const data = await obterEntregasLumiPhoto(user);
+            const response = await obterEntregasLumiPhoto(user);
+            const deliveriesData = Array.isArray(response) ? response : response?.data || [];
 
-            console.log('📦 Dados brutos da API:', data);
+            const normalizeDelivery = (delivery: LumiPhotoDelivery): Project => {
+                const formattedDate = delivery.created_at
+                    ? new Date(delivery.created_at).toLocaleDateString('pt-BR')
+                    : 'Data não informada';
 
-            // Mapear dados da API para o formato do componente
-            const mappedDeliveries = Array.isArray(data) ? data.map((delivery: LumiPhotoDelivery) => ({
-                id: delivery.id,
-                name: delivery.name,
-                date: new Date(delivery.created_at).toLocaleDateString('pt-BR'),
-                photos: 0, // Será populado quando tivermos a relação
-                downloads: delivery.download_count || 0,
-                status: mapDeliveryStatus(delivery.status),
-                clientEmail: delivery.recipient_email || '',
-                deliveryToken: delivery.delivery_token,
-                recipientName: delivery.recipient_name
-            })) : [];
+                const photosCount = typeof delivery.total_photos === 'number'
+                    ? delivery.total_photos
+                    : Array.isArray(delivery.photos)
+                        ? delivery.photos.length
+                        : 0;
 
-            console.log('📊 Entregas mapeadas:', mappedDeliveries);
-            console.log('📈 Total de entregas:', mappedDeliveries.length);
+                return {
+                    id: delivery.id,
+                    name: delivery.name,
+                    date: formattedDate,
+                    photos: photosCount,
+                    downloads: delivery.total_downloads ?? 0,
+                    status: mapDeliveryStatus(delivery.status),
+                    rawStatus: delivery.status,
+                    clientEmail: delivery.client_email || '',
+                    deliveryToken: delivery.delivery_token,
+                    projectId: delivery.project_id,
+                    expiresAt: delivery.expires_at,
+                    expirationDays: delivery.expiration_days,
+                    layout_settings: delivery.layout_settings ?? {},
+                    security_settings: delivery.security_settings ?? {},
+                    photosList: delivery.photos ?? [],
+                    zip_url: delivery.zip_url ?? null,
+                };
+            };
+
+            const mappedDeliveries: Project[] = deliveriesData.map((delivery: LumiPhotoDelivery) => normalizeDelivery(delivery));
 
             setDeliveries(mappedDeliveries);
 
-            // Calcular estatísticas
             const stats = {
                 activeDeliveries: mappedDeliveries.filter(d =>
                     d.status !== 'excluida' && d.status !== 'expirada'
                 ).length,
-                totalDownloads: mappedDeliveries.reduce((acc, d) => acc + d.downloads, 0),
+                totalDownloads: mappedDeliveries.reduce((acc, d) => acc + (d.downloads || 0), 0),
                 expiredDeliveries: mappedDeliveries.filter(d => d.status === 'expirada').length,
-                totalPhotos: mappedDeliveries.reduce((acc, d) => acc + d.photos, 0)
+                totalPhotos: mappedDeliveries.reduce((acc, d) => acc + (d.photos || 0), 0)
             };
 
             setDeliveryStats(stats);
@@ -165,10 +171,16 @@ export function Delivery() {
     const mapDeliveryStatus = (status: string): ProjectStatus => {
         const statusMap: Record<string, ProjectStatus> = {
             'pending': 'criado',
+            'rascunho': 'criado',
+            'enviada': 'enviada',
             'sent': 'enviada',
+            'visualizada': 'enviada',
             'viewed': 'enviada',
+            'baixada': 'baixada',
             'downloaded': 'baixada',
-            'completed': 'baixada'
+            'completed': 'baixada',
+            'expirada': 'expirada',
+            'excluida': 'excluida',
         };
         return statusMap[status] || 'criado';
     };
@@ -265,25 +277,19 @@ export function Delivery() {
         }
     };
 
-    const handlePhotoUpload = (newPhoto: Photo) => {
-        setPhotos(prev => [newPhoto, ...prev]);
-        setIsUploadModalOpen(false);
-    };
+    const handleCopyDeliveryLink = (delivery: Project) => {
+        const publicLink = buildDeliveryShareUrl(delivery.deliveryToken);
 
-    const handlePhotoDelete = (photoId: string) => {
-        setPhotos(prev => prev.map(photo =>
-            photo.id === photoId
-                ? { ...photo, isDeleted: true }
-                : photo
-        ));
-    };
+        if (!publicLink) {
+            toast.error('Não foi possível gerar o link da entrega');
+            return;
+        }
 
-    const handlePhotoRestore = (photoId: string) => {
-        setPhotos(prev => prev.map(photo =>
-            photo.id === photoId
-                ? { ...photo, isDeleted: false }
-                : photo
-        ));
+        navigator.clipboard.writeText(publicLink).then(() => {
+            toast.success('Link copiado para a área de transferência!');
+        }).catch(() => {
+            toast.error('Erro ao copiar link');
+        });
     };
 
     const statusOptions = [
@@ -331,6 +337,13 @@ export function Delivery() {
                 {["enviada", "baixada"].includes(project.status) && (
                     <>
                         <button
+                            onClick={() => handleCopyDeliveryLink(project)}
+                            className="px-3 py-1.5 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded flex items-center"
+                            title="Copiar link público"
+                        >
+                            <Copy className="h-4 w-4" />
+                        </button>
+                        <button
                             onClick={() => openDeleteConfirmation(project.id)}
                             className="px-3 py-1.5 text-sm bg-red-100 hover:bg-red-200 text-red-700 rounded"
                         >
@@ -341,6 +354,13 @@ export function Delivery() {
 
                 {project.status === "expirada" && (
                     <>
+                        <button
+                            onClick={() => handleCopyDeliveryLink(project)}
+                            className="px-3 py-1.5 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded flex items-center"
+                            title="Copiar link público"
+                        >
+                            <Copy className="h-4 w-4" />
+                        </button>
                         <button
                             onClick={() => handleRestoreProject(project.id)}
                             className="px-3 py-1 text-sm bg-green-100 hover:bg-green-200 text-green-700 rounded"
@@ -680,27 +700,6 @@ export function Delivery() {
 
                 </div>
             </div>
-
-            <Modal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)}>
-                <PhotoUpload
-                    onUpload={handlePhotoUpload}
-                    onClose={() => setIsUploadModalOpen(false)}
-                />
-            </Modal>
-
-            {selectedPhoto && (
-                <PhotoViewer
-                    photo={selectedPhoto}
-                    isOpen={isViewerOpen}
-                    onClose={() => {
-                        setIsViewerOpen(false);
-                        setSelectedPhoto(null);
-                    }}
-                    onDelete={() => handlePhotoDelete(selectedPhoto.id)}
-                    onRestore={() => handlePhotoRestore(selectedPhoto.id)}
-                />
-            )}
-
             <ConfirmationModal
                 isOpen={isDeleteModalOpen}
                 onClose={() => setIsDeleteModalOpen(false)}
@@ -714,42 +713,6 @@ export function Delivery() {
                 cancelText="Cancelar"
                 type={isPermanentDelete ? "danger" : "warning"}
             />
-
-            <Modal
-                isOpen={isDetailsModalOpen}
-                onClose={() => setIsDetailsModalOpen(false)}
-                title="Detalhes do Projeto"
-                size="lg"
-            >
-                {findSelectedProject() && (
-                    <div className="space-y-4">
-                        <div>
-                            <h4 className="font-semibold text-gray-900">{findSelectedProject()?.name}</h4>
-                            <p className="text-gray-600">{findSelectedProject()?.clientEmail}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-sm font-medium text-gray-500">Data</label>
-                                <p className="text-gray-900">{findSelectedProject()?.date}</p>
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-gray-500">Status</label>
-                                <p className="text-gray-900">
-                                    {statusOptions.find(s => s.value === findSelectedProject()?.status)?.label}
-                                </p>
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-gray-500">Fotos</label>
-                                <p className="text-gray-900">{findSelectedProject()?.photos}</p>
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-gray-500">Downloads</label>
-                                <p className="text-gray-900">{findSelectedProject()?.downloads}</p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </Modal>
 
             <PhotosViewModal
                 isOpen={isPhotosViewModalOpen}

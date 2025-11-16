@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from './Modal';
-import { Image, Download, Trash2, X, Eye } from 'lucide-react';
+import { Image, Eye } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
-import { obterFotosLumiPhoto, LumiPhotoPhoto, excluirFotoLumiPhoto } from '../../../services/lumiPhotoService';
+import { obterEntregaLumiPhoto, LumiPhotoDelivery, LumiPhotoPhoto } from '../../../services/lumiPhotoService';
 import { toast } from 'react-toastify';
 import { PhotoViewer } from './PhotoViewer';
 
@@ -11,10 +11,10 @@ interface Project {
   name: string;
   date: string;
   photos: number;
-  views: number;
-  selections: number;
   status: string;
   clientEmail: string;
+  projectId?: number | null;
+  photosList?: LumiPhotoPhoto[];
 }
 
 interface PhotosViewModalProps {
@@ -44,27 +44,34 @@ export function PhotosViewModal({
     if (!project) return;
 
     try {
-      setLoading(true);
-      const response = await obterFotosLumiPhoto(project.id, user);
+      if (project.photosList && project.photosList.length > 0) {
+        setPhotos(project.photosList);
+        return;
+      }
 
-      // A resposta pode vir como array direto ou dentro de data
-      const photosList = Array.isArray(response) ? response : response.data || [];
+      setLoading(true);
+      const response: LumiPhotoDelivery = await obterEntregaLumiPhoto(project.id, user);
+      const photosList = response.photos ?? [];
       setPhotos(photosList);
     } catch (error: any) {
-      console.error('Erro ao carregar fotos:', error);
-      toast.error('Erro ao carregar fotos do projeto');
+      console.error('Erro ao carregar fotos da entrega:', error);
+      toast.error('Erro ao carregar fotos da entrega');
     } finally {
       setLoading(false);
     }
   };
 
   const handlePhotoClick = (photo: LumiPhotoPhoto) => {
+    if (!project?.projectId) {
+      window.open(photo.digital_ocean_url, '_blank');
+      return;
+    }
+
     setSelectedPhoto(photo);
     setIsViewerOpen(true);
   };
 
   const handlePhotoDeleted = async () => {
-    // Recarregar fotos após exclusão
     await loadPhotos();
   };
 
@@ -75,7 +82,7 @@ export function PhotosViewModal({
       <Modal
         isOpen={isOpen}
         onClose={onClose}
-        title="Fotos do Projeto"
+        title="Fotos da Entrega"
         size="xl"
       >
         <div>
@@ -96,7 +103,7 @@ export function PhotosViewModal({
               <Image className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">Nenhuma foto encontrada</p>
               <p className="text-sm text-gray-400 mt-2">
-                As fotos enviadas para este projeto aparecerão aqui
+                As fotos enviadas para esta entrega aparecerão aqui
               </p>
             </div>
           ) : (
@@ -107,7 +114,6 @@ export function PhotosViewModal({
                   className="relative group cursor-pointer rounded-lg overflow-hidden border border-gray-200 hover:border-blue-500 transition-all"
                   onClick={() => handlePhotoClick(photo)}
                 >
-                  {/* Thumbnail */}
                   <div className="aspect-square bg-gray-100 flex items-center justify-center">
                     {photo.thumbnail_url || photo.digital_ocean_url ? (
                       <img
@@ -121,7 +127,6 @@ export function PhotosViewModal({
                     )}
                   </div>
 
-                  {/* Overlay com ações */}
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
                     <button
                       onClick={(e) => {
@@ -135,14 +140,12 @@ export function PhotosViewModal({
                     </button>
                   </div>
 
-                  {/* Nome do arquivo (truncado) */}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-2">
                     <p className="text-xs text-white truncate" title={photo.original_name}>
                       {photo.original_name}
                     </p>
                   </div>
 
-                  {/* Badge de seleção */}
                   {photo.is_selected && (
                     <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
                       Selecionada
@@ -155,10 +158,9 @@ export function PhotosViewModal({
         </div>
       </Modal>
 
-      {/* Photo Viewer */}
-      {selectedPhoto && (
+      {selectedPhoto && project.projectId && (
         <PhotoViewer
-          projectId={project.id}
+          projectId={project.projectId}
           photo={{
             id: selectedPhoto.id.toString(),
             name: selectedPhoto.original_name,
@@ -166,7 +168,9 @@ export function PhotosViewModal({
             thumbnail: selectedPhoto.thumbnail_url || selectedPhoto.digital_ocean_url,
             size: selectedPhoto.file_size,
             type: selectedPhoto.mime_type,
-            uploadDate: new Date(selectedPhoto.upload_date).toLocaleDateString('pt-BR'),
+            uploadDate: selectedPhoto.upload_date
+              ? new Date(selectedPhoto.upload_date).toLocaleDateString('pt-BR')
+              : '',
             isFavorite: selectedPhoto.is_selected,
             isDeleted: false,
           }}
@@ -176,6 +180,7 @@ export function PhotosViewModal({
             setSelectedPhoto(null);
           }}
           onPhotoDeleted={handlePhotoDeleted}
+          readOnly
         />
       )}
     </>

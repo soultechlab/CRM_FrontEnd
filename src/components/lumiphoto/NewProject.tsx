@@ -822,44 +822,6 @@ export function NewProject() {
                 <p className="text-xs text-gray-500 mt-1">Define por quantos dias o link de seleção ficará ativo</p>
               </div>
 
-              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg p-4 border border-indigo-200">
-                <div className="flex items-center mb-3">
-                  <h3 className="text-lg font-medium text-gray-900">Link de Seleção</h3>
-                </div>
-                <p className="text-gray-500 text-sm mb-4">Gera um link para compartilhar</p>
-
-                {!shareLink ? (
-                  <button
-                    onClick={generateShareLink}
-                    disabled={isGeneratingLink}
-                    className="w-full flex items-center justify-center px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    {isGeneratingLink ? 'Gerando...' : 'Gerar Link'}
-                  </button>
-                ) : (
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      value={shareLink}
-                      readOnly
-                      className="flex-1 min-w-0 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm"
-                    />
-                    <button
-                      onClick={copyToClipboard}
-                      className="p-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-
-                {shareLink && (
-                  <p className="text-xs text-gray-600 mt-2">
-                    Link para compartilhar com o cliente para seleção de fotos
-                  </p>
-                )}
-              </div>
-
               {/* Watermark Options */}
               <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
                 <div className="flex items-center mb-3">

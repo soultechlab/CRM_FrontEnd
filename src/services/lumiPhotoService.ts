@@ -84,26 +84,39 @@ export interface LumiPhotoBulkUploadResult {
 
 export interface LumiPhotoDelivery {
   id: number;
-  project_id: number;
+  user_id?: number;
+  project_id?: number | null;
   name: string;
-  description?: string;
+  client_email?: string | null;
+  description?: string | null;
   delivery_token: string;
-  status: 'pending' | 'sent' | 'viewed' | 'downloaded' | 'completed';
-  sent_at?: string;
-  viewed_at?: string;
-  downloaded_at?: string;
-  completed_at?: string;
-  expires_at?: string;
-  download_count: number;
-  view_count: number;
-  recipient_email?: string;
-  recipient_name?: string;
-  message?: string;
-  allow_individual_downloads: boolean;
-  allow_zip_download: boolean;
-  watermark_enabled: boolean;
+  status: string;
+  expiration_days?: number | null;
+  expires_at?: string | null;
+  layout_settings?: {
+    logo_url?: string | null;
+    primary_color?: string;
+    background_color?: string;
+    gallery_layout?: 'grid' | 'masonry' | 'slideshow';
+    show_logo?: boolean;
+    show_photographer_name?: boolean;
+  };
+  security_settings?: {
+    require_password?: boolean;
+    password?: string;
+    allow_download?: boolean;
+    allow_individual_download?: boolean;
+    allow_zip_download?: boolean;
+    show_metadata?: boolean;
+    disable_right_click?: boolean;
+    add_watermark_on_view?: boolean;
+  };
+  total_photos?: number;
+  total_downloads?: number;
+  zip_url?: string | null;
   created_at: string;
   updated_at: string;
+  photos?: LumiPhotoPhoto[];
 }
 
 export interface LumiPhotoActivity {
@@ -445,6 +458,59 @@ export const enviarNotificacaoEntregaLumiPhoto = async (deliveryId: number, user
     { headers: { Authorization: `Bearer ${user?.token}` } }
   );
   return response.data;
+};
+
+export const uploadFotosEntregaLumiPhoto = async (
+  deliveryId: number,
+  files: File[],
+  options: {
+    onProgress?: (progress: number) => void;
+  } = {},
+  user: User | null
+) => {
+  const formData = new FormData();
+
+  files.forEach((file, index) => {
+    formData.append(`photos[${index}]`, file);
+  });
+
+  const response = await apiClient.post(
+    `/lumiphoto/deliveries/${deliveryId}/photos/upload`,
+    formData,
+    {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+      timeout: 300000, // 5 minutos para uploads de fotos
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total && options.onProgress) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          options.onProgress(percentCompleted);
+        }
+      },
+    }
+  );
+
+  return response.data;
+};
+
+export const uploadLogoEntregaLumiPhoto = async (file: File, user: User | null) => {
+  const formData = new FormData();
+  formData.append('logo', file);
+
+  const response = await apiClient.post(
+    `/lumiphoto/deliveries/logo`,
+    formData,
+    {
+      headers: {
+        Authorization: `Bearer ${user?.token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+
+  return response.data as { url: string; path: string; filename: string };
 };
 
 // ============================================

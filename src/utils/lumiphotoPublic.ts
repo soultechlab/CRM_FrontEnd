@@ -39,3 +39,16 @@ export const buildPublicGalleryShareUrl = (shareToken?: string | null, shareLink
 
   return `${baseUrl}/${sanitizedLink.replace(/^\/+/, '')}`;
 };
+
+export const buildDeliveryShareUrl = (deliveryToken?: string | null) => {
+  if (!deliveryToken) {
+    return '';
+  }
+
+  const baseUrl = resolvePublicGalleryBaseUrl();
+  if (!baseUrl) {
+    return '';
+  }
+
+  return `${baseUrl}/entrega/${deliveryToken}`;
+};
