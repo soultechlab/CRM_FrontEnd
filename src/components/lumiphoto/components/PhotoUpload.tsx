@@ -15,6 +15,10 @@ interface Photo {
   tags?: string[];
   isFavorite?: boolean;
   isDeleted?: boolean;
+  // Campos adicionais do backend
+  watermarked_url?: string;
+  digital_ocean_url?: string;
+  thumbnail_url?: string;
 }
 
 interface FailedFile {
@@ -42,6 +46,12 @@ export function PhotoUpload({ projectId, onUpload, onClose, onComplete, addWater
   const [failedCount, setFailedCount] = useState(0);
   const [failedFiles, setFailedFiles] = useState<FailedFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Prioriza foto com marca d'água para visualização
+  const resolvePhotoUrl = (photo: any) => photo.watermarked_url || photo.digital_ocean_url;
+  // Para thumbnail, usa a miniatura gerada (sem marca d'água para performance)
+  const resolvePhotoThumbnail = (photo: any) =>
+    photo.thumbnail_url || photo.digital_ocean_url;
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -131,8 +141,8 @@ export function PhotoUpload({ projectId, onUpload, onClose, onComplete, addWater
           const photo: Photo = {
             id: uploadedPhoto.id.toString(),
             name: uploadedPhoto.original_name,
-            url: uploadedPhoto.digital_ocean_url,
-            thumbnail: uploadedPhoto.thumbnail_url || uploadedPhoto.digital_ocean_url,
+            url: resolvePhotoUrl(uploadedPhoto),
+            thumbnail: resolvePhotoThumbnail(uploadedPhoto),
             size: uploadedPhoto.file_size,
             type: uploadedPhoto.mime_type,
             uploadDate: new Date(uploadedPhoto.created_at).toLocaleDateString('pt-BR'),
@@ -170,8 +180,8 @@ export function PhotoUpload({ projectId, onUpload, onClose, onComplete, addWater
           const photo: Photo = {
             id: uploadedPhoto.id.toString(),
             name: uploadedPhoto.original_name,
-            url: uploadedPhoto.digital_ocean_url,
-            thumbnail: uploadedPhoto.thumbnail_url || uploadedPhoto.digital_ocean_url,
+            url: resolvePhotoUrl(uploadedPhoto),
+            thumbnail: resolvePhotoThumbnail(uploadedPhoto),
             size: uploadedPhoto.file_size,
             type: uploadedPhoto.mime_type,
             uploadDate: new Date(uploadedPhoto.created_at).toLocaleDateString('pt-BR'),

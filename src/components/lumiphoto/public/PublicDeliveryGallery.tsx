@@ -14,10 +14,12 @@ interface DeliveryPhoto {
     filename: string;
     original_name: string;
     digital_ocean_url: string;
+    watermarked_url?: string | null;
     thumbnail_url: string | null;
     file_size: number;
     width: number | null;
     height: number | null;
+    has_watermark?: boolean;
     metadata?: {
         camera?: string;
         iso?: string;
@@ -67,6 +69,16 @@ export function PublicDeliveryGallery() {
     const [selectedPhoto, setSelectedPhoto] = useState<DeliveryPhoto | null>(null);
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
     const [downloadingZip, setDownloadingZip] = useState(false);
+
+    const resolvePreviewUrl = (photo: DeliveryPhoto) => {
+        if (photo.watermarked_url) return photo.watermarked_url;
+        return photo.thumbnail_url || photo.digital_ocean_url;
+    };
+
+    const resolveFullUrl = (photo: DeliveryPhoto) => {
+        if (photo.watermarked_url) return photo.watermarked_url;
+        return photo.digital_ocean_url;
+    };
 
     useEffect(() => {
         loadDelivery();
@@ -401,7 +413,7 @@ export function PublicDeliveryGallery() {
                                 onClick={() => openPhotoModal(photo, index)}
                             >
                                 <img
-                                    src={photo.thumbnail_url || photo.digital_ocean_url}
+                                    src={resolvePreviewUrl(photo)}
                                     alt={photo.original_name}
                                     className="w-full h-full object-cover"
                                     loading="lazy"
@@ -421,7 +433,7 @@ export function PublicDeliveryGallery() {
                                 onClick={() => openPhotoModal(photo, index)}
                             >
                                 <img
-                                    src={photo.thumbnail_url || photo.digital_ocean_url}
+                                    src={resolvePreviewUrl(photo)}
                                     alt={photo.original_name}
                                     className="w-full"
                                     loading="lazy"
@@ -436,7 +448,7 @@ export function PublicDeliveryGallery() {
                     <div className="max-w-4xl mx-auto">
                         <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden shadow-2xl">
                             <img
-                                src={delivery.photos[currentPhotoIndex]?.digital_ocean_url}
+                                src={delivery.photos[currentPhotoIndex] ? resolveFullUrl(delivery.photos[currentPhotoIndex]) : undefined}
                                 alt={delivery.photos[currentPhotoIndex]?.original_name}
                                 className="w-full h-full object-contain"
                             />
@@ -478,7 +490,7 @@ export function PublicDeliveryGallery() {
                                     style={currentPhotoIndex === index ? { ringColor: primaryColor } : {}}
                                 >
                                     <img
-                                        src={photo.thumbnail_url || photo.digital_ocean_url}
+                                        src={resolvePreviewUrl(photo)}
                                         alt=""
                                         className="w-full h-full object-cover"
                                     />
@@ -518,7 +530,7 @@ export function PublicDeliveryGallery() {
                             <div className="bg-white rounded-[28px] border border-gray-100 shadow-lg p-4 sm:p-6 mb-6">
                                 <div className="bg-gray-50 rounded-2xl border border-gray-100 shadow-inner p-4 flex items-center justify-center">
                                     <img
-                                        src={selectedPhoto.digital_ocean_url}
+                                        src={resolveFullUrl(selectedPhoto)}
                                         alt={selectedPhoto.original_name}
                                         className="max-h-[65vh] w-auto object-contain"
                                     />

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, Download, Heart, Trash2, RotateCcw, ZoomIn, ZoomOut, MoreVertical } from 'lucide-react';
+import { X, Download, Heart, Trash2, RotateCcw, ZoomIn, ZoomOut, MoreVertical, Droplets } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
-import { obterUrlDownloadFotoLumiPhoto, excluirFotoLumiPhoto } from '../../../services/lumiPhotoService';
+import { obterUrlDownloadFotoLumiPhoto, excluirFotoLumiPhoto, configurarMarcaDaguaFoto, removerMarcaDaguaFoto, WatermarkConfig } from '../../../services/lumiPhotoService';
 import { toast } from 'react-toastify';
+import { WatermarkConfigModal } from './WatermarkConfigModal';
 
 interface Photo {
   id: string;
@@ -15,6 +16,17 @@ interface Photo {
   tags?: string[];
   isFavorite?: boolean;
   isDeleted?: boolean;
+  has_watermark?: boolean;
+  watermark_config?: {
+    text: string;
+    position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center';
+    font_size?: number;
+    opacity?: number;
+  } | null;
+  // Campos adicionais do backend
+  watermarked_url?: string;
+  digital_ocean_url?: string;
+  thumbnail_url?: string;
 }
 
 interface PhotoViewerProps {
@@ -33,6 +45,25 @@ export function PhotoViewer({ projectId, photo, isOpen, onClose, onDelete, onRes
   const [zoom, setZoom] = useState(1);
   const [showActions, setShowActions] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showWatermarkModal, setShowWatermarkModal] = useState(false);
+
+  // Resolve a URL da foto priorizando a versão com marca d'água
+  const resolvePhotoUrl = (photo: Photo) => {
+    const url = photo.watermarked_url || photo.digital_ocean_url || photo.url;
+
+    console.log('🖼️ [PHOTO VIEWER] Resolvendo URL da foto:', {
+      photoId: photo.id,
+      photoName: photo.name,
+      has_watermark: photo.has_watermark,
+      watermarked_url: photo.watermarked_url,
+      digital_ocean_url: photo.digital_ocean_url,
+      url: photo.url,
+      thumbnail_url: photo.thumbnail_url,
+      urlEscolhida: url
+    });
+
+    return url;
+  };
 
   if (!isOpen) return null;
 
@@ -89,6 +120,27 @@ export function PhotoViewer({ projectId, photo, isOpen, onClose, onDelete, onRes
       toast.error(error.message || 'Erro ao excluir foto');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleSaveWatermark = async (config: WatermarkConfig) => {
+    await configurarMarcaDaguaFoto(projectId, parseInt(photo.id), config, user);
+    if (onPhotoDeleted) onPhotoDeleted(); // Recarrega a lista de fotos
+  };
+
+  const handleRemoveWatermark = async () => {
+    if (!window.confirm('Tem certeza que deseja remover a marca d\'água desta foto?')) {
+      return;
+    }
+
+    try {
+      await removerMarcaDaguaFoto(projectId, parseInt(photo.id), user);
+      toast.success('Marca d\'água removida com sucesso!');
+      if (onPhotoDeleted) onPhotoDeleted(); // Recarrega a lista de fotos
+      setShowActions(false);
+    } catch (error: any) {
+      console.error('Erro ao remover marca d\'água:', error);
+      toast.error(error.message || 'Erro ao remover marca d\'água');
     }
   };
 
@@ -158,7 +210,28 @@ export function PhotoViewer({ projectId, photo, isOpen, onClose, onDelete, onRes
                       <Heart className={`h-4 w-4 ${photo.isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
                       {photo.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                     </button>
-                    
+
+                    <button
+                      onClick={() => {
+                        setShowWatermarkModal(true);
+                        setShowActions(false);
+                      }}
+                      className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <Droplets className="h-4 w-4" />
+                      {photo.has_watermark ? 'Ajustar marca d\'água' : 'Adicionar marca d\'água'}
+                    </button>
+
+                    {photo.has_watermark && (
+                      <button
+                        onClick={handleRemoveWatermark}
+                        className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <X className="h-4 w-4" />
+                        Remover marca d'água
+                      </button>
+                    )}
+
                     {photo.isDeleted ? (
                     <button
                       onClick={() => {
@@ -199,22 +272,26 @@ export function PhotoViewer({ projectId, photo, isOpen, onClose, onDelete, onRes
       </div>
 
       {/* Image */}
-      <div className="flex items-center justify-center h-full p-16">
-        <div className="relative overflow-auto max-w-full max-h-full">
+      <div className="flex items-center justify-center h-full p-4 sm:p-8 md:p-16">
+        <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
           <img
-            src={photo.url}
+            src={resolvePhotoUrl(photo)}
             alt={photo.name}
-            className="max-w-none transition-transform duration-200"
-            style={{ 
+            className="transition-transform duration-200 object-contain"
+            style={{
               transform: `scale(${zoom})`,
-              cursor: zoom > 1 ? 'grab' : 'default'
+              cursor: zoom > 1 ? 'grab' : 'default',
+              maxWidth: zoom === 1 ? '100%' : 'none',
+              maxHeight: zoom === 1 ? '100%' : 'none',
+              width: zoom === 1 ? 'auto' : 'initial',
+              height: zoom === 1 ? 'auto' : 'initial'
             }}
             onClick={(e) => {
               if (zoom <= 1) {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const centerX = rect.width / 2;
-                
+
                 if (x < centerX) {
                   // Click na esquerda - diminuir zoom ou fechar
                   if (zoom > 1) {
@@ -231,9 +308,19 @@ export function PhotoViewer({ projectId, photo, isOpen, onClose, onDelete, onRes
       </div>
 
       {/* Background overlay */}
-      <div 
-        className="absolute inset-0 -z-10" 
+      <div
+        className="absolute inset-0 -z-10"
         onClick={onClose}
+      />
+
+      {/* Watermark Config Modal */}
+      <WatermarkConfigModal
+        isOpen={showWatermarkModal}
+        onClose={() => setShowWatermarkModal(false)}
+        onSave={handleSaveWatermark}
+        currentConfig={photo.watermark_config}
+        photoName={photo.name}
+        photoPreviewUrl={resolvePhotoUrl(photo)}
       />
     </div>
   );

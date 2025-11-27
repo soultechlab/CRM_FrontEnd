@@ -34,6 +34,12 @@ export function PhotosViewModal({
   const [selectedPhoto, setSelectedPhoto] = useState<LumiPhotoPhoto | null>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
 
+  const resolvePreviewUrl = (photo: LumiPhotoPhoto) =>
+    photo.watermarked_url || photo.thumbnail_url || photo.digital_ocean_url;
+
+  const resolveFullUrl = (photo: LumiPhotoPhoto) =>
+    photo.watermarked_url || photo.digital_ocean_url;
+
   useEffect(() => {
     if (isOpen && project) {
       loadPhotos();
@@ -63,7 +69,8 @@ export function PhotosViewModal({
 
   const handlePhotoClick = (photo: LumiPhotoPhoto) => {
     if (!project?.projectId) {
-      window.open(photo.digital_ocean_url, '_blank');
+      // Prioriza foto com marca d'água ao abrir em nova aba
+      window.open(resolveFullUrl(photo), '_blank');
       return;
     }
 
@@ -115,9 +122,9 @@ export function PhotosViewModal({
                   onClick={() => handlePhotoClick(photo)}
                 >
                   <div className="aspect-square bg-gray-100 flex items-center justify-center">
-                    {photo.thumbnail_url || photo.digital_ocean_url ? (
+                    {photo.thumbnail_url || photo.digital_ocean_url || photo.watermarked_url ? (
                       <img
-                        src={photo.thumbnail_url || photo.digital_ocean_url}
+                        src={resolvePreviewUrl(photo)}
                         alt={photo.original_name}
                         className="w-full h-full object-cover"
                         loading="lazy"
@@ -164,8 +171,8 @@ export function PhotosViewModal({
           photo={{
             id: selectedPhoto.id.toString(),
             name: selectedPhoto.original_name,
-            url: selectedPhoto.digital_ocean_url,
-            thumbnail: selectedPhoto.thumbnail_url || selectedPhoto.digital_ocean_url,
+            url: resolveFullUrl(selectedPhoto),
+            thumbnail: resolvePreviewUrl(selectedPhoto),
             size: selectedPhoto.file_size,
             type: selectedPhoto.mime_type,
             uploadDate: selectedPhoto.upload_date
@@ -173,6 +180,12 @@ export function PhotosViewModal({
               : '',
             isFavorite: selectedPhoto.is_selected,
             isDeleted: false,
+            has_watermark: selectedPhoto.has_watermark,
+            watermark_config: selectedPhoto.watermark_config,
+            // Campos adicionais do backend
+            watermarked_url: selectedPhoto.watermarked_url,
+            digital_ocean_url: selectedPhoto.digital_ocean_url,
+            thumbnail_url: selectedPhoto.thumbnail_url,
           }}
           isOpen={isViewerOpen}
           onClose={() => {

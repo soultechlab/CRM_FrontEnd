@@ -1,11 +1,19 @@
 import { useState, useCallback, useEffect } from 'react';
-import { ChevronLeft, Upload, Copy, X, Calendar, Camera, Eye, Star, Info, CheckCircle, AlertCircle, Palette, Shield, Clock, DollarSign, HelpCircle, Save } from 'lucide-react';
+import { ChevronLeft, Upload, Copy, X, Calendar, Camera, Eye, Star, Info, CheckCircle, AlertCircle, Palette, Shield, Clock, DollarSign, HelpCircle, Save, Droplets } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
-import { criarProjetoLumiPhoto, obterProjetoLumiPhoto, atualizarProjetoLumiPhoto, uploadFotosEmLoteLumiPhoto } from '../../services/lumiPhotoService';
+import {
+  criarProjetoLumiPhoto,
+  obterProjetoLumiPhoto,
+  atualizarProjetoLumiPhoto,
+  uploadFotoLumiPhoto,
+  configurarMarcaDaguaFoto,
+  WatermarkConfig,
+} from '../../services/lumiPhotoService';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../contexts/AuthContext';
 import { buildPublicGalleryShareUrl } from '../../utils/lumiphotoPublic';
+import { WatermarkConfigModal } from './components/WatermarkConfigModal';
 
 interface FormData {
   projectName: string;
@@ -20,14 +28,28 @@ interface FormData {
   requirePassword: boolean;
   password: string;
   linkExpiration: number;
-  addWatermark: boolean;
-  watermarkText: string;
-  watermarkPosition: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center';
   projectDate: string;
   projectType: string;
   clientPhone: string;
   deliveryDate: string;
   allowDownload: boolean;
+}
+
+type WatermarkPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center';
+
+interface UploadWatermarkConfig {
+  enabled: boolean;
+  text: string;
+  position: WatermarkPosition;
+  fontSize: number;
+  opacity: number;
+}
+
+interface UploadItem {
+  id: string;
+  file: File;
+  previewUrl: string;
+  watermark: UploadWatermarkConfig;
 }
 
 export function NewProject() {
@@ -49,9 +71,6 @@ export function NewProject() {
     requirePassword: false,
     password: '',
     linkExpiration: 30,
-    addWatermark: false,
-    watermarkText: '',
-    watermarkPosition: 'bottom-right',
     projectDate: '',
     projectType: '',
     clientPhone: '',
@@ -62,7 +81,7 @@ export function NewProject() {
   const [shareLink, setShareLink] = useState('');
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadItem[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [showTooltip, setShowTooltip] = useState<string | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -72,9 +91,23 @@ export function NewProject() {
   const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const [watermarkModalItem, setWatermarkModalItem] = useState<UploadItem | null>(null);
 
   const buildPublicGalleryUrl = (shareLink?: string | null, shareToken?: string | null) =>
     buildPublicGalleryShareUrl(shareToken, shareLink);
+
+  const createUploadItem = (file: File): UploadItem => ({
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    file,
+    previewUrl: URL.createObjectURL(file),
+    watermark: {
+      enabled: true,
+      text: '© Meu Estúdio',
+      position: 'bottom-right',
+      fontSize: 300, // MUITO MAIOR - era 150
+      opacity: 0.5,  // Mais visível - era 0.35
+    },
+  });
 
   // Carregar dados do projeto se estiver em modo de edição
   useEffect(() => {
@@ -106,9 +139,6 @@ export function NewProject() {
           requirePassword: project.require_password || false,
           password: project.access_password || '',
           linkExpiration: project.link_expiration || 30,
-          addWatermark: project.add_watermark || false,
-          watermarkText: project.watermark_text || '',
-          watermarkPosition: project.watermark_position || 'bottom-right',
           projectDate: project.project_date || '',
           projectType: project.project_type || '',
           clientPhone: project.client_phone || '',
@@ -199,19 +229,61 @@ export function NewProject() {
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const files = Array.from(e.dataTransfer.files);
-      setUploadedFiles(prev => [...prev, ...files]);
+      const items = files.map(createUploadItem);
+      setUploadedFiles(prev => [...prev, ...items]);
     }
   }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      setUploadedFiles(prev => [...prev, ...files]);
+      const items = files.map(createUploadItem);
+      setUploadedFiles(prev => [...prev, ...items]);
     }
   };
 
-  const removeFile = (index: number) => {
-    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  const removeFile = (id: string) => {
+    setUploadedFiles(prev => {
+      const found = prev.find((item) => item.id === id);
+      if (found) {
+        URL.revokeObjectURL(found.previewUrl);
+      }
+      return prev.filter((item) => item.id !== id);
+    });
+  };
+
+  const updateWatermark = (id: string, updater: (config: UploadWatermarkConfig) => UploadWatermarkConfig) => {
+    setUploadedFiles((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, watermark: updater(item.watermark) }
+          : item
+      )
+    );
+  };
+
+  const openWatermarkModal = (item: UploadItem) => {
+    setWatermarkModalItem(item);
+  };
+
+  const closeWatermarkModal = () => {
+    setWatermarkModalItem(null);
+  };
+
+  const handleSaveWatermarkModal = async (config: WatermarkConfig) => {
+    if (!watermarkModalItem) return;
+
+    // Sempre ativa a marca d'água ao salvar configuração
+    updateWatermark(watermarkModalItem.id, () => ({
+      enabled: true,
+      text: config.text,
+      position: config.position,
+      fontSize: config.font_size ?? 300, // MUITO MAIOR - era 150
+      opacity: config.opacity ?? 0.5,    // Mais visível - era 0.35
+    }));
+
+    toast.success('Marca d\'água configurada!');
+    closeWatermarkModal();
   };
 
   const generateShareLink = () => {
@@ -317,10 +389,6 @@ export function NewProject() {
         require_password: formData.requirePassword,
         access_password: formData.password || undefined,
         link_expiration: formData.linkExpiration,
-        // share_link será gerado automaticamente pelo backend
-        add_watermark: formData.addWatermark,
-        watermark_text: formData.watermarkText || undefined,
-        watermark_position: formData.watermarkPosition,
         allow_download: formData.allowDownload,
       };
 
@@ -355,25 +423,94 @@ export function NewProject() {
 
           toast.info(`Enviando ${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's' : ''}...`);
 
-          // Preparar opções de watermark se aplicável
-          const uploadOptions = formData.addWatermark ? {
-            applyWatermark: true,
-            watermarkText: formData.watermarkText,
-            watermarkPosition: formData.watermarkPosition,
-          } : undefined;
+          let successful = 0;
 
-          // Upload em lote
-          await uploadFotosEmLoteLumiPhoto(
-            createdOrUpdatedProject.id,
-            uploadedFiles,
-            user,
-            (progress) => {
-              setUploadProgress(progress);
-            },
-            uploadOptions
-          );
+          for (let i = 0; i < uploadedFiles.length; i++) {
+            const item = uploadedFiles[i];
+            const wmText = item.watermark.enabled
+              ? (item.watermark.text || '').trim() || '© Meu Estúdio'
+              : '';
 
-          toast.success(`${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's enviadas' : ' enviada'} com sucesso!`);
+            console.log('🎨 [UPLOAD] Foto:', item.file.name);
+            console.log('🎨 [UPLOAD] Marca d\'água habilitada?', item.watermark.enabled);
+            console.log('🎨 [UPLOAD] Config:', {
+              text: wmText,
+              position: item.watermark.position,
+              fontSize: item.watermark.fontSize,
+              opacity: item.watermark.opacity
+            });
+
+            try {
+              const uploadedPhoto = await uploadFotoLumiPhoto(
+                createdOrUpdatedProject.id,
+                item.file,
+                user,
+                item.watermark.enabled
+                  ? {
+                      applyWatermark: true,
+                      watermarkText: wmText,
+                      watermarkPosition: item.watermark.position,
+                      watermarkFontSize: item.watermark.fontSize,
+                      watermarkOpacity: item.watermark.opacity,
+                    }
+                  : undefined
+              );
+
+              console.log('✅ [UPLOAD] Foto enviada:', uploadedPhoto);
+              console.log('✅ [UPLOAD] URLs recebidas:', {
+                digital_ocean_url: uploadedPhoto.digital_ocean_url,
+                thumbnail_url: uploadedPhoto.thumbnail_url,
+                watermarked_url: uploadedPhoto.watermarked_url,
+                has_watermark: uploadedPhoto.has_watermark
+              });
+
+              if (item.watermark.enabled) {
+                const watermarkPayload: WatermarkConfig = {
+                  text: wmText,
+                  position: item.watermark.position,
+                };
+
+                if (Number.isFinite(item.watermark.fontSize)) {
+                  watermarkPayload.font_size = item.watermark.fontSize;
+                }
+                if (Number.isFinite(item.watermark.opacity)) {
+                  watermarkPayload.opacity = item.watermark.opacity;
+                }
+
+                console.log('🔧 [WATERMARK] Aplicando configuração customizada:', watermarkPayload);
+
+                try {
+                  const result = await configurarMarcaDaguaFoto(
+                    createdOrUpdatedProject.id,
+                    uploadedPhoto.id,
+                    watermarkPayload,
+                    user
+                  );
+                  console.log('✅ [WATERMARK] Configuração aplicada:', result);
+                } catch (wmError: any) {
+                  console.error("❌ [WATERMARK] Erro ao aplicar marca d'água:", wmError?.response?.data || wmError);
+                  toast.warn(`Foto ${item.file.name} enviada, mas falhou ao aplicar marca d'água.`);
+                }
+              }
+
+              successful += 1;
+            } catch (singleError: any) {
+              console.error('Erro ao enviar foto:', singleError);
+              toast.error(`Erro ao enviar ${item.file.name}: ${singleError?.message || 'tente novamente'}`);
+            } finally {
+              setUploadProgress(Math.round(((i + 1) / uploadedFiles.length) * 100));
+            }
+          }
+
+          if (successful > 0) {
+            toast.success(`${successful} foto${successful > 1 ? 's enviadas' : ' enviada'} com sucesso!`);
+          }
+
+          if (successful === 0) {
+            toast.error('Nenhuma foto foi enviada. Tente novamente.');
+          }
+
+          uploadedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
           setUploadedFiles([]); // Limpar arquivos após upload
         } catch (uploadError: any) {
           console.error('Erro ao fazer upload das fotos:', uploadError);
@@ -561,7 +698,7 @@ export function NewProject() {
                       {uploadedFiles.length} arquivo{uploadedFiles.length !== 1 ? 's' : ''}
                     </div>
                     <div className="text-gray-500">
-                      {(uploadedFiles.reduce((acc, file) => acc + file.size, 0) / (1024 * 1024)).toFixed(1)} MB
+                      {(uploadedFiles.reduce((acc, item) => acc + item.file.size, 0) / (1024 * 1024)).toFixed(1)} MB
                     </div>
                   </div>
                 )}
@@ -613,21 +750,47 @@ export function NewProject() {
                       Limpar todos
                     </button>
                   </div>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {uploadedFiles.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between bg-white p-3 rounded border">
-                        <div className="flex items-center flex-1 min-w-0">
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {uploadedFiles.map((item) => (
+                      <div key={item.id} className="bg-white p-3 rounded border hover:border-gray-400 transition-colors space-y-3">
+                        <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <span className="text-sm text-gray-700 truncate block">{file.name}</span>
-                            <span className="text-xs text-gray-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
+                            <span className="text-sm text-gray-700 truncate block">{item.file.name}</span>
+                            <span className="text-xs text-gray-500">{(item.file.size / (1024 * 1024)).toFixed(2)} MB</span>
+                          </div>
+                          <div className="flex items-center gap-2 ml-2">
+                            <button
+                              onClick={() => removeFile(item.id)}
+                              className="text-red-500 hover:text-red-700 p-1.5 rounded hover:bg-red-50 transition-colors"
+                              title="Remover foto"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
                           </div>
                         </div>
-                        <button
-                          onClick={() => removeFile(index)}
-                          className="ml-2 text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-start flex-1">
+                            <Droplets className="h-4 w-4 text-blue-500 mr-2 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium text-gray-900 block">Marca d'água</span>
+                              {item.watermark.enabled ? (
+                                <p className="text-xs text-gray-500 truncate">
+                                  {item.watermark.text} • {item.watermark.position}
+                                </p>
+                              ) : (
+                                <p className="text-xs text-gray-400">Desativada</p>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openWatermarkModal(item)}
+                            className="flex-shrink-0 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+                          >
+                            {item.watermark.enabled ? 'Configurar' : 'Adicionar'}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -805,138 +968,84 @@ export function NewProject() {
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
                 </div>
-
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Expiração do link (dias) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  value={formData.linkExpiration}
-                  onChange={(e) => handleInputChange('linkExpiration', parseInt(e.target.value) || 0)}
-                />
-                <p className="text-xs text-gray-500 mt-1">Define por quantos dias o link de seleção ficará ativo</p>
-              </div>
-
-              {/* Watermark Options */}
-              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
-                <div className="flex items-center mb-3">
-                  <h3 className="text-lg font-medium text-gray-900">Opções de Marca d'água</h3>
-                </div>
-                <p className="text-gray-500 text-sm mb-4">Configure texto e posição da marca d'água nas imagens</p>
-
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Adicionar marca d'água</span>
-                    <p className="text-xs text-gray-500">Aplica texto como marca d'água nas fotos</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={formData.addWatermark}
-                      onChange={(e) => handleInputChange('addWatermark', e.target.checked)}
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
-                </div>
-
-                {formData.addWatermark && (
-                  <div className="space-y-4 pt-4 border-t border-purple-200">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Texto da marca d'água
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="© Seu Nome - 2024"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        value={formData.watermarkText}
-                        onChange={(e) => handleInputChange('watermarkText', e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Posição da marca d'água
-                      </label>
-                      <select
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        value={formData.watermarkPosition}
-                        onChange={(e) => handleInputChange('watermarkPosition', e.target.value)}
-                      >
-                        <option value="bottom-right">Canto inferior direito</option>
-                        <option value="bottom-left">Canto inferior esquerdo</option>
-                        <option value="top-right">Canto superior direito</option>
-                        <option value="top-left">Canto superior esquerdo</option>
-                        <option value="center">Centro</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-
             </div>
           </div>
         </div>
+      </div>
+      )}
 
-        <div className="flex justify-end space-x-4 mt-8">
-          <button
-            onClick={handleCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-          >
-            <X className="h-4 w-4 inline mr-1" />
-            Cancelar
-          </button>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
+        <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
           {!isEditMode && (
             <button
+              type="button"
               onClick={handleSaveAsDraft}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+              className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
             >
-              Salvar como Rascunho
+              Salvar como rascunho
             </button>
           )}
           <button
+            type="button"
             onClick={handleCreateProject}
-            className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+            className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-2 rounded-md text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors"
           >
-            {isEditMode ? 'Atualizar Projeto' : 'Criar Projeto'}
+            {isEditMode ? 'Atualizar projeto' : 'Criar projeto'}
+          </button>
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium text-gray-700 hover:text-gray-900"
+          >
+            Cancelar
           </button>
         </div>
-
-        {/* Loading Overlay */}
-        {(isCreatingProject || isUploadingPhotos) && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-8 flex flex-col items-center max-w-md w-full mx-4">
-              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mb-4"></div>
-              <p className="text-gray-900 font-medium text-lg text-center">
-                {isUploadingPhotos
-                  ? `Enviando fotos (${uploadProgress}%)...`
-                  : (isEditMode ? 'Atualizando projeto...' : 'Criando projeto...')
-                }
-              </p>
-              <p className="text-gray-500 text-sm mt-2 text-center">
-                {isUploadingPhotos
-                  ? `Aguarde enquanto enviamos ${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's' : ''} para o servidor`
-                  : 'Aguarde enquanto processamos suas informações'
-                }
-              </p>
-              {isUploadingPhotos && (
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-4">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress}%` }}
-                  ></div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
+
+      {(isCreatingProject || isUploadingPhotos) && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 flex flex-col items-center max-w-md w-full mx-4">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mb-4"></div>
+            <p className="text-gray-900 font-medium text-lg text-center">
+              {isUploadingPhotos
+                ? 'Enviando fotos...'
+                : isEditMode ? 'Atualizando projeto...' : 'Criando projeto...'}
+            </p>
+            <p className="text-gray-500 text-sm mt-2 text-center">
+              {isUploadingPhotos
+                ? `Aguarde enquanto enviamos ${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's' : ''} para o servidor`
+                : 'Aguarde enquanto processamos suas informações'}
+            </p>
+            {isUploadingPhotos && (
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-4">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
+
+      <WatermarkConfigModal
+        isOpen={!!watermarkModalItem}
+        onClose={closeWatermarkModal}
+        onSave={handleSaveWatermarkModal}
+        currentConfig={
+          watermarkModalItem
+            ? {
+                text: watermarkModalItem.watermark.text,
+                position: watermarkModalItem.watermark.position,
+                font_size: watermarkModalItem.watermark.fontSize,
+                opacity: watermarkModalItem.watermark.opacity,
+              }
+            : undefined
+        }
+        photoName={watermarkModalItem?.file.name}
+        photoPreviewUrl={watermarkModalItem?.previewUrl}
+      />
     </div>
   );
 }

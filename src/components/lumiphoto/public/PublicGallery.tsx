@@ -180,16 +180,16 @@ export function PublicGallery() {
   };
 
   const resolvePreviewUrl = (photo: GalleryPhoto) => {
-    if (gallery?.add_watermark) {
-      return photo.watermarked_url || photo.thumbnail_url || photo.digital_ocean_url;
-    }
+    // Sempre priorizar a versão com marca d'água quando existir
+    if (photo.watermarked_url) return photo.watermarked_url;
+    if (gallery?.add_watermark) return photo.thumbnail_url || photo.digital_ocean_url;
     return photo.thumbnail_url || photo.digital_ocean_url;
   };
 
   const resolveDownloadUrl = (photo: GalleryPhoto) => {
-    if (gallery?.add_watermark) {
-      return photo.watermarked_url || null;
-    }
+    // Download também deve priorizar a imagem com marca d'água, quando disponível
+    if (photo.watermarked_url) return photo.watermarked_url;
+    if (gallery?.add_watermark) return photo.watermarked_url || null;
     return photo.digital_ocean_url;
   };
 
@@ -289,7 +289,7 @@ export function PublicGallery() {
           <div className="flex-1 overflow-auto mt-4">
             <div className="w-full h-full flex items-center justify-center bg-gray-50 rounded-2xl p-2">
               <img
-                src={gallery.add_watermark ? (fullPhoto.watermarked_url || fullPhoto.thumbnail_url || fullPhoto.digital_ocean_url) : (fullPhoto.watermarked_url || fullPhoto.digital_ocean_url)}
+                src={resolvePreviewUrl(fullPhoto)}
                 alt={fullPhoto.original_name || 'Foto selecionada'}
                 className="max-h-[70vh] max-w-full object-contain"
               />
@@ -310,7 +310,7 @@ export function PublicGallery() {
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-blue-600 text-white font-medium hover:bg-blue-500 transition-colors"
               >
                 <Download className="h-4 w-4" />
-                Baixar original
+                Baixar foto
               </a>
             )}
           </div>

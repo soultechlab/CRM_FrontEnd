@@ -60,6 +60,12 @@ export interface LumiPhotoPhoto {
   width: number | null;
   height: number | null;
   has_watermark: boolean;
+  watermark_config?: {
+    text: string;
+    position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center';
+    font_size?: number;
+    opacity?: number;
+  } | null;
   is_selected: boolean;
   selection_order: number | null;
   upload_date: string;
@@ -270,6 +276,8 @@ export const uploadFotoLumiPhoto = async (
     applyWatermark?: boolean;
     watermarkText?: string;
     watermarkPosition?: string;
+    watermarkFontSize?: number;
+    watermarkOpacity?: number;
   }
 ) => {
   const formData = new FormData();
@@ -283,6 +291,12 @@ export const uploadFotoLumiPhoto = async (
     }
     if (options.watermarkPosition) {
       formData.append("watermark_position", options.watermarkPosition);
+    }
+    if (options.watermarkFontSize) {
+      formData.append("watermark_font_size", options.watermarkFontSize.toString());
+    }
+    if (options.watermarkOpacity) {
+      formData.append("watermark_opacity", options.watermarkOpacity.toString());
     }
   }
 
@@ -304,6 +318,8 @@ export const uploadFotosEmLoteLumiPhoto = async (
     applyWatermark?: boolean;
     watermarkText?: string;
     watermarkPosition?: string;
+    watermarkFontSize?: number;
+    watermarkOpacity?: number;
   }
 ): Promise<LumiPhotoBulkUploadResult> => {
   const formData = new FormData();
@@ -321,6 +337,12 @@ export const uploadFotosEmLoteLumiPhoto = async (
     }
     if (options.watermarkPosition) {
       formData.append("watermark_position", options.watermarkPosition);
+    }
+    if (options.watermarkFontSize) {
+      formData.append("watermark_font_size", options.watermarkFontSize.toString());
+    }
+    if (options.watermarkOpacity) {
+      formData.append("watermark_opacity", options.watermarkOpacity.toString());
     }
   }
 
@@ -683,6 +705,47 @@ export const adicionarComentarioGaleriaLumiPhoto = async (
 ) => {
   const response = await publicApiClient.post(`/public/lumiphoto/gallery/${shareToken}/comments`, data);
   return response.data;
+};
+
+// ============================================
+// WATERMARK CONFIGURATION
+// ============================================
+
+export interface WatermarkConfig {
+  text: string;
+  position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center';
+  font_size?: number;
+  opacity?: number;
+}
+
+export const configurarMarcaDaguaFoto = async (
+  projectId: number,
+  photoId: number,
+  config: WatermarkConfig,
+  user: User | null
+) => {
+  const response = await apiClient.post(
+    `/lumiphoto/projects/${projectId}/photos/${photoId}/watermark`,
+    config,
+    {
+      headers: { Authorization: `Bearer ${user?.token}` },
+    }
+  );
+  return response.data.data || response.data;
+};
+
+export const removerMarcaDaguaFoto = async (
+  projectId: number,
+  photoId: number,
+  user: User | null
+) => {
+  const response = await apiClient.delete(
+    `/lumiphoto/projects/${projectId}/photos/${photoId}/watermark`,
+    {
+      headers: { Authorization: `Bearer ${user?.token}` },
+    }
+  );
+  return response.data.data || response.data;
 };
 
 // ============================================
