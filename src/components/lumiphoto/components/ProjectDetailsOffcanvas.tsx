@@ -110,21 +110,6 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
       const response = await obterFotosLumiPhoto(project.id, user);
       const photosList = Array.isArray(response) ? response : response.data || [];
 
-      console.log('📸 [GALLERY] Fotos carregadas do projeto:', project.id);
-      console.log('📸 [GALLERY] Total de fotos:', photosList.length);
-
-      if (photosList.length > 0) {
-        console.log('📸 [GALLERY] Primeira foto como exemplo:', {
-          id: photosList[0].id,
-          original_name: photosList[0].original_name,
-          has_watermark: photosList[0].has_watermark,
-          watermarked_url: photosList[0].watermarked_url,
-          digital_ocean_url: photosList[0].digital_ocean_url,
-          thumbnail_url: photosList[0].thumbnail_url,
-          watermark_config: photosList[0].watermark_config
-        });
-      }
-
       setPhotos(photosList);
     } catch (error: any) {
       console.error('❌ [GALLERY] Erro ao carregar fotos:', error);

@@ -12,6 +12,7 @@ import { LumiPhotoHeader } from './components/LumiPhotoHeader';
 import { ProjectDetailsOffcanvas } from './components/ProjectDetailsOffcanvas';
 import { AllActivitiesModal } from './components/AllActivitiesModal';
 import { useAuth } from '../../contexts/AuthContext';
+import { ProjectFilter } from './components/ProjectFilter';
 import {
   obterProjetosLumiPhoto,
   atualizarStatusProjetoLumiPhoto,
@@ -83,19 +84,19 @@ export function LumiPhoto() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [activities, setActivities] = useState<LumiPhotoActivity[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(false);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Carregar projetos da API
   useEffect(() => {
     loadProjects();
     loadDashboardStats();
     loadActivities();
-  }, [selectedStatus]);
+  }, [selectedStatus, sortOrder]);
 
   const loadActivities = async () => {
     try {
       setLoadingActivities(true);
       const data = await obterAtividadesLumiPhoto(user);
-      console.log('🔔 Atividades carregadas:', data);
 
       // Filtrar apenas atividades relacionadas a projetos (excluir entregas)
       const projectActivities = Array.isArray(data)
@@ -121,7 +122,7 @@ export function LumiPhoto() {
     try {
       setLoading(true);
       const response = await obterProjetosLumiPhoto(
-        { status: selectedStatus },
+        { status: selectedStatus, sort: sortOrder === 'asc' ? 'created_at' : '-created_at' },
         user
       );
 
@@ -180,6 +181,10 @@ export function LumiPhoto() {
       return false;
     }
     return true;
+  }).sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
   });
 
   const findSelectedProject = () => {
@@ -458,7 +463,7 @@ export function LumiPhoto() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       <LumiPhotoHeader delivery={true} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -554,28 +559,56 @@ export function LumiPhoto() {
               </button>
             </div>
           </div>
-          <div className="flex flex-col lg:flex-row gap-4 mb-6">
-            <div className="flex flex-wrap gap-2">
-              {statusOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setSelectedStatus(option.value)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedStatus === option.value
-                    ? `${option.color} text-gray-800`
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          {showFilters && (
+            <div className="flex flex-col gap-4 mb-6">
+              <div className="flex flex-wrap items-center gap-2">
+                {statusOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setSelectedStatus(option.value)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedStatus === option.value
+                      ? `${option.color} text-gray-800`
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                  >
+                    {option.label}
+                    <span className="ml-2 bg-white text-gray-600 px-2 py-1 rounded-full text-xs">
+                      {option.value === "all"
+                        ? projects.length
+                        : projects.filter((p) => p.status === option.value).length}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-gray-700">Ordenar</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setSortOrder('desc')}
+                    className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      sortOrder === 'desc'
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-200'
                     }`}
-                >
-                  {option.label}
-                  <span className="ml-2 bg-white text-gray-600 px-2 py-1 rounded-full text-xs">
-                    {option.value === "all"
-                      ? projects.length
-                      : projects.filter((p) => p.status === option.value).length}
-                  </span>
-                </button>
-              ))}
+                  >
+                    Mais novos
+                  </button>
+                  <button
+                    onClick={() => setSortOrder('asc')}
+                    className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      sortOrder === 'asc'
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-200'
+                    }`}
+                  >
+                    Mais antigos
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {loading ? (
               <div className="col-span-3 text-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>

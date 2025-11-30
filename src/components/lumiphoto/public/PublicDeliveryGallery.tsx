@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
     Download, Lock, Eye, X, ChevronLeft, ChevronRight,
-    Image as ImageIcon, AlertCircle, Loader2, ZoomIn
+    Image as ImageIcon, AlertCircle, Loader2, ZoomIn, Camera
 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -560,7 +560,12 @@ export function PublicDeliveryGallery() {
 
                             {delivery.security_settings.show_metadata && selectedPhoto.metadata && (
                                 <div className="mt-6 border-t border-gray-100 pt-4 flex flex-wrap gap-4 text-sm text-gray-600">
-                                    {selectedPhoto.metadata.camera && <span>📷 {selectedPhoto.metadata.camera}</span>}
+                                    {selectedPhoto.metadata.camera && (
+                                        <span className="inline-flex items-center gap-1">
+                                            <Camera className="h-4 w-4" />
+                                            {selectedPhoto.metadata.camera}
+                                        </span>
+                                    )}
                                     {selectedPhoto.metadata.iso && <span>ISO {selectedPhoto.metadata.iso}</span>}
                                     {selectedPhoto.metadata.aperture && <span>ƒ/{selectedPhoto.metadata.aperture}</span>}
                                     {selectedPhoto.metadata.shutter_speed && <span>{selectedPhoto.metadata.shutter_speed}s</span>}

@@ -295,10 +295,6 @@ export function NewProject() {
       }))
     );
     setLastWatermarkConfig(newConfig);
-    console.info('🛰️ [LUMIPHOTO][WATERMARK_MODAL] Config propagada para todas as fotos do upload atual', {
-      totalFiles: uploadedFiles.length,
-      newConfig,
-    });
 
     toast.success('Marca d\'água configurada!');
     closeWatermarkModal();
@@ -449,15 +445,6 @@ export function NewProject() {
               ? (item.watermark.text || '').trim() || '© Meu Estúdio'
               : '';
 
-            console.log('🎨 [UPLOAD] Foto:', item.file.name);
-            console.log('🎨 [UPLOAD] Marca d\'água habilitada?', item.watermark.enabled);
-            console.log('🎨 [UPLOAD] Config:', {
-              text: wmText,
-              position: item.watermark.position,
-              fontSize: item.watermark.fontSize,
-              opacity: item.watermark.opacity
-            });
-
             try {
               const uploadedPhoto = await uploadFotoLumiPhoto(
                 createdOrUpdatedProject.id,
@@ -473,14 +460,6 @@ export function NewProject() {
                     }
                   : undefined
               );
-
-              console.log('✅ [UPLOAD] Foto enviada:', uploadedPhoto);
-              console.log('✅ [UPLOAD] URLs recebidas:', {
-                digital_ocean_url: uploadedPhoto.digital_ocean_url,
-                thumbnail_url: uploadedPhoto.thumbnail_url,
-                watermarked_url: uploadedPhoto.watermarked_url,
-                has_watermark: uploadedPhoto.has_watermark
-              });
 
               // ✅ Marca d'água já foi aplicada no upload inicial
               // Não precisa chamar configurarMarcaDaguaFoto novamente
@@ -524,7 +503,6 @@ export function NewProject() {
   };
 
   const handleSaveAsDraft = () => {
-    console.log('Saving as draft:', formData);
   };
 
   const handleCancel = () => {

@@ -51,17 +51,6 @@ export function PhotoViewer({ projectId, photo, isOpen, onClose, onDelete, onRes
   const resolvePhotoUrl = (photo: Photo) => {
     const url = photo.watermarked_url || photo.digital_ocean_url || photo.url;
 
-    console.log('🖼️ [PHOTO VIEWER] Resolvendo URL da foto:', {
-      photoId: photo.id,
-      photoName: photo.name,
-      has_watermark: photo.has_watermark,
-      watermarked_url: photo.watermarked_url,
-      digital_ocean_url: photo.digital_ocean_url,
-      url: photo.url,
-      thumbnail_url: photo.thumbnail_url,
-      urlEscolhida: url
-    });
-
     return url;
   };
 
@@ -124,16 +113,7 @@ export function PhotoViewer({ projectId, photo, isOpen, onClose, onDelete, onRes
   };
 
   const handleSaveWatermark = async (config: WatermarkConfig) => {
-    console.info('🛰️ [LUMIPHOTO][PHOTO_VIEWER] Requisitando configuração de marca d\'água', {
-      projectId,
-      photoId: photo.id,
-      incomingConfig: config,
-      currentPhotoConfig: photo.watermark_config,
-      hasWatermark: photo.has_watermark,
-    });
-
     await configurarMarcaDaguaFoto(projectId, parseInt(photo.id), config, user);
-    console.info('✅ [LUMIPHOTO][PHOTO_VIEWER] Configuração aplicada, solicitando refresh da lista');
     if (onPhotoDeleted) onPhotoDeleted(); // Recarrega a lista de fotos
   };
 
@@ -143,13 +123,6 @@ export function PhotoViewer({ projectId, photo, isOpen, onClose, onDelete, onRes
     }
 
     try {
-      console.info('🛰️ [LUMIPHOTO][PHOTO_VIEWER] Removendo marca d\'água', {
-        projectId,
-        photoId: photo.id,
-        currentPhotoConfig: photo.watermark_config,
-        hasWatermark: photo.has_watermark,
-      });
-
       await removerMarcaDaguaFoto(projectId, parseInt(photo.id), user);
       toast.success('Marca d\'água removida com sucesso!');
       if (onPhotoDeleted) onPhotoDeleted(); // Recarrega a lista de fotos

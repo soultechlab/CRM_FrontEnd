@@ -83,7 +83,6 @@ export function Delivery() {
         try {
             setLoadingActivities(true);
             const data = await obterAtividadesLumiPhoto(user);
-            console.log('🔔 Atividades carregadas:', data);
 
             // Filtrar apenas atividades relacionadas a entregas
             const deliveryActivities = Array.isArray(data)

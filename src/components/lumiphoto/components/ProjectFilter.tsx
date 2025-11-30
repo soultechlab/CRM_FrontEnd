@@ -6,6 +6,8 @@ interface ProjectFilterProps {
   onSearchChange: (value: string) => void;
   selectedStatus: string;
   onStatusChange: (status: string) => void;
+  sortOrder: 'asc' | 'desc';
+  onSortOrderChange: (order: 'asc' | 'desc') => void;
   statusOptions: Array<{
     value: string;
     label: string;
@@ -19,6 +21,8 @@ export function ProjectFilter({
   onSearchChange,
   selectedStatus,
   onStatusChange,
+  sortOrder,
+  onSortOrderChange,
   statusOptions,
   projects
 }: ProjectFilterProps) {
@@ -55,6 +59,29 @@ export function ProjectFilter({
               )}
             </button>
           ))}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => onSortOrderChange('desc')}
+            className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+              sortOrder === 'desc'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-200'
+            }`}
+          >
+            Mais novos primeiro
+          </button>
+          <button
+            onClick={() => onSortOrderChange('asc')}
+            className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+              sortOrder === 'asc'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-200'
+            }`}
+          >
+            Mais antigos primeiro
+          </button>
         </div>
       </div>
     </div>
