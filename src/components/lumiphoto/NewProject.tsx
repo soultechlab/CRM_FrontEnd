@@ -104,8 +104,8 @@ export function NewProject() {
       enabled: true,
       text: '© Meu Estúdio',
       position: 'bottom-right',
-      fontSize: 300, // MUITO MAIOR - era 150
-      opacity: 0.5,  // Mais visível - era 0.35
+      fontSize: 120, // 120 = 12% do tamanho da foto (escala proporcional)
+      opacity: 0.5,  // 50% de opacidade
     },
   });
 
@@ -278,8 +278,8 @@ export function NewProject() {
       enabled: true,
       text: config.text,
       position: config.position,
-      fontSize: config.font_size ?? 300, // MUITO MAIOR - era 150
-      opacity: config.opacity ?? 0.5,    // Mais visível - era 0.35
+      fontSize: config.font_size ?? 120, // 120 = 12% do tamanho da foto (padrão)
+      opacity: config.opacity ?? 0.5,    // 50% de opacidade
     }));
 
     toast.success('Marca d\'água configurada!');
@@ -464,34 +464,8 @@ export function NewProject() {
                 has_watermark: uploadedPhoto.has_watermark
               });
 
-              if (item.watermark.enabled) {
-                const watermarkPayload: WatermarkConfig = {
-                  text: wmText,
-                  position: item.watermark.position,
-                };
-
-                if (Number.isFinite(item.watermark.fontSize)) {
-                  watermarkPayload.font_size = item.watermark.fontSize;
-                }
-                if (Number.isFinite(item.watermark.opacity)) {
-                  watermarkPayload.opacity = item.watermark.opacity;
-                }
-
-                console.log('🔧 [WATERMARK] Aplicando configuração customizada:', watermarkPayload);
-
-                try {
-                  const result = await configurarMarcaDaguaFoto(
-                    createdOrUpdatedProject.id,
-                    uploadedPhoto.id,
-                    watermarkPayload,
-                    user
-                  );
-                  console.log('✅ [WATERMARK] Configuração aplicada:', result);
-                } catch (wmError: any) {
-                  console.error("❌ [WATERMARK] Erro ao aplicar marca d'água:", wmError?.response?.data || wmError);
-                  toast.warn(`Foto ${item.file.name} enviada, mas falhou ao aplicar marca d'água.`);
-                }
-              }
+              // ✅ Marca d'água já foi aplicada no upload inicial
+              // Não precisa chamar configurarMarcaDaguaFoto novamente
 
               successful += 1;
             } catch (singleError: any) {

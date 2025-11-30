@@ -5,8 +5,14 @@ import { toast } from 'react-toastify';
 interface WatermarkConfig {
   text: string;
   position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center';
+  font?: string;
   font_size?: number;
   opacity?: number;
+}
+
+interface FontOption {
+  id: string;
+  name: string;
 }
 
 interface WatermarkConfigModalProps {
@@ -29,17 +35,58 @@ export function WatermarkConfigModal({
   const [config, setConfig] = useState<WatermarkConfig>({
     text: currentConfig?.text || '© Seu Estúdio 2024',
     position: currentConfig?.position || 'bottom-right',
+    font: currentConfig?.font || 'poppins',
     font_size: currentConfig?.font_size,
     opacity: currentConfig?.opacity || 0.35,
   });
   const [saving, setSaving] = useState(false);
   const [useCustomSize, setUseCustomSize] = useState(!!currentConfig?.font_size);
+  const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
+  const [loadingFonts, setLoadingFonts] = useState(true);
+
+  // Buscar fontes disponíveis
+  useEffect(() => {
+    const fetchFonts = async () => {
+      try {
+        // Buscar usuário do localStorage (mesma chave que o AuthService usa)
+        const userStr = localStorage.getItem('@FotoCRM:user');
+        if (!userStr) {
+          throw new Error('Usuário não autenticado');
+        }
+        const user = JSON.parse(userStr);
+        const token = user.token;
+
+        const API_BASE_URL = import.meta.env.VITE_KODA_DESENVOLVIMENTO || 'http://localhost:8080';
+        const response = await fetch(`${API_BASE_URL}/api/v1/lumiphoto/settings/available-fonts`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        setAvailableFonts(data.fonts || []);
+      } catch (error) {
+        console.error('Erro ao buscar fontes:', error);
+        toast.error('Erro ao carregar fontes disponíveis');
+      } finally {
+        setLoadingFonts(false);
+      }
+    };
+
+    fetchFonts();
+  }, []);
 
   useEffect(() => {
     if (currentConfig) {
       setConfig({
         text: currentConfig.text || '© Seu Estúdio 2024',
         position: currentConfig.position || 'bottom-right',
+        font: currentConfig.font || 'poppins',
         font_size: currentConfig.font_size,
         opacity: currentConfig.opacity || 0.35,
       });
@@ -60,6 +107,7 @@ export function WatermarkConfigModal({
       const saveConfig: WatermarkConfig = {
         text: config.text,
         position: config.position,
+        font: config.font,
         opacity: config.opacity,
       };
 
@@ -67,6 +115,14 @@ export function WatermarkConfigModal({
       if (useCustomSize && config.font_size) {
         saveConfig.font_size = config.font_size;
       }
+
+      console.info('🛰️ [LUMIPHOTO][WATERMARK_MODAL] Salvando configuração a partir do modal', {
+        photoName,
+        hasPreview: !!photoPreviewUrl,
+        rawConfig: config,
+        useCustomSize,
+        payload: saveConfig,
+      });
 
       await onSave(saveConfig);
       toast.success('Marca d\'água configurada com sucesso!');
@@ -235,12 +291,53 @@ export function WatermarkConfigModal({
             </div>
           </div>
 
+          {/* Seletor de Fonte */}
+          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-3">
+              <Type className="h-5 w-5 text-blue-600" />
+              Estilo da Fonte
+            </label>
+            <p className="text-xs text-gray-500 mb-3">
+              Escolha a fonte que melhor representa seu estúdio
+            </p>
+
+            {loadingFonts ? (
+              <div className="flex items-center justify-center py-4">
+                <svg className="animate-spin h-5 w-5 text-blue-600" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <span className="ml-2 text-sm text-gray-600">Carregando fontes...</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {availableFonts.map((font) => (
+                  <button
+                    key={font.id}
+                    onClick={() => setConfig({ ...config, font: font.id })}
+                    className={`p-3 rounded-lg border-2 transition-all text-left ${
+                      config.font === font.id
+                        ? 'border-blue-500 bg-blue-100 shadow-md'
+                        : 'border-gray-300 hover:border-blue-300 bg-white hover:bg-blue-50'
+                    }`}
+                    style={{ fontFamily: font.name }}
+                  >
+                    <div className="text-sm font-medium text-gray-900">{font.name}</div>
+                    <div className="text-xs text-gray-500 mt-1" style={{ fontFamily: font.name }}>
+                      {config.text || 'Abc 123'}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Tamanho da Fonte (Opcional) */}
           <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
             <div className="flex items-center justify-between mb-3">
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
                 <Type className="h-5 w-5 text-blue-600" />
-                Tamanho da Fonte
+                Tamanho da Marca d'Água
               </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input
@@ -251,7 +348,7 @@ export function WatermarkConfigModal({
                     if (!e.target.checked) {
                       setConfig({ ...config, font_size: undefined });
                     } else {
-                      setConfig({ ...config, font_size: 150 }); // Valor padrão maior
+                      setConfig({ ...config, font_size: 120 }); // Valor padrão: 120 = 12% da imagem
                     }
                   }}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
@@ -266,20 +363,25 @@ export function WatermarkConfigModal({
                   type="range"
                   min="20"
                   max="500"
-                  value={config.font_size || 150}
+                  value={config.font_size || 120}
                   onChange={(e) => setConfig({ ...config, font_size: parseInt(e.target.value) })}
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                 />
                 <div className="flex justify-between items-center text-xs text-gray-600">
-                  <span>Pequeno (20px)</span>
-                  <span className="font-bold text-base text-blue-600">{config.font_size || 150}px</span>
-                  <span>Grande (500px)</span>
+                  <span>Pequeno (2%)</span>
+                  <span className="font-bold text-base text-blue-600">
+                    {Math.round((config.font_size || 120) / 10)}% da foto
+                  </span>
+                  <span>Grande (50%)</span>
                 </div>
+                <p className="text-xs text-gray-500 text-center">
+                  O tamanho será proporcional às dimensões da foto
+                </p>
               </div>
             ) : (
               <div className="bg-blue-50 border border-blue-200 rounded p-3">
                 <p className="text-sm text-blue-800">
-                  ℹ️ O tamanho será calculado automaticamente com base nas dimensões da foto
+                  ℹ️ O tamanho será calculado automaticamente (12% da foto)
                 </p>
               </div>
             )}
@@ -346,7 +448,7 @@ export function WatermarkConfigModal({
                 <div className="absolute left-2/3 top-0 bottom-0 border-l border-white"></div>
               </div>
 
-              {/* Marca d'água preview - TAMANHO REAL */}
+              {/* Marca d'água preview - PROPORCIONAL */}
               <div
                 className={`absolute ${
                   config.position === 'top-left' ? 'top-6 left-6' :
@@ -360,17 +462,29 @@ export function WatermarkConfigModal({
                   {/* Indicador de posição (pulsante) */}
                   <div className="absolute -inset-2 bg-blue-500 rounded opacity-20 animate-pulse"></div>
 
-                  {/* Texto da marca d'água */}
+                  {/* Texto da marca d'água - Calcula proporcionalmente como o backend */}
                   <p
                     className="text-white font-bold select-none whitespace-nowrap transition-all duration-300 relative z-10"
                     style={{
                       opacity: config.opacity || 0.35,
-                      fontSize: useCustomSize
-                        ? `${Math.max(16, Math.min((config.font_size || 150) / 2.5, 80))}px`
-                        : '28px',
+                      fontSize: (() => {
+                        if (!useCustomSize) return '28px'; // Padrão automático (12% de ~300px = 36px / 1.3 = 28px)
+
+                        // Simula o cálculo do backend: escala relativa × tamanho do preview
+                        // Preview container é ~300px de altura, então usamos como referência
+                        const previewMaxSide = 300;
+                        const relativeScale = Math.max(0.02, Math.min((config.font_size || 120) / 1000, 0.50));
+                        const calculatedSize = previewMaxSide * relativeScale;
+
+                        // Divide por 1.3 para ajustar visualmente ao container de preview
+                        return `${Math.max(12, Math.min(calculatedSize / 1.3, 100))}px`;
+                      })(),
                       textShadow: '2px 2px 6px rgba(0,0,0,0.9), -1px -1px 3px rgba(0,0,0,0.7)',
                       letterSpacing: '1px',
-                      fontFamily: 'system-ui, -apple-system, sans-serif',
+                      fontFamily: (() => {
+                        const selectedFont = availableFonts.find(f => f.id === config.font);
+                        return selectedFont ? `${selectedFont.name}, sans-serif` : 'system-ui, -apple-system, sans-serif';
+                      })(),
                       fontWeight: '700'
                     }}
                   >

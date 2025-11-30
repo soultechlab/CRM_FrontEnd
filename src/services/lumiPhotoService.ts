@@ -300,12 +300,32 @@ export const uploadFotoLumiPhoto = async (
     }
   }
 
+  console.info('🛰️ [LUMIPHOTO][UPLOAD_SINGLE] Enviando foto com config de marca d\'água', {
+    projectId,
+    fileName: file.name,
+    hasOptions: !!options,
+    options: {
+      ...options,
+      watermarkText: options?.watermarkText,
+      watermarkPosition: options?.watermarkPosition,
+      watermarkFontSize: options?.watermarkFontSize,
+      watermarkOpacity: options?.watermarkOpacity,
+    }
+  });
+
   const response = await apiClient.post(`/lumiphoto/projects/${projectId}/photos`, formData, {
     headers: {
       Authorization: `Bearer ${user?.token}`,
       "Content-Type": "multipart/form-data",
     },
   });
+
+  console.info('✅ [LUMIPHOTO][UPLOAD_SINGLE] Resposta do backend para foto', {
+    projectId,
+    fileName: file.name,
+    payload: response?.data?.data || response?.data,
+  });
+
   return response.data.data || response.data;
 };
 
@@ -346,6 +366,20 @@ export const uploadFotosEmLoteLumiPhoto = async (
     }
   }
 
+  console.info('🛰️ [LUMIPHOTO][UPLOAD_BULK] Enviando fotos com config de marca d\'água', {
+    projectId,
+    totalFiles: files.length,
+    fileNames: files.map((f) => f.name),
+    hasOptions: !!options,
+    options: {
+      ...options,
+      watermarkText: options?.watermarkText,
+      watermarkPosition: options?.watermarkPosition,
+      watermarkFontSize: options?.watermarkFontSize,
+      watermarkOpacity: options?.watermarkOpacity,
+    }
+  });
+
   const response = await apiClient.post(
     `/lumiphoto/projects/${projectId}/photos/bulk-upload`,
     formData,
@@ -362,6 +396,12 @@ export const uploadFotosEmLoteLumiPhoto = async (
       },
     }
   );
+
+  console.info('✅ [LUMIPHOTO][UPLOAD_BULK] Resposta do backend', {
+    projectId,
+    totalFiles: files.length,
+    payloadKeys: Object.keys(response?.data || {}),
+  });
 
   const payload = response.data as
     | LumiPhotoPhoto[]
@@ -724,6 +764,12 @@ export const configurarMarcaDaguaFoto = async (
   config: WatermarkConfig,
   user: User | null
 ) => {
+  console.info('🛰️ [LUMIPHOTO][WATERMARK_CONFIG] Enviando configuração', {
+    projectId,
+    photoId,
+    config
+  });
+
   const response = await apiClient.post(
     `/lumiphoto/projects/${projectId}/photos/${photoId}/watermark`,
     config,
@@ -731,6 +777,14 @@ export const configurarMarcaDaguaFoto = async (
       headers: { Authorization: `Bearer ${user?.token}` },
     }
   );
+
+  console.info('✅ [LUMIPHOTO][WATERMARK_CONFIG] Resposta recebida', {
+    projectId,
+    photoId,
+    returnedConfig: response?.data?.data?.watermark_config,
+    hasWatermark: response?.data?.data?.has_watermark,
+  });
+
   return response.data.data || response.data;
 };
 
@@ -739,12 +793,24 @@ export const removerMarcaDaguaFoto = async (
   photoId: number,
   user: User | null
 ) => {
+  console.info('🛰️ [LUMIPHOTO][WATERMARK_REMOVE] Removendo marca d\'água', {
+    projectId,
+    photoId
+  });
+
   const response = await apiClient.delete(
     `/lumiphoto/projects/${projectId}/photos/${photoId}/watermark`,
     {
       headers: { Authorization: `Bearer ${user?.token}` },
     }
   );
+
+  console.info('✅ [LUMIPHOTO][WATERMARK_REMOVE] Resposta recebida', {
+    projectId,
+    photoId,
+    hasWatermark: response?.data?.data?.has_watermark,
+  });
+
   return response.data.data || response.data;
 };
 
