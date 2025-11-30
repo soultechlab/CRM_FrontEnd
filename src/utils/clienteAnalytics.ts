@@ -1,4 +1,4 @@
-import { Cliente } from '../types';
+import { Cliente } from "../types";
 
 interface OrigemStats {
   origem: string;
@@ -7,20 +7,26 @@ interface OrigemStats {
 }
 
 const ORIGEM_LABELS: Record<string, string> = {
-  'facebook': 'Facebook',
-  'instagram': 'Instagram',
-  'google': 'Google',
-  'indicacao': 'Indicação',
-  'site': 'Site',
-  'outros': 'Outros'
+  facebook: "Facebook",
+  instagram: "Instagram",
+  google: "Google",
+  indicacao: "Indicação",
+  site: "Site",
+  outros: "Outros",
 };
 
 export const analisarOrigensClientes = (clientes: Cliente[]): OrigemStats[] => {
+  if (!clientes || !Array.isArray(clientes) || clientes.length === 0) {
+    return [];
+  }
+
   // Contar clientes por origem
   const contagem = clientes.reduce((acc, cliente) => {
-    cliente.origem.forEach(origem => {
-      acc[origem] = (acc[origem] || 0) + 1;
-    });
+    if (cliente.origem && Array.isArray(cliente.origem)) {
+      cliente.origem.forEach((origem) => {
+        acc[origem] = (acc[origem] || 0) + 1;
+      });
+    }
     return acc;
   }, {} as Record<string, number>);
 
@@ -29,7 +35,7 @@ export const analisarOrigensClientes = (clientes: Cliente[]): OrigemStats[] => {
   const stats = Object.entries(contagem).map(([origem, quantidade]) => ({
     origem: ORIGEM_LABELS[origem] || origem,
     quantidade,
-    percentual: (quantidade / total) * 100
+    percentual: (quantidade / total) * 100,
   }));
 
   // Ordenar por quantidade e pegar os top 3
@@ -37,6 +43,13 @@ export const analisarOrigensClientes = (clientes: Cliente[]): OrigemStats[] => {
 };
 
 export const contarClientesNovosMes = (clientes: Cliente[]) => {
+  if (!clientes || !Array.isArray(clientes)) {
+    return {
+      total: 0,
+      percentualCrescimento: 0,
+    };
+  }
+
   const hoje = new Date();
   const mesAtual = hoje.getMonth();
   const anoAtual = hoje.getFullYear();
@@ -44,30 +57,40 @@ export const contarClientesNovosMes = (clientes: Cliente[]) => {
   const anoAnterior = mesAtual === 0 ? anoAtual - 1 : anoAtual;
 
   // Clientes do mês atual
-  const clientesMesAtual = clientes.filter(cliente => {
+  const clientesMesAtual = clientes.filter((cliente) => {
     const data = new Date(cliente.dataCadastro);
     return data.getMonth() === mesAtual && data.getFullYear() === anoAtual;
   });
 
   // Clientes do mês anterior
-  const clientesMesAnterior = clientes.filter(cliente => {
+  const clientesMesAnterior = clientes.filter((cliente) => {
     const data = new Date(cliente.dataCadastro);
-    return data.getMonth() === mesAnterior && data.getFullYear() === anoAnterior;
+    return (
+      data.getMonth() === mesAnterior && data.getFullYear() === anoAnterior
+    );
   });
 
   // Calcular crescimento percentual
-  const percentualCrescimento = clientesMesAnterior.length === 0 ? 0 :
-    ((clientesMesAtual.length - clientesMesAnterior.length) / clientesMesAnterior.length) * 100;
+  const percentualCrescimento =
+    clientesMesAnterior.length === 0
+      ? 0
+      : ((clientesMesAtual.length - clientesMesAnterior.length) /
+          clientesMesAnterior.length) *
+        100;
 
   return {
     total: clientesMesAtual.length,
-    percentualCrescimento
+    percentualCrescimento,
   };
 };
 
 export const contarClientesAno = (clientes: Cliente[]): number => {
+  if (!clientes || !Array.isArray(clientes)) {
+    return 0;
+  }
+
   const anoAtual = new Date().getFullYear();
-  return clientes.filter(cliente => {
+  return clientes.filter((cliente) => {
     const data = new Date(cliente.dataCadastro);
     return data.getFullYear() === anoAtual;
   }).length;
