@@ -66,6 +66,9 @@ export function WatermarkConfigModal({
   const [useCustomSize, setUseCustomSize] = useState(!!currentConfig?.font_size);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
   const [loadingFonts, setLoadingFonts] = useState(true);
+  const [applyingToAll, setApplyingToAll] = useState(false);
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
 
   // Carregar fontes do Google Fonts no navegador
   useEffect(() => {
@@ -167,6 +170,72 @@ export function WatermarkConfigModal({
       toast.error(error.message || 'Erro ao configurar marca d\'água');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleApplyToAll = async () => {
+    if (!config.text.trim()) {
+      toast.error('Digite o texto da marca d\'água');
+      return;
+    }
+
+    try {
+      setApplyingToAll(true);
+      setShowBulkConfirm(false);
+
+      const saveConfig: WatermarkConfig = {
+        text: config.text,
+        position: config.position,
+        font: config.font,
+        opacity: config.opacity,
+      };
+
+      if (useCustomSize && config.font_size) {
+        saveConfig.font_size = config.font_size;
+      }
+
+      // Buscar usuário do localStorage
+      const userStr = localStorage.getItem('@FotoCRM:user');
+      if (!userStr) {
+        throw new Error('Usuário não autenticado');
+      }
+      const user = JSON.parse(userStr);
+      const token = user.token;
+
+      // Extrair projectId da URL ou de algum contexto
+      const projectId = window.location.pathname.match(/projects\/(\d+)/)?.[1];
+      if (!projectId) {
+        throw new Error('Projeto não identificado');
+      }
+
+      const API_BASE_URL = import.meta.env.VITE_KODA_DESENVOLVIMENTO || 'http://localhost:8080';
+      const response = await fetch(`${API_BASE_URL}/api/v1/lumiphoto/projects/${projectId}/photos/bulk-watermark`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(saveConfig),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Erro ao aplicar marca d\'água em lote');
+      }
+
+      const result = await response.json();
+
+      toast.success(
+        `Marca d'água aplicada! ✅ ${result.data.success} fotos | ⏭️ ${result.data.skipped} ignoradas | ❌ ${result.data.failed} com erro`
+      );
+
+      // Recarregar a página para mostrar as mudanças
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Erro ao aplicar marca d\'água em lote:', error);
+      toast.error(error.message || 'Erro ao aplicar marca d\'água em lote');
+    } finally {
+      setApplyingToAll(false);
     }
   };
 
@@ -563,32 +632,91 @@ export function WatermarkConfigModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+        <div className="flex items-center justify-between gap-3 p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
           <button
-            onClick={onClose}
-            disabled={saving}
-            className="px-6 py-2.5 text-gray-700 hover:text-gray-900 hover:bg-gray-200 font-medium disabled:opacity-50 rounded-lg transition-colors"
+            onClick={() => setShowBulkConfirm(true)}
+            disabled={saving || applyingToAll}
+            className="px-6 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
           >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-8 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md hover:shadow-lg"
-          >
-            {saving ? (
-              <span className="flex items-center gap-2">
+            {applyingToAll ? (
+              <>
                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                Salvando...
-              </span>
+                Aplicando...
+              </>
             ) : (
-              'Salvar Configuração'
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Aplicar em Todas
+              </>
             )}
           </button>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              disabled={saving || applyingToAll}
+              className="px-6 py-2.5 text-gray-700 hover:text-gray-900 hover:bg-gray-200 font-medium disabled:opacity-50 rounded-lg transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || applyingToAll}
+              className="px-8 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md hover:shadow-lg"
+            >
+              {saving ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Salvando...
+                </span>
+              ) : (
+                'Salvar Configuração'
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* Modal de Confirmação para Aplicar em Todas */}
+        {showBulkConfirm && (
+          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 rounded-2xl">
+            <div className="bg-white rounded-xl p-6 max-w-md mx-4 shadow-2xl">
+              <h3 className="text-xl font-bold text-gray-900 mb-3">
+                🎨 Aplicar em Todas as Fotos?
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Esta ação irá aplicar a configuração atual de marca d'água em <strong>TODAS as fotos</strong> deste projeto.
+                Isso pode levar alguns minutos dependendo da quantidade de fotos.
+              </p>
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ <strong>Atenção:</strong> As marcas d'água existentes serão substituídas pela nova configuração.
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowBulkConfirm(false)}
+                  className="px-6 py-2.5 text-gray-700 hover:bg-gray-100 font-medium rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleApplyToAll}
+                  className="px-6 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors shadow-md"
+                >
+                  Confirmar e Aplicar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

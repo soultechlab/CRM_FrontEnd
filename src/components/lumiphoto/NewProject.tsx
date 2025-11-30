@@ -52,6 +52,14 @@ interface UploadItem {
   watermark: UploadWatermarkConfig;
 }
 
+const DEFAULT_WATERMARK: UploadWatermarkConfig = {
+  enabled: true,
+  text: '© Meu Estúdio',
+  position: 'bottom-right',
+  fontSize: 120, // 120 = 12% do tamanho da foto (escala proporcional)
+  opacity: 0.5,  // 50% de opacidade
+};
+
 export function NewProject() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -92,6 +100,7 @@ export function NewProject() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const [watermarkModalItem, setWatermarkModalItem] = useState<UploadItem | null>(null);
+  const [lastWatermarkConfig, setLastWatermarkConfig] = useState<UploadWatermarkConfig>(DEFAULT_WATERMARK);
 
   const buildPublicGalleryUrl = (shareLink?: string | null, shareToken?: string | null) =>
     buildPublicGalleryShareUrl(shareToken, shareLink);
@@ -100,13 +109,7 @@ export function NewProject() {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     file,
     previewUrl: URL.createObjectURL(file),
-    watermark: {
-      enabled: true,
-      text: '© Meu Estúdio',
-      position: 'bottom-right',
-      fontSize: 120, // 120 = 12% do tamanho da foto (escala proporcional)
-      opacity: 0.5,  // 50% de opacidade
-    },
+    watermark: { ...lastWatermarkConfig },
   });
 
   // Carregar dados do projeto se estiver em modo de edição
@@ -273,14 +276,29 @@ export function NewProject() {
   const handleSaveWatermarkModal = async (config: WatermarkConfig) => {
     if (!watermarkModalItem) return;
 
-    // Sempre ativa a marca d'água ao salvar configuração
-    updateWatermark(watermarkModalItem.id, () => ({
+    const newConfig: UploadWatermarkConfig = {
       enabled: true,
       text: config.text,
       position: config.position,
       fontSize: config.font_size ?? 120, // 120 = 12% do tamanho da foto (padrão)
       opacity: config.opacity ?? 0.5,    // 50% de opacidade
-    }));
+    };
+
+    // Sempre ativa a marca d'água ao salvar configuração
+    updateWatermark(watermarkModalItem.id, () => newConfig);
+
+    // Copia a configuração atual para todas as demais fotos e define como padrão para próximos uploads
+    setUploadedFiles((prev) =>
+      prev.map((item) => ({
+        ...item,
+        watermark: { ...newConfig },
+      }))
+    );
+    setLastWatermarkConfig(newConfig);
+    console.info('🛰️ [LUMIPHOTO][WATERMARK_MODAL] Config propagada para todas as fotos do upload atual', {
+      totalFiles: uploadedFiles.length,
+      newConfig,
+    });
 
     toast.success('Marca d\'água configurada!');
     closeWatermarkModal();
