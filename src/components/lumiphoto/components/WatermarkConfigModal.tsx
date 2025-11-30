@@ -2,6 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { X, Droplet, Type, Move } from 'lucide-react';
 import { toast } from 'react-toastify';
 
+// Mapeamento de fontes para Google Fonts (para preview no navegador)
+const GOOGLE_FONTS_MAP: Record<string, string> = {
+  'poppins': 'Poppins',
+  'poppins-bold': 'Poppins',
+  'poppins-light': 'Poppins',
+  'montserrat': 'Montserrat',
+  'montserrat-bold': 'Montserrat',
+  'montserrat-light': 'Montserrat',
+  'playfair': 'Playfair Display',
+  'playfair-bold': 'Playfair Display',
+  'oswald': 'Oswald',
+  'oswald-bold': 'Oswald',
+  'lato': 'Lato',
+  'lato-bold': 'Lato',
+  'lato-light': 'Lato',
+  'dancing-script': 'Dancing Script',
+  'dancing-script-bold': 'Dancing Script',
+  'great-vibes': 'Great Vibes',
+  'bebas-neue': 'Bebas Neue',
+  'dejavu-sans': 'sans-serif',
+  'liberation-sans': 'Liberation Sans',
+};
+
 interface WatermarkConfig {
   text: string;
   position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' | 'center';
@@ -43,6 +66,18 @@ export function WatermarkConfigModal({
   const [useCustomSize, setUseCustomSize] = useState(!!currentConfig?.font_size);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
   const [loadingFonts, setLoadingFonts] = useState(true);
+
+  // Carregar fontes do Google Fonts no navegador
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.href = 'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;700&family=Montserrat:wght@300;400;700&family=Playfair+Display:wght@400;700&family=Oswald:wght@400;700&family=Lato:wght@300;400;700&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Bebas+Neue&display=swap';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+
+    return () => {
+      document.head.removeChild(link);
+    };
+  }, []);
 
   // Buscar fontes disponíveis
   useEffect(() => {
@@ -311,23 +346,33 @@ export function WatermarkConfigModal({
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2">
-                {availableFonts.map((font) => (
-                  <button
-                    key={font.id}
-                    onClick={() => setConfig({ ...config, font: font.id })}
-                    className={`p-3 rounded-lg border-2 transition-all text-left ${
-                      config.font === font.id
-                        ? 'border-blue-500 bg-blue-100 shadow-md'
-                        : 'border-gray-300 hover:border-blue-300 bg-white hover:bg-blue-50'
-                    }`}
-                    style={{ fontFamily: font.name }}
-                  >
-                    <div className="text-sm font-medium text-gray-900">{font.name}</div>
-                    <div className="text-xs text-gray-500 mt-1" style={{ fontFamily: font.name }}>
-                      {config.text || 'Abc 123'}
-                    </div>
-                  </button>
-                ))}
+                {availableFonts.map((font) => {
+                  const googleFontName = GOOGLE_FONTS_MAP[font.id];
+                  const fontWeight = font.id.includes('bold') ? '700' : font.id.includes('light') ? '300' : '400';
+
+                  return (
+                    <button
+                      key={font.id}
+                      onClick={() => setConfig({ ...config, font: font.id })}
+                      className={`p-3 rounded-lg border-2 transition-all text-left ${
+                        config.font === font.id
+                          ? 'border-blue-500 bg-blue-100 shadow-md'
+                          : 'border-gray-300 hover:border-blue-300 bg-white hover:bg-blue-50'
+                      }`}
+                    >
+                      <div className="text-sm font-medium text-gray-900">{font.name}</div>
+                      <div
+                        className="text-xs text-gray-500 mt-1"
+                        style={{
+                          fontFamily: `'${googleFontName}', sans-serif`,
+                          fontWeight: fontWeight
+                        }}
+                      >
+                        {config.text || 'Abc 123'}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -368,20 +413,20 @@ export function WatermarkConfigModal({
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                 />
                 <div className="flex justify-between items-center text-xs text-gray-600">
-                  <span>Pequeno (2%)</span>
+                  <span>Pequeno (20px)</span>
                   <span className="font-bold text-base text-blue-600">
-                    {Math.round((config.font_size || 120) / 10)}% da foto
+                    {config.font_size || 120}px
                   </span>
-                  <span>Grande (50%)</span>
+                  <span>Grande (500px)</span>
                 </div>
                 <p className="text-xs text-gray-500 text-center">
-                  O tamanho será proporcional às dimensões da foto
+                  Tamanho em pixels - ajuste conforme a resolução da sua foto
                 </p>
               </div>
             ) : (
               <div className="bg-blue-50 border border-blue-200 rounded p-3">
                 <p className="text-sm text-blue-800">
-                  ℹ️ O tamanho será calculado automaticamente (12% da foto)
+                  ℹ️ O tamanho será calculado automaticamente com base na resolução da foto
                 </p>
               </div>
             )}
@@ -468,24 +513,20 @@ export function WatermarkConfigModal({
                     style={{
                       opacity: config.opacity || 0.35,
                       fontSize: (() => {
-                        if (!useCustomSize) return '28px'; // Padrão automático (12% de ~300px = 36px / 1.3 = 28px)
+                        if (!useCustomSize) return '28px'; // Padrão automático
 
-                        // Simula o cálculo do backend: escala relativa × tamanho do preview
-                        // Preview container é ~300px de altura, então usamos como referência
-                        const previewMaxSide = 300;
-                        const relativeScale = Math.max(0.02, Math.min((config.font_size || 120) / 1000, 0.50));
-                        const calculatedSize = previewMaxSide * relativeScale;
-
-                        // Divide por 1.3 para ajustar visualmente ao container de preview
-                        return `${Math.max(12, Math.min(calculatedSize / 1.3, 100))}px`;
+                        // Usa o valor direto do slider, mas escala para o preview (que é menor que a foto real)
+                        // Preview é ~300px, fotos reais são ~3000-6000px, então divide por ~10
+                        const fontSize = config.font_size || 120;
+                        return `${Math.max(12, Math.min(fontSize / 10, 50))}px`;
                       })(),
                       textShadow: '2px 2px 6px rgba(0,0,0,0.9), -1px -1px 3px rgba(0,0,0,0.7)',
                       letterSpacing: '1px',
                       fontFamily: (() => {
-                        const selectedFont = availableFonts.find(f => f.id === config.font);
-                        return selectedFont ? `${selectedFont.name}, sans-serif` : 'system-ui, -apple-system, sans-serif';
+                        const googleFontName = GOOGLE_FONTS_MAP[config.font || 'poppins'];
+                        return `'${googleFontName}', sans-serif`;
                       })(),
-                      fontWeight: '700'
+                      fontWeight: config.font?.includes('bold') ? '700' : config.font?.includes('light') ? '300' : '400'
                     }}
                   >
                     {config.text || 'Seu texto aqui'}
