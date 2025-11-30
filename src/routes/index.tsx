@@ -20,6 +20,12 @@ import News from '../components/news/News';
 import { Documentos } from '../components/lumidocs/Documentos';
 import { Modelos } from '../components/lumidocs/Modelos';
 import { DocumentEditor } from '../components/lumidocs/DocumentEditor';
+import { LumiPhoto } from '../components/lumiphoto/LumiPhoto';
+import { NewProject } from '../components/lumiphoto/NewProject';
+import { Delivery } from '../components/lumiphoto/Delivery';
+import { NewDelivery } from '../components/lumiphoto/NewDelivery';
+import { PublicGallery } from '../components/lumiphoto/public/PublicGallery';
+import { PublicDeliveryGallery } from '../components/lumiphoto/public/PublicDeliveryGallery';
 
 export default function AppRoutes() {
   const { isLoading } = useAuth();
@@ -41,6 +47,8 @@ export default function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/cadastro" element={<RegisterPage />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/galeria/:shareToken" element={<PublicGallery />} />
+      <Route path="/entrega/:deliveryToken" element={<PublicDeliveryGallery />} />
 
       {/* Admin Routes */}
       <Route path="/admin" element={<AdminLayout />}>
@@ -61,6 +69,11 @@ export default function AppRoutes() {
         <Route path="lumidocs" element={<Documentos />} />
         <Route path="modelos" element={<Modelos />} />
         <Route path="criar-modelo" element={<DocumentEditor />} />
+        <Route path="lumiphoto" element={<LumiPhoto />} />
+        <Route path="lumiphoto/new-project" element={<NewProject />} />
+        <Route path="lumiphoto/edit-project/:projectId" element={<NewProject />} />
+        <Route path="lumiphoto/delivery" element={<Delivery />} />
+        <Route path="lumiphoto/delivery/new" element={<NewDelivery />} />
       </Route>
 
       {/* Catch all route */}
