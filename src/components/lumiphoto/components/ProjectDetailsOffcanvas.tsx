@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Eye, Heart, Calendar, Mail, User, CheckCircle, Clock, Archive, Send, Pencil, XCircle, Activity as ActivityIcon, Image, Copy, Link2 } from 'lucide-react';
+import { Eye, Heart, Calendar, Mail, User, CheckCircle, Clock, Archive, Send, Pencil, XCircle, Activity as ActivityIcon, Image, Copy, Link2, Download } from 'lucide-react';
 import { Offcanvas } from './Offcanvas';
 import { PhotoViewer } from './PhotoViewer';
+import { Modal } from './Modal';
 import { useAuth } from '../../../contexts/AuthContext';
 import { obterAtividadesProjetoLumiPhoto, obterFotosLumiPhoto, obterSelecoesGaleriaLumiPhoto, LumiPhotoActivity, LumiPhotoPhoto } from '../../../services/lumiPhotoService';
 import { toast } from 'react-toastify';
@@ -54,6 +55,8 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
   const [loadingSelections, setLoadingSelections] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<LumiPhotoPhoto | null>(null);
   const [isPhotoViewerOpen, setIsPhotoViewerOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportTab, setExportTab] = useState<'lightroom' | 'finder' | 'windows'>('lightroom');
 
   useEffect(() => {
     if (isOpen && project && activeTab === 'activities') {
@@ -169,6 +172,58 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
       console.error('Erro ao copiar valor:', error);
       toast.error('Não foi possível copiar. Tente manualmente.');
     }
+  };
+
+  const getLightroomExportText = (): string => {
+    return selections
+      .map(selection => {
+        const fileName = selection.photo?.original_name || '';
+        // Remove a extensão do arquivo
+        return fileName.replace(/\.[^/.]+$/, '');
+      })
+      .filter(name => name !== '')
+      .join(', ');
+  };
+
+  const getFinderExportText = (): string => {
+    return selections
+      .map(selection => selection.photo?.original_name || '')
+      .filter(name => name !== '')
+      .join('\n');
+  };
+
+  const getWindowsExportText = (): string => {
+    return selections
+      .map(selection => selection.photo?.original_name || '')
+      .filter(name => name !== '')
+      .join('\n');
+  };
+
+  const copyCurrentTabContent = async () => {
+    if (selections.length === 0) {
+      toast.warning('Nenhuma foto selecionada para copiar');
+      return;
+    }
+
+    let content = '';
+    let label = '';
+
+    switch (exportTab) {
+      case 'lightroom':
+        content = getLightroomExportText();
+        label = 'Nomes para Lightroom';
+        break;
+      case 'finder':
+        content = getFinderExportText();
+        label = 'Nomes para Finder';
+        break;
+      case 'windows':
+        content = getWindowsExportText();
+        label = 'Nomes para Windows';
+        break;
+    }
+
+    await copyToClipboard(content, label);
   };
 
   const formatDateTime = (value?: string | null) => {
@@ -474,6 +529,28 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
           </div>
         )}
 
+        {selections.length > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h5 className="text-sm font-semibold text-blue-900 mb-1">
+                  {selections.length} FOTO{selections.length !== 1 ? 'S' : ''} SELECIONADA{selections.length !== 1 ? 'S' : ''}
+                </h5>
+                <p className="text-xs text-blue-700">
+                  Exporte os nomes dos arquivos selecionados para usar em seu software de edição
+                </p>
+              </div>
+              <button
+                onClick={() => setIsExportModalOpen(true)}
+                className="inline-flex items-center justify-center px-5 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Exportar Fotos
+              </button>
+            </div>
+          </div>
+        )}
+
         {loadingSelections ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -731,15 +808,164 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
             has_watermark: selectedPhoto.has_watermark,
             watermark_config: selectedPhoto.watermark_config,
             // Campos necessários para priorizar foto com marca d'água
-            watermarked_url: selectedPhoto.watermarked_url,
-            digital_ocean_url: selectedPhoto.digital_ocean_url,
-            thumbnail_url: selectedPhoto.thumbnail_url,
+            watermarked_url: selectedPhoto.watermarked_url ?? undefined,
+            digital_ocean_url: selectedPhoto.digital_ocean_url ?? undefined,
+            thumbnail_url: selectedPhoto.thumbnail_url ?? undefined,
           }}
           isOpen={isPhotoViewerOpen}
           onClose={handlePhotoViewerClose}
           onPhotoDeleted={handlePhotoDeleted}
         />
       )}
+
+      <Modal
+        isOpen={isExportModalOpen}
+        onClose={() => {
+          setIsExportModalOpen(false);
+          setExportTab('lightroom');
+        }}
+        title="Exportar Seleções"
+        size="lg"
+      >
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="text-center">
+            <div className="flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mx-auto mb-4">
+              <Download className="h-8 w-8 text-blue-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {selections.length} foto{selections.length !== 1 ? 's' : ''} selecionada{selections.length !== 1 ? 's' : ''}
+            </h3>
+            <p className="text-sm text-gray-600">
+              Escolha o formato e copie os nomes das fotos
+            </p>
+          </div>
+
+          {/* Tabs Navigation */}
+          <div className="border-b border-gray-200">
+            <nav className="flex space-x-8">
+              <button
+                onClick={() => setExportTab('lightroom')}
+                className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  exportTab === 'lightroom'
+                    ? 'border-purple-500 text-purple-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Image className="h-4 w-4" />
+                  Lightroom
+                </div>
+              </button>
+              <button
+                onClick={() => setExportTab('finder')}
+                className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  exportTab === 'finder'
+                    ? 'border-gray-500 text-gray-700'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                  </svg>
+                  Finder (Mac)
+                </div>
+              </button>
+              <button
+                onClick={() => setExportTab('windows')}
+                className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  exportTab === 'windows'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M3 12V6.75l6-1.32v6.48L3 12m17-9v8.75l-10 .15V5.21L20 3M3 13l6 .09v6.81l-6-1.15V13m17 .25V22l-10-1.91V13.1l10 .15z"/>
+                  </svg>
+                  Windows 10
+                </div>
+              </button>
+            </nav>
+          </div>
+
+          {/* Tab Content */}
+          <div className="space-y-4">
+            {exportTab === 'lightroom' && (
+              <div className="space-y-3">
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-purple-900 mb-2">Adobe Lightroom</h4>
+                  <p className="text-xs text-purple-700 mb-3">
+                    Nomes sem extensão, separados por vírgula. Perfeito para usar no filtro de biblioteca.
+                  </p>
+                  <div className="bg-white border border-purple-300 rounded-lg p-3 max-h-64 overflow-y-auto">
+                    <pre className="text-xs text-gray-800 whitespace-pre-wrap font-mono">
+                      {getLightroomExportText() || 'Nenhuma foto selecionada'}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {exportTab === 'finder' && (
+              <div className="space-y-3">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Finder (macOS)</h4>
+                  <p className="text-xs text-gray-700 mb-3">
+                    Nomes completos com extensão, um por linha. Use no Finder do Mac.
+                  </p>
+                  <div className="bg-white border border-gray-300 rounded-lg p-3 max-h-64 overflow-y-auto">
+                    <pre className="text-xs text-gray-800 whitespace-pre-wrap font-mono">
+                      {getFinderExportText() || 'Nenhuma foto selecionada'}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {exportTab === 'windows' && (
+              <div className="space-y-3">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-blue-900 mb-2">Windows 10</h4>
+                  <p className="text-xs text-blue-700 mb-3">
+                    Nomes completos com extensão, um por linha. Use no Windows Explorer.
+                  </p>
+                  <div className="bg-white border border-blue-300 rounded-lg p-3 max-h-64 overflow-y-auto">
+                    <pre className="text-xs text-gray-800 whitespace-pre-wrap font-mono">
+                      {getWindowsExportText() || 'Nenhuma foto selecionada'}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-4 border-t border-gray-200">
+            <button
+              onClick={() => {
+                setIsExportModalOpen(false);
+                setExportTab('lightroom');
+              }}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => {
+                copyCurrentTabContent();
+                setIsExportModalOpen(false);
+                setExportTab('lightroom');
+              }}
+              className="flex-1 inline-flex items-center justify-center px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copiar
+            </button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }
