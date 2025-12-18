@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   adicionarSelecaoGaleriaLumiPhoto,
@@ -20,6 +20,8 @@ import {
   Sparkles,
   Eye,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface GalleryPhoto {
@@ -198,6 +200,11 @@ export function PublicGallery() {
       )
     );
 
+    // Atualizar também a foto do modal se estiver aberta
+    if (fullPhoto && fullPhoto.id === photoId) {
+      setFullPhoto(prev => prev ? { ...prev, is_selected: isSelected, selection_order: order } : prev);
+    }
+
     setGallery(prev =>
       prev
         ? {
@@ -221,6 +228,43 @@ export function PublicGallery() {
     if (gallery?.add_watermark) return photo.watermarked_url || null;
     return photo.digital_ocean_url;
   };
+
+  const getCurrentPhotoIndex = useCallback(() => {
+    if (!fullPhoto) return -1;
+    return photos.findIndex(p => p.id === fullPhoto.id);
+  }, [fullPhoto, photos]);
+
+  const navigateToPhoto = useCallback((direction: 'prev' | 'next') => {
+    const currentIndex = getCurrentPhotoIndex();
+    if (currentIndex === -1) return;
+
+    let newIndex: number;
+    if (direction === 'prev') {
+      newIndex = currentIndex === 0 ? photos.length - 1 : currentIndex - 1;
+    } else {
+      newIndex = currentIndex === photos.length - 1 ? 0 : currentIndex + 1;
+    }
+
+    setFullPhoto(photos[newIndex]);
+  }, [getCurrentPhotoIndex, photos]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!fullPhoto) return;
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        navigateToPhoto('prev');
+      } else if (e.key === 'ArrowRight') {
+        navigateToPhoto('next');
+      } else if (e.key === 'Escape') {
+        setFullPhoto(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [fullPhoto, navigateToPhoto]);
 
   const renderLoading = () => (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4 text-gray-700">
@@ -350,42 +394,133 @@ export function PublicGallery() {
 
   const renderPhotoModal = () => {
     if (!fullPhoto) return null;
+
+    const currentIndex = getCurrentPhotoIndex();
+    const totalPhotos = photos.length;
+    const hasMultiplePhotos = totalPhotos > 1;
+    const isSelected = !!fullPhoto.is_selected;
+    const isActionInProgress = actionPhotoId === fullPhoto.id;
+
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
-        <div className="relative w-full max-w-5xl max-h-[90vh] bg-white rounded-3xl shadow-2xl p-4 md:p-6 flex flex-col">
-          <button
-            className="absolute top-4 right-4 p-2 rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
-            onClick={() => setFullPhoto(null)}
-          >
-            <X className="h-5 w-5" />
-          </button>
-          <div className="flex-1 overflow-auto mt-4">
-            <div className="w-full h-full flex items-center justify-center bg-gray-50 rounded-2xl p-2">
+      <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 px-4">
+        <div className="relative w-full max-w-6xl max-h-[95vh] flex flex-col">
+          {/* Header com botão fechar e contador */}
+          <div className="flex items-center justify-between mb-4 px-2">
+            <div className="flex items-center gap-3">
+              <div className="text-white text-sm font-medium">
+                {currentIndex + 1} / {totalPhotos}
+              </div>
+              {isSelected && (
+                <div className="flex items-center gap-1.5 bg-blue-500 text-white text-xs font-medium px-3 py-1 rounded-full">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Selecionada
+                </div>
+              )}
+            </div>
+            <button
+              className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"
+              onClick={() => setFullPhoto(null)}
+              aria-label="Fechar"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+
+          {/* Container da imagem com setas laterais */}
+          <div className="relative flex-1 flex items-center justify-center">
+            {/* Seta Esquerda */}
+            {hasMultiplePhotos && (
+              <button
+                onClick={() => navigateToPhoto('prev')}
+                className="absolute left-2 md:left-4 z-10 p-3 md:p-4 rounded-full bg-white/90 hover:bg-white text-gray-800 shadow-xl transition-all hover:scale-110"
+                aria-label="Foto anterior"
+              >
+                <ChevronLeft className="h-6 w-6 md:h-8 md:w-8" />
+              </button>
+            )}
+
+            {/* Imagem */}
+            <div className="relative bg-white rounded-2xl shadow-2xl p-4 md:p-6 max-w-full max-h-full overflow-hidden">
+              {isSelected && (
+                <div className="absolute top-6 right-6 z-10 bg-blue-500 text-white p-3 rounded-full shadow-lg">
+                  <CheckCircle2 className="h-6 w-6" />
+                </div>
+              )}
               <img
                 src={resolvePreviewUrl(fullPhoto)}
                 alt={fullPhoto.original_name || 'Foto selecionada'}
-                className="max-h-[70vh] max-w-full object-contain"
+                className="max-h-[70vh] max-w-full object-contain mx-auto"
               />
             </div>
+
+            {/* Seta Direita */}
+            {hasMultiplePhotos && (
+              <button
+                onClick={() => navigateToPhoto('next')}
+                className="absolute right-2 md:right-4 z-10 p-3 md:p-4 rounded-full bg-white/90 hover:bg-white text-gray-800 shadow-xl transition-all hover:scale-110"
+                aria-label="Próxima foto"
+              >
+                <ChevronRight className="h-6 w-6 md:h-8 md:w-8" />
+              </button>
+            )}
           </div>
-          <div className="mt-4 flex items-center justify-between gap-4 flex-wrap">
-            <div>
+
+          {/* Footer com informações e ações */}
+          <div className="mt-4 bg-white rounded-2xl p-4 md:p-6 flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex-1">
               <p className="text-sm text-gray-500">Visualizando</p>
               <p className="text-base font-semibold text-gray-900">
                 {fullPhoto.original_name || `Foto ${fullPhoto.id}`}
               </p>
             </div>
-            {gallery?.allow_download && resolveDownloadUrl(fullPhoto) && (
-              <a
-                href={resolveDownloadUrl(fullPhoto) as string}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-blue-600 text-white font-medium hover:bg-blue-500 transition-colors"
+            <div className="flex items-center gap-3 flex-wrap">
+              {hasMultiplePhotos && (
+                <div className="hidden lg:flex items-center gap-2 text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">
+                  <span>Use as setas ← → para navegar</span>
+                </div>
+              )}
+
+              {/* Botão de Selecionar/Desselecionar */}
+              <button
+                onClick={() => handleToggleSelection(fullPhoto)}
+                disabled={isActionInProgress}
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium transition-all ${
+                  isSelected
+                    ? 'bg-red-50 text-red-700 border-2 border-red-300 hover:bg-red-100'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                } ${isActionInProgress ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                <Download className="h-4 w-4" />
-                Baixar foto
-              </a>
-            )}
+                {isActionInProgress ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Processando...</span>
+                  </>
+                ) : isSelected ? (
+                  <>
+                    <X className="h-4 w-4" />
+                    <span>Remover Seleção</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>Selecionar Foto</span>
+                  </>
+                )}
+              </button>
+
+              {/* Botão de Download */}
+              {gallery?.allow_download && resolveDownloadUrl(fullPhoto) && (
+                <a
+                  href={resolveDownloadUrl(fullPhoto) as string}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors border-2 border-gray-300"
+                >
+                  <Download className="h-4 w-4" />
+                  Baixar
+                </a>
+              )}
+            </div>
           </div>
         </div>
       </div>
