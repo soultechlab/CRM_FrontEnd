@@ -9,9 +9,11 @@ import {
 } from '../../../services/lumiPhotoService';
 import { toast } from 'react-toastify';
 import {
+  AlertCircle,
   Camera,
   CheckCircle2,
   Download,
+  DollarSign,
   Image as ImageIcon,
   Loader2,
   Lock,
@@ -44,8 +46,11 @@ interface GalleryData {
   share_token: string;
   add_watermark?: boolean;
   allow_download?: boolean;
-   allow_extra_photos?: boolean;
-   extra_photo_price?: number | null;
+  allow_extra_photos?: boolean;
+  extra_photos_type?: 'individual' | 'packages' | 'both';
+  extra_photo_price?: number | null;
+  package_quantity?: number | null;
+  package_price?: number | null;
   require_password?: boolean;
   max_selections?: number | null;
   photos_count?: number;
@@ -351,25 +356,77 @@ export function PublicGallery() {
   const renderExtraSelectionModal = () => {
     if (!pendingExtraSelection || !gallery) return null;
 
+    const extraPhotosType = gallery.extra_photos_type || 'individual';
+    const individualPrice = gallery.extra_photo_price;
+    const packageQuantity = gallery.package_quantity;
+    const packagePrice = gallery.package_price;
+    const pricePerPhotoInPackage = packageQuantity && packagePrice ? packagePrice / packageQuantity : 0;
+
+    const showIndividual = extraPhotosType === 'individual' || extraPhotosType === 'both';
+    const showPackage = extraPhotosType === 'packages' || extraPhotosType === 'both';
+
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-5">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-5">
           <div className="space-y-2">
-            <p className="text-sm uppercase tracking-[0.2em] text-blue-500 font-semibold">Seleção extra</p>
-            <h3 className="text-xl font-bold text-gray-900">Adicionar foto adicional?</h3>
+            <p className="text-sm uppercase tracking-[0.2em] text-blue-500 font-semibold">Foto Extra</p>
+            <h3 className="text-xl font-bold text-gray-900">Você atingiu o limite!</h3>
             <p className="text-gray-600">
-              Você já atingiu o limite de {selectionLimit} fotos do seu pacote. Selecionar esta foto pode gerar custo adicional.
+              Você já selecionou {selectionLimit} fotos do seu pacote contratado.
             </p>
-            {gallery.extra_photo_price !== null && gallery.extra_photo_price !== undefined && (
-              <p className="text-gray-800 font-semibold">
-                Custo por foto extra: R$ {Number(gallery.extra_photo_price).toFixed(2)}
-              </p>
-            )}
           </div>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-yellow-900 text-sm space-y-2">
-            <p className="font-semibold">Confirme com o fotógrafo caso tenha dúvidas sobre o valor.</p>
-            <p>Deseja realmente adicionar esta foto extra?</p>
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+            <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              Opções de compra de fotos extras:
+            </h4>
+
+            <div className="space-y-3">
+              {/* Opção Individual */}
+              {showIndividual && individualPrice !== null && individualPrice !== undefined && (
+                <div className="bg-white border-2 border-blue-300 rounded-lg p-4 hover:border-blue-500 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-semibold text-gray-900">💎 Compra Individual</span>
+                    <span className="text-2xl font-bold text-blue-600">
+                      R$ {Number(individualPrice).toFixed(2)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Adicione apenas esta foto ao seu pacote
+                  </p>
+                </div>
+              )}
+
+              {/* Opção Pacote */}
+              {showPackage && packageQuantity && packagePrice && (
+                <div className="bg-white border-2 border-green-300 rounded-lg p-4 hover:border-green-500 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-semibold text-gray-900">📦 Pacote de Fotos</span>
+                    <span className="text-2xl font-bold text-green-600">
+                      R$ {Number(packagePrice).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-600">
+                      {packageQuantity} fotos adicionais
+                    </p>
+                    <p className="text-xs text-green-700 font-medium">
+                      💰 Economia: R$ {pricePerPhotoInPackage.toFixed(2)} por foto
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-yellow-900 text-sm">
+            <p className="font-semibold">⚠️ Atenção</p>
+            <p className="mt-1">
+              {extraPhotosType === 'both'
+                ? 'Entre em contato com o fotógrafo para escolher a melhor opção de compra.'
+                : 'Entre em contato com o fotógrafo para confirmar o valor final e forma de pagamento.'}
+            </p>
           </div>
 
           <div className="flex items-center justify-end gap-3">
@@ -384,7 +441,7 @@ export function PublicGallery() {
               className="px-5 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
               disabled={actionPhotoId === pendingExtraSelection.id}
             >
-              {actionPhotoId === pendingExtraSelection.id ? 'Adicionando...' : 'Sim, adicionar'}
+              {actionPhotoId === pendingExtraSelection.id ? 'Selecionando...' : 'Selecionar mesmo assim'}
             </button>
           </div>
         </div>
@@ -557,6 +614,104 @@ export function PublicGallery() {
           )}
         </div>
       </header>
+
+      {/* Banner informativo do pacote */}
+      {selectionLimit && (
+        <div className="max-w-6xl mx-auto px-4 pt-6">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl shadow-lg overflow-hidden">
+            <div className="p-6 md:p-8">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                {/* Informações do Pacote Contratado */}
+                <div className="flex-1">
+                  <h3 className="text-white text-lg md:text-xl font-bold mb-2 flex items-center gap-2">
+                    <Camera className="h-5 w-5" />
+                    Seu Pacote Contratado
+                  </h3>
+                  <div className="flex items-baseline gap-3">
+                    <span className="text-4xl md:text-5xl font-extrabold text-white">
+                      {selectionLimit}
+                    </span>
+                    <span className="text-blue-100 text-lg">
+                      foto{selectionLimit !== 1 ? 's' : ''} incluída{selectionLimit !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+
+                  {/* Barra de progresso */}
+                  <div className="mt-4">
+                    <div className="flex justify-between text-sm text-blue-100 mb-2">
+                      <span>{selectedCount} selecionada{selectedCount !== 1 ? 's' : ''}</span>
+                      <span>{remainingSelections !== null && remainingSelections >= 0 ? `${remainingSelections} restante${remainingSelections !== 1 ? 's' : ''}` : 'Completo'}</span>
+                    </div>
+                    <div className="w-full bg-blue-800/30 rounded-full h-3 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          selectedCount >= selectionLimit ? 'bg-yellow-400' : 'bg-white'
+                        }`}
+                        style={{ width: `${Math.min(100, (selectedCount / selectionLimit) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Opções de Fotos Extras */}
+                {gallery.allow_extra_photos && (
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-5 md:min-w-[280px]">
+                    <h4 className="text-white font-semibold mb-3 flex items-center gap-2">
+                      <Sparkles className="h-4 w-4" />
+                      Fotos Extras
+                    </h4>
+                    <div className="space-y-2">
+                      {(gallery.extra_photos_type === 'individual' || gallery.extra_photos_type === 'both') &&
+                       gallery.extra_photo_price !== null && gallery.extra_photo_price !== undefined && (
+                        <div className="bg-white/20 rounded-lg p-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-blue-100 text-sm">Individual</span>
+                            <span className="text-white font-bold text-lg">
+                              R$ {Number(gallery.extra_photo_price).toFixed(2)}
+                            </span>
+                          </div>
+                          <p className="text-blue-100 text-xs mt-1">por foto adicional</p>
+                        </div>
+                      )}
+
+                      {(gallery.extra_photos_type === 'packages' || gallery.extra_photos_type === 'both') &&
+                       gallery.package_quantity && gallery.package_price && (
+                        <div className="bg-white/20 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-blue-100 text-sm">Pacote</span>
+                            <span className="text-white font-bold text-lg">
+                              R$ {Number(gallery.package_price).toFixed(2)}
+                            </span>
+                          </div>
+                          <p className="text-blue-100 text-xs">
+                            {gallery.package_quantity} fotos extras
+                          </p>
+                          <p className="text-yellow-300 text-xs mt-1 font-medium">
+                            💰 R$ {(Number(gallery.package_price) / gallery.package_quantity).toFixed(2)}/foto
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Aviso quando atingir o limite */}
+              {selectedCount >= selectionLimit && (
+                <div className="mt-4 bg-yellow-400 text-yellow-900 rounded-lg p-4 flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-sm">Limite atingido!</p>
+                    <p className="text-xs mt-1">
+                      Você já selecionou {selectionLimit} fotos. Fotos adicionais terão custo extra.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-6xl mx-auto px-4 py-10 space-y-10">
         <section className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm">
