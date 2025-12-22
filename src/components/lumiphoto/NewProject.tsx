@@ -238,16 +238,60 @@ export function NewProject() {
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const files = Array.from(e.dataTransfer.files);
-      const items = files.map(createUploadItem);
-      setUploadedFiles(prev => [...prev, ...items]);
+      const MAX_SIZE = 2 * 1024 * 1024; // 2MB em bytes
+
+      const validFiles: File[] = [];
+      const invalidFiles: string[] = [];
+
+      files.forEach(file => {
+        if (file.size > MAX_SIZE) {
+          invalidFiles.push(file.name);
+        } else {
+          validFiles.push(file);
+        }
+      });
+
+      if (invalidFiles.length > 0) {
+        toast.error(
+          `${invalidFiles.length} arquivo${invalidFiles.length > 1 ? 's foram rejeitados' : ' foi rejeitado'} por exceder 2MB: ${invalidFiles.slice(0, 3).join(', ')}${invalidFiles.length > 3 ? '...' : ''}`,
+          { autoClose: 5000 }
+        );
+      }
+
+      if (validFiles.length > 0) {
+        const items = validFiles.map(createUploadItem);
+        setUploadedFiles(prev => [...prev, ...items]);
+      }
     }
   }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      const items = files.map(createUploadItem);
-      setUploadedFiles(prev => [...prev, ...items]);
+      const MAX_SIZE = 2 * 1024 * 1024; // 2MB em bytes
+
+      const validFiles: File[] = [];
+      const invalidFiles: string[] = [];
+
+      files.forEach(file => {
+        if (file.size > MAX_SIZE) {
+          invalidFiles.push(file.name);
+        } else {
+          validFiles.push(file);
+        }
+      });
+
+      if (invalidFiles.length > 0) {
+        toast.error(
+          `${invalidFiles.length} arquivo${invalidFiles.length > 1 ? 's foram rejeitados' : ' foi rejeitado'} por exceder 2MB: ${invalidFiles.slice(0, 3).join(', ')}${invalidFiles.length > 3 ? '...' : ''}`,
+          { autoClose: 5000 }
+        );
+      }
+
+      if (validFiles.length > 0) {
+        const items = validFiles.map(createUploadItem);
+        setUploadedFiles(prev => [...prev, ...items]);
+      }
     }
   };
 
@@ -696,7 +740,7 @@ export function NewProject() {
                   Arraste e solte arquivos aqui ou clique para selecionar
                 </p>
                 <p className="text-sm text-gray-500 mb-4">
-                  Suporte JPG, PNG, RAW (máximo 20MB por arquivo)
+                  Suporte JPG, PNG, RAW (máximo 2MB por arquivo)
                 </p>
                 <input
                   type="file"

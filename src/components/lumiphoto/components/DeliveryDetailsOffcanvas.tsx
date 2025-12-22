@@ -31,6 +31,8 @@ interface DeliveryProject extends Partial<LumiPhotoDelivery> {
   clientEmail?: string;
   deliveryToken?: string;
   photosList?: LumiPhotoPhoto[];
+  expirationDays?: number | null;
+  expiresAt?: string | null;
 }
 
 interface DeliveryDetailsOffcanvasProps {
@@ -80,18 +82,24 @@ export function DeliveryDetailsOffcanvas({ isOpen, onClose, project }: DeliveryD
   };
 
   const daysRemaining = useMemo(() => {
-    if (!project?.expires_at) return null;
+    // Primeiro tenta usar expires_at se existir
+    if (project?.expires_at) {
+      const expiresAt = new Date(project.expires_at).getTime();
+      const now = Date.now();
+      const diff = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
 
-    const expiresAt = new Date(project.expires_at).getTime();
-    const now = Date.now();
-    const diff = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
-
-    if (Number.isNaN(diff)) {
-      return null;
+      if (!Number.isNaN(diff)) {
+        return diff < 0 ? 0 : diff;
+      }
     }
 
-    return diff < 0 ? 0 : diff;
-  }, [project?.expires_at]);
+    // Se não houver expires_at mas houver expirationDays, mostra esse valor
+    if (project?.expirationDays) {
+      return project.expirationDays;
+    }
+
+    return null;
+  }, [project?.expires_at, project?.expirationDays]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -183,7 +191,11 @@ export function DeliveryDetailsOffcanvas({ isOpen, onClose, project }: DeliveryD
             {daysRemaining === null ? '—' : `${daysRemaining} dia${daysRemaining === 1 ? '' : 's'}`}
           </div>
           <div className="text-sm text-purple-600 font-medium">
-            {project.expires_at ? 'Até expirar' : 'Sem expiração configurada'}
+            {daysRemaining !== null
+              ? project.expires_at
+                ? 'Até expirar'
+                : 'Validade configurada'
+              : 'Sem expiração'}
           </div>
         </div>
       </div>
@@ -199,6 +211,15 @@ export function DeliveryDetailsOffcanvas({ isOpen, onClose, project }: DeliveryD
             <Mail className="h-5 w-5 text-gray-400 mr-3 flex-shrink-0" />
             <span className="text-gray-900 break-words">{project.clientEmail || 'E-mail não informado'}</span>
           </div>
+          {daysRemaining !== null && !project.expires_at && (
+            <div className="flex items-start">
+              <Clock className="h-5 w-5 text-gray-400 mr-3 flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="text-gray-900 font-medium">Validade: {daysRemaining} dia{daysRemaining === 1 ? '' : 's'}</span>
+                <p className="text-xs text-gray-500 mt-0.5">A contagem inicia após envio ao cliente</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -370,13 +391,26 @@ export function DeliveryDetailsOffcanvas({ isOpen, onClose, project }: DeliveryD
 
         <div className="bg-green-50 p-4 rounded-lg border border-green-200">
           <div className="flex items-center gap-2 text-green-900 font-medium">
-            {project.expires_at ? <Clock className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
-            {project.expires_at ? 'Expiração configurada' : 'Sem expiração configurada'}
+            {daysRemaining !== null ? <Clock className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+            {daysRemaining !== null ? 'Expiração configurada' : 'Sem expiração configurada'}
           </div>
-          {project.expires_at && (
-            <p className="text-sm text-green-700 mt-1">
-              Expira em {formatDateTime(project.expires_at)} ({daysRemaining ?? '—'} dias restantes)
-            </p>
+          {daysRemaining !== null && (
+            <div className="space-y-1 mt-2">
+              {project.expires_at ? (
+                <p className="text-sm text-green-700">
+                  Expira em {formatDateTime(project.expires_at)} ({daysRemaining} dias restantes)
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-green-700">
+                    Validade de {daysRemaining} dia{daysRemaining === 1 ? '' : 's'} configurada
+                  </p>
+                  <p className="text-xs text-green-600">
+                    A contagem inicia quando a entrega for enviada ao cliente
+                  </p>
+                </>
+              )}
+            </div>
           )}
         </div>
 

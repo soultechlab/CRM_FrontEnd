@@ -1,14 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Palette, Shield, Lock, Download, Globe, Info, AlertTriangle, Upload, X, CheckCircle, Image } from 'lucide-react';
+import { ArrowLeft, Palette, Shield, Lock, Download, Globe, Info, AlertTriangle, Upload, X, CheckCircle, Image, ChevronLeft, ChevronRight } from 'lucide-react';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
 import { useAuth } from '../../contexts/AuthContext';
-import { criarEntregaLumiPhoto, obterProjetosLumiPhoto, uploadFotosEntregaLumiPhoto, uploadLogoEntregaLumiPhoto, LumiPhotoProject } from '../../services/lumiPhotoService';
+import { criarEntregaLumiPhoto, uploadFotosEntregaLumiPhoto, uploadLogoEntregaLumiPhoto } from '../../services/lumiPhotoService';
 import { toast } from 'react-toastify';
 
 interface DeliveryFormData {
     name: string;
-    projectId: number;
     clientEmail: string;
     expirationDays: number;
 
@@ -28,16 +27,15 @@ export function NewDelivery() {
     const navigate = useNavigate();
     const [currentStep, setCurrentStep] = useState<'details' | 'photos' | 'layout' | 'security'>('details');
     const [isCreating, setIsCreating] = useState(false);
-    const [projects, setProjects] = useState<LumiPhotoProject[]>([]);
-    const [loadingProjects, setLoadingProjects] = useState(true);
     const [dragActive, setDragActive] = useState(false);
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
     const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+    const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+    const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
     const [formData, setFormData] = useState<DeliveryFormData>({
         name: '',
-        projectId: 0,
         clientEmail: '',
         expirationDays: 7,
         logoUrl: '',
@@ -50,38 +48,52 @@ export function NewDelivery() {
         showMetadata: false
     });
 
+    // Funções de navegação do slideshow
+    const handlePreviousSlide = useCallback(() => {
+        setCurrentSlideIndex(prev =>
+            prev === 0 ? previewUrls.length - 1 : prev - 1
+        );
+    }, [previewUrls.length]);
+
+    const handleNextSlide = useCallback(() => {
+        setCurrentSlideIndex(prev =>
+            prev === previewUrls.length - 1 ? 0 : prev + 1
+        );
+    }, [previewUrls.length]);
+
+    // Limpar URLs de preview quando o componente é desmontado
     useEffect(() => {
-        loadProjects();
-    }, []);
+        return () => {
+            previewUrls.forEach(url => URL.revokeObjectURL(url));
+        };
+    }, [previewUrls]);
 
-    const loadProjects = async () => {
-        try {
-            setLoadingProjects(true);
-            const response = await obterProjetosLumiPhoto({ status: 'all' }, user);
-            const projectsData = Array.isArray(response.data) ? response.data : [];
-
-            const availableProjects = projectsData.filter((p: LumiPhotoProject) =>
-                p.status !== 'excluida' && p.status !== 'arquivada'
-            );
-
-            setProjects(availableProjects);
-
-            if (availableProjects.length > 0) {
-                setFormData(prev => ({ ...prev, projectId: availableProjects[0].id }));
+    // Navegação com teclado no slideshow
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (formData.galleryLayout === 'slideshow' && previewUrls.length > 1) {
+                if (e.key === 'ArrowLeft') {
+                    handlePreviousSlide();
+                } else if (e.key === 'ArrowRight') {
+                    handleNextSlide();
+                }
             }
-        } catch (error) {
-            console.error('Erro ao carregar projetos:', error);
-            toast.error('Erro ao carregar projetos disponíveis');
-        } finally {
-            setLoadingProjects(false);
-        }
-    };
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [formData.galleryLayout, previewUrls.length, handlePreviousSlide, handleNextSlide]);
 
     const handleInputChange = (field: keyof DeliveryFormData, value: string | number | boolean) => {
         setFormData(prev => ({
             ...prev,
             [field]: value
         }));
+
+        // Resetar índice do slideshow ao mudar o layout
+        if (field === 'galleryLayout') {
+            setCurrentSlideIndex(0);
+        }
     };
 
     const handleDrag = useCallback((e: React.DragEvent) => {
@@ -101,14 +113,70 @@ export function NewDelivery() {
 
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
             const files = Array.from(e.dataTransfer.files);
-            setUploadedFiles(prev => [...prev, ...files]);
+            const MAX_SIZE = 15 * 1024 * 1024; // 15MB em bytes
+
+            const validFiles: File[] = [];
+            const invalidFiles: string[] = [];
+
+            files.forEach(file => {
+                if (file.size > MAX_SIZE) {
+                    invalidFiles.push(file.name);
+                } else {
+                    validFiles.push(file);
+                }
+            });
+
+            if (invalidFiles.length > 0) {
+                toast.error(
+                    `${invalidFiles.length} arquivo${invalidFiles.length > 1 ? 's foram rejeitados' : ' foi rejeitado'} por exceder 15MB: ${invalidFiles.slice(0, 3).join(', ')}${invalidFiles.length > 3 ? '...' : ''}`,
+                    { autoClose: 5000 }
+                );
+            }
+
+            if (validFiles.length > 0) {
+                setUploadedFiles(prev => [...prev, ...validFiles]);
+
+                // Criar URLs de preview
+                validFiles.forEach(file => {
+                    const url = URL.createObjectURL(file);
+                    setPreviewUrls(prev => [...prev, url]);
+                });
+            }
         }
     }, []);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
             const files = Array.from(e.target.files);
-            setUploadedFiles(prev => [...prev, ...files]);
+            const MAX_SIZE = 15 * 1024 * 1024; // 15MB em bytes
+
+            const validFiles: File[] = [];
+            const invalidFiles: string[] = [];
+
+            files.forEach(file => {
+                if (file.size > MAX_SIZE) {
+                    invalidFiles.push(file.name);
+                } else {
+                    validFiles.push(file);
+                }
+            });
+
+            if (invalidFiles.length > 0) {
+                toast.error(
+                    `${invalidFiles.length} arquivo${invalidFiles.length > 1 ? 's foram rejeitados' : ' foi rejeitado'} por exceder 15MB: ${invalidFiles.slice(0, 3).join(', ')}${invalidFiles.length > 3 ? '...' : ''}`,
+                    { autoClose: 5000 }
+                );
+            }
+
+            if (validFiles.length > 0) {
+                setUploadedFiles(prev => [...prev, ...validFiles]);
+
+                // Criar URLs de preview
+                validFiles.forEach(file => {
+                    const url = URL.createObjectURL(file);
+                    setPreviewUrls(prev => [...prev, url]);
+                });
+            }
         }
     };
 
@@ -137,7 +205,17 @@ export function NewDelivery() {
     };
 
     const removeFile = (index: number) => {
+        // Liberar a URL do preview
+        if (previewUrls[index]) {
+            URL.revokeObjectURL(previewUrls[index]);
+        }
         setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+        setPreviewUrls(prev => prev.filter((_, i) => i !== index));
+
+        // Resetar o índice do slideshow se necessário
+        if (currentSlideIndex >= previewUrls.length - 1) {
+            setCurrentSlideIndex(0);
+        }
     };
 
     const handleNext = () => {
@@ -164,7 +242,7 @@ export function NewDelivery() {
 
     const isStepValid = () => {
         if (currentStep === 'details') {
-            return formData.name.trim() && formData.clientEmail.trim() && formData.projectId > 0;
+            return formData.name.trim() && formData.clientEmail.trim();
         }
         if (currentStep === 'security' && formData.requirePassword) {
             return formData.password.trim().length >= 4;
@@ -173,13 +251,23 @@ export function NewDelivery() {
     };
 
     const handleCreateDelivery = async () => {
+        // Avisar se não houver fotos
+        if (uploadedFiles.length === 0) {
+            const confirmCreate = window.confirm(
+                'Você está criando uma entrega sem fotos. Deseja continuar?\n\n' +
+                'Você poderá adicionar fotos posteriormente, mas a entrega estará vazia inicialmente.'
+            );
+            if (!confirmCreate) {
+                return;
+            }
+        }
+
         try {
             setIsCreating(true);
 
             const deliveryData: any = {
                 name: formData.name,
                 client_email: formData.clientEmail,
-                project_id: formData.projectId || undefined,
                 expiration_days: formData.expirationDays,
                 layout_settings: {
                     logo_url: formData.logoUrl || null,
@@ -252,46 +340,6 @@ export function NewDelivery() {
                     <div className="space-y-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Projeto de origem *
-                            </label>
-                            {loadingProjects ? (
-                                <div className="flex items-center justify-center py-8">
-                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
-                                    <span className="ml-2 text-sm text-gray-500">Carregando projetos...</span>
-                                </div>
-                            ) : projects.length === 0 ? (
-                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                                    <p className="text-sm text-amber-800">
-                                        Você precisa criar um projeto antes de criar uma entrega.
-                                    </p>
-                                    <button
-                                        onClick={() => navigate('/lumiphoto/new-project')}
-                                        className="mt-2 text-sm font-medium text-amber-900 hover:text-amber-700 underline"
-                                    >
-                                        Criar novo projeto
-                                    </button>
-                                </div>
-                            ) : (
-                                <select
-                                    value={formData.projectId}
-                                    onChange={(e) => handleInputChange('projectId', parseInt(e.target.value))}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-colors"
-                                >
-                                    <option value="0">Selecione um projeto</option>
-                                    {projects.map((project) => (
-                                        <option key={project.id} value={project.id}>
-                                            {project.name} ({project.photos_count || 0} fotos)
-                                        </option>
-                                    ))}
-                                </select>
-                            )}
-                            <p className="text-sm text-gray-500 mt-1">
-                                Selecione o projeto que contém as fotos para esta entrega
-                            </p>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Nome da entrega
                             </label>
                             <input
@@ -340,19 +388,35 @@ export function NewDelivery() {
             case 'photos':
                 return (
                     <div className="space-y-6">
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                            <div className="flex items-start">
-                                <Image className="h-5 w-5 text-blue-600 mt-0.5 mr-2" />
-                                <div>
-                                    <h3 className="text-sm font-medium text-blue-900">
-                                        Upload de Fotos
-                                    </h3>
-                                    <p className="text-sm text-blue-700 mt-1">
-                                        Adicione as fotos que serão incluídas nesta entrega
-                                    </p>
+                        {uploadedFiles.length === 0 ? (
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                                <div className="flex items-start">
+                                    <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 mr-2" />
+                                    <div>
+                                        <h3 className="text-sm font-medium text-amber-900">
+                                            Nenhuma foto adicionada
+                                        </h3>
+                                        <p className="text-sm text-amber-700 mt-1">
+                                            Adicione pelo menos uma foto para continuar. Você pode adicionar mais fotos depois se necessário.
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                                <div className="flex items-start">
+                                    <Image className="h-5 w-5 text-blue-600 mt-0.5 mr-2" />
+                                    <div>
+                                        <h3 className="text-sm font-medium text-blue-900">
+                                            Upload de Fotos
+                                        </h3>
+                                        <p className="text-sm text-blue-700 mt-1">
+                                            Adicione as fotos que serão incluídas nesta entrega
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="flex items-center justify-between mb-4">
                             {uploadedFiles.length > 0 && (
@@ -398,7 +462,7 @@ export function NewDelivery() {
                                 Selecionar Arquivos
                             </label>
                             <p className="text-xs text-gray-400 mt-4">
-                                Suporte para JPG, PNG, RAW (máximo 20MB por arquivo)
+                                Suporte para JPG, PNG, RAW (máximo 15MB por arquivo)
                             </p>
                         </div>
 
@@ -410,7 +474,12 @@ export function NewDelivery() {
                                         Arquivos selecionados ({uploadedFiles.length})
                                     </h4>
                                     <button
-                                        onClick={() => setUploadedFiles([])}
+                                        onClick={() => {
+                                            previewUrls.forEach(url => URL.revokeObjectURL(url));
+                                            setUploadedFiles([]);
+                                            setPreviewUrls([]);
+                                            setCurrentSlideIndex(0);
+                                        }}
                                         className="text-xs text-red-600 hover:text-red-800 font-medium"
                                     >
                                         Limpar todos
@@ -446,11 +515,18 @@ export function NewDelivery() {
                     <div className="space-y-6">
                         {/* Preview da Galeria */}
                         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6">
-                            <div className="flex items-center mb-4">
-                                <Palette className="h-5 w-5 text-blue-600 mr-2" />
-                                <h3 className="text-sm font-semibold text-blue-900">
-                                    Preview da Galeria
-                                </h3>
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center">
+                                    <Palette className="h-5 w-5 text-blue-600 mr-2" />
+                                    <h3 className="text-sm font-semibold text-blue-900">
+                                        Preview da Galeria
+                                    </h3>
+                                </div>
+                                {previewUrls.length === 0 && (
+                                    <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                                        Adicione fotos na etapa "Fotos"
+                                    </span>
+                                )}
                             </div>
                             <div
                                 className="rounded-lg overflow-hidden shadow-lg"
@@ -488,31 +564,157 @@ export function NewDelivery() {
                                     <div className="mt-4">
                                         {formData.galleryLayout === 'grid' && (
                                             <div className="grid grid-cols-3 gap-2">
-                                                {[1, 2, 3, 4, 5, 6].map(i => (
-                                                    <div
-                                                        key={i}
-                                                        className="aspect-square rounded bg-white/20 backdrop-blur-sm"
-                                                        style={{ borderColor: formData.primaryColor }}
-                                                    ></div>
-                                                ))}
+                                                {previewUrls.length > 0 ? (
+                                                    previewUrls.slice(0, 6).map((url, i) => (
+                                                        <div
+                                                            key={i}
+                                                            className="aspect-square rounded overflow-hidden"
+                                                            style={{ borderColor: formData.primaryColor }}
+                                                        >
+                                                            <img
+                                                                src={url}
+                                                                alt={`Preview ${i + 1}`}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    [1, 2, 3, 4, 5, 6].map(i => (
+                                                        <div
+                                                            key={i}
+                                                            className="aspect-square rounded bg-white/20 backdrop-blur-sm flex items-center justify-center"
+                                                            style={{ borderColor: formData.primaryColor }}
+                                                        >
+                                                            <Image className="h-8 w-8 text-gray-400 opacity-50" />
+                                                        </div>
+                                                    ))
+                                                )}
                                             </div>
                                         )}
                                         {formData.galleryLayout === 'masonry' && (
                                             <div className="grid grid-cols-3 gap-2">
-                                                <div className="aspect-[3/4] rounded bg-white/20 backdrop-blur-sm"></div>
-                                                <div className="aspect-square rounded bg-white/20 backdrop-blur-sm"></div>
-                                                <div className="aspect-[4/3] rounded bg-white/20 backdrop-blur-sm"></div>
-                                                <div className="aspect-square rounded bg-white/20 backdrop-blur-sm"></div>
-                                                <div className="aspect-[3/4] rounded bg-white/20 backdrop-blur-sm"></div>
-                                                <div className="aspect-square rounded bg-white/20 backdrop-blur-sm"></div>
+                                                {previewUrls.length > 0 ? (
+                                                    <>
+                                                        {previewUrls[0] && (
+                                                            <div className="aspect-[3/4] rounded overflow-hidden">
+                                                                <img src={previewUrls[0]} alt="Preview 1" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        )}
+                                                        {previewUrls[1] && (
+                                                            <div className="aspect-square rounded overflow-hidden">
+                                                                <img src={previewUrls[1]} alt="Preview 2" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        )}
+                                                        {previewUrls[2] && (
+                                                            <div className="aspect-[4/3] rounded overflow-hidden">
+                                                                <img src={previewUrls[2]} alt="Preview 3" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        )}
+                                                        {previewUrls[3] && (
+                                                            <div className="aspect-square rounded overflow-hidden">
+                                                                <img src={previewUrls[3]} alt="Preview 4" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        )}
+                                                        {previewUrls[4] && (
+                                                            <div className="aspect-[3/4] rounded overflow-hidden">
+                                                                <img src={previewUrls[4]} alt="Preview 5" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        )}
+                                                        {previewUrls[5] && (
+                                                            <div className="aspect-square rounded overflow-hidden">
+                                                                <img src={previewUrls[5]} alt="Preview 6" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <div className="aspect-[3/4] rounded bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                            <Image className="h-8 w-8 text-gray-400 opacity-50" />
+                                                        </div>
+                                                        <div className="aspect-square rounded bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                            <Image className="h-8 w-8 text-gray-400 opacity-50" />
+                                                        </div>
+                                                        <div className="aspect-[4/3] rounded bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                            <Image className="h-8 w-8 text-gray-400 opacity-50" />
+                                                        </div>
+                                                        <div className="aspect-square rounded bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                            <Image className="h-8 w-8 text-gray-400 opacity-50" />
+                                                        </div>
+                                                        <div className="aspect-[3/4] rounded bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                            <Image className="h-8 w-8 text-gray-400 opacity-50" />
+                                                        </div>
+                                                        <div className="aspect-square rounded bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                            <Image className="h-8 w-8 text-gray-400 opacity-50" />
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
                                         )}
                                         {formData.galleryLayout === 'slideshow' && (
-                                            <div className="aspect-video rounded bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                                                <div className="text-center" style={{ color: formData.primaryColor }}>
-                                                    <Image className="h-16 w-16 mx-auto mb-2 opacity-50" />
-                                                    <p className="text-sm opacity-75">Modo Slideshow</p>
-                                                </div>
+                                            <div className="aspect-video rounded overflow-hidden bg-white/20 backdrop-blur-sm flex items-center justify-center relative group">
+                                                {previewUrls.length > 0 ? (
+                                                    <>
+                                                        <img
+                                                            src={previewUrls[currentSlideIndex]}
+                                                            alt={`Preview slideshow ${currentSlideIndex + 1}`}
+                                                            className="w-full h-full object-contain transition-opacity duration-300"
+                                                            key={currentSlideIndex}
+                                                        />
+
+                                                        {/* Botões de navegação */}
+                                                        {previewUrls.length > 1 && (
+                                                            <>
+                                                                <button
+                                                                    onClick={handlePreviousSlide}
+                                                                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all opacity-0 group-hover:opacity-100"
+                                                                    style={{ color: 'white' }}
+                                                                >
+                                                                    <ChevronLeft className="h-6 w-6" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={handleNextSlide}
+                                                                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all opacity-0 group-hover:opacity-100"
+                                                                    style={{ color: 'white' }}
+                                                                >
+                                                                    <ChevronRight className="h-6 w-6" />
+                                                                </button>
+
+                                                                {/* Indicador de posição */}
+                                                                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
+                                                                    <div className="bg-black/60 text-white px-3 py-1 rounded-full text-xs font-medium">
+                                                                        {currentSlideIndex + 1} / {previewUrls.length}
+                                                                    </div>
+                                                                    <div className="bg-black/50 text-white/75 px-2 py-0.5 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        Use ← → para navegar
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Indicadores de pontos */}
+                                                                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex gap-1.5 items-center">
+                                                                    {previewUrls.slice(0, 10).map((_, index) => (
+                                                                        <button
+                                                                            key={index}
+                                                                            onClick={() => setCurrentSlideIndex(index)}
+                                                                            className={`rounded-full transition-all ${
+                                                                                index === currentSlideIndex
+                                                                                    ? 'w-6 h-2 bg-white'
+                                                                                    : 'w-2 h-2 bg-white/50 hover:bg-white/75'
+                                                                            }`}
+                                                                        />
+                                                                    ))}
+                                                                    {previewUrls.length > 10 && (
+                                                                        <span className="text-white/75 text-xs ml-1">+{previewUrls.length - 10}</span>
+                                                                    )}
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <div className="text-center" style={{ color: formData.primaryColor }}>
+                                                        <Image className="h-16 w-16 mx-auto mb-2 opacity-50" />
+                                                        <p className="text-sm opacity-75">Modo Slideshow</p>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -688,7 +890,9 @@ export function NewDelivery() {
                                 </div>
                                 <div className="flex items-center justify-between py-2 border-b border-green-200">
                                     <span className="text-sm text-gray-600">Fotos selecionadas:</span>
-                                    <span className="text-sm font-medium text-gray-900">{uploadedFiles.length} arquivo{uploadedFiles.length !== 1 ? 's' : ''}</span>
+                                    <span className={`text-sm font-medium ${uploadedFiles.length > 0 ? 'text-green-700' : 'text-amber-600'}`}>
+                                        {uploadedFiles.length > 0 ? `${uploadedFiles.length} foto${uploadedFiles.length !== 1 ? 's' : ''}` : 'Nenhuma foto'}
+                                    </span>
                                 </div>
                                 <div className="flex items-center justify-between py-2 border-b border-green-200">
                                     <span className="text-sm text-gray-600">Layout:</span>
