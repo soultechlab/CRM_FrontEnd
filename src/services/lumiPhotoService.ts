@@ -676,6 +676,11 @@ export const adicionarSelecaoGaleriaLumiPhoto = async (
   return response.data;
 };
 
+export const notificarPrimeiraSelecaoGaleriaLumiPhoto = async (shareToken: string) => {
+  const response = await publicApiClient.post(`/public/lumiphoto/gallery/${shareToken}/first-selection`, {});
+  return response.data;
+};
+
 export const atualizarSelecaoGaleriaLumiPhoto = async (
   shareToken: string,
   photoId: number,

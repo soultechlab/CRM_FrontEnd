@@ -6,6 +6,7 @@ import {
   obterGaleriaPublicaLumiPhoto,
   registrarVisualizacaoGaleriaLumiPhoto,
   removerSelecaoGaleriaLumiPhoto,
+  notificarPrimeiraSelecaoGaleriaLumiPhoto,
 } from '../../../services/lumiPhotoService';
 import { toast } from 'react-toastify';
 import {
@@ -163,8 +164,22 @@ export function PublicGallery() {
         updatePhotoSelection(photo.id, false, null);
         toast.info('Seleção removida.');
       } else {
+        // Verifica se é a primeira seleção para notificar mudança de status
+        const isPrimeiraSelecao = selectedCount === 0;
+
         const selection = await adicionarSelecaoGaleriaLumiPhoto(shareToken, photo.id, undefined);
         updatePhotoSelection(photo.id, true, selection.order ?? null);
+
+        // Notifica o backend sobre a primeira seleção para mudar status para "em seleção"
+        if (isPrimeiraSelecao) {
+          try {
+            await notificarPrimeiraSelecaoGaleriaLumiPhoto(shareToken);
+          } catch (notifyErr) {
+            // Falha ao notificar não deve impedir a seleção
+            console.warn('Não foi possível atualizar status do projeto:', notifyErr);
+          }
+        }
+
         toast.success('Foto selecionada com sucesso!');
       }
     } catch (err) {
@@ -180,8 +195,23 @@ export function PublicGallery() {
 
     try {
       setActionPhotoId(pendingExtraSelection.id);
+
+      // Verifica se é a primeira seleção para notificar mudança de status
+      const isPrimeiraSelecao = selectedCount === 0;
+
       const selection = await adicionarSelecaoGaleriaLumiPhoto(shareToken, pendingExtraSelection.id, undefined);
       updatePhotoSelection(pendingExtraSelection.id, true, selection.order ?? null);
+
+      // Notifica o backend sobre a primeira seleção para mudar status para "em seleção"
+      if (isPrimeiraSelecao) {
+        try {
+          await notificarPrimeiraSelecaoGaleriaLumiPhoto(shareToken);
+        } catch (notifyErr) {
+          // Falha ao notificar não deve impedir a seleção
+          console.warn('Não foi possível atualizar status do projeto:', notifyErr);
+        }
+      }
+
       toast.success('Foto selecionada (custo adicional pode ser aplicado).');
     } catch (err) {
       console.error('Erro ao confirmar seleção extra:', err);

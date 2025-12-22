@@ -14,6 +14,7 @@ import { ConfirmationModal } from './components/ConfirmationModal';
 import { PhotosViewModal } from './components/PhotosViewModal';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
 import { DeliveryDetailsOffcanvas } from './components/DeliveryDetailsOffcanvas';
+import { EditDeliveryModal } from './components/EditDeliveryModal';
 import { useAuth } from '../../contexts/AuthContext';
 import {
     obterEntregasLumiPhoto,
@@ -61,6 +62,7 @@ export function Delivery() {
     const [isAllProjectsModalOpen, setIsAllProjectsModalOpen] = useState(false);
     const [isAllActivitiesModalOpen, setIsAllActivitiesModalOpen] = useState(false);
     const [isPermanentDelete, setIsPermanentDelete] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [showFilters, setShowFilters] = useState(true);
     const [totalUploads, setTotalUploads] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -223,6 +225,11 @@ export function Delivery() {
         setIsPhotosViewModalOpen(true);
     };
 
+    const openEditModal = (projectId: number) => {
+        setSelectedProjectId(projectId);
+        setIsEditModalOpen(true);
+    };
+
     const handleDeleteProject = async () => {
         if (selectedProjectId === null) return;
 
@@ -304,12 +311,21 @@ export function Delivery() {
         const leftButtons = (
             <>
                 {["criado", "enviada", "baixada", "expirada"].includes(project.status) && (
-                    <button
-                        onClick={() => openProjectDetails(project.id)}
-                        className="px-3 py-1 me-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded"
-                    >
-                        Ver detalhes
-                    </button>
+                    <>
+                        <button
+                            onClick={() => openProjectDetails(project.id)}
+                            className="px-3 py-1 me-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded"
+                        >
+                            Ver detalhes
+                        </button>
+                        <button
+                            onClick={() => openEditModal(project.id)}
+                            className="px-3 py-1 me-2 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded"
+                        >
+                            <Pencil className="h-4 w-4 inline mr-1" />
+                            Editar
+                        </button>
+                    </>
                 )}
             </>
         );
@@ -535,13 +551,13 @@ export function Delivery() {
                                 <FolderPlus className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                                 <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma entrega encontrada</h3>
                                 <p className="text-gray-500 mb-4">Crie sua primeira entrega para começar</p>
-                                <button
-                                    onClick={handleNewProject}
-                                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 mx-auto"
+                                <Link
+                                    to="/lumiphoto/delivery/new"
+                                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 mx-auto inline-flex"
                                 >
                                     <FolderPlus className="h-4 w-4" />
                                     Nova Entrega
-                                </button>
+                                </Link>
                             </div>
                         ) : (
                             filteredDeliveries.map((project) => {
@@ -763,6 +779,15 @@ export function Delivery() {
                 isOpen={isDetailsOffcanvasOpen}
                 onClose={() => setIsDetailsOffcanvasOpen(false)}
                 project={findSelectedProject()}
+            />
+
+            <EditDeliveryModal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                delivery={findSelectedProject()}
+                onSaved={() => {
+                    loadDeliveries();
+                }}
             />
         </div>
     );
