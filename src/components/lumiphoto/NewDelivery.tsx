@@ -1,0 +1,1129 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Palette, Shield, Lock, Download, Globe, Info, AlertTriangle, Upload, X, CheckCircle, Image, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LumiPhotoHeader } from './components/LumiPhotoHeader';
+import { useAuth } from '../../contexts/AuthContext';
+import { criarEntregaLumiPhoto, uploadFotosEntregaLumiPhoto, uploadLogoEntregaLumiPhoto } from '../../services/lumiPhotoService';
+import { toast } from 'react-toastify';
+
+interface DeliveryFormData {
+    name: string;
+    clientEmail: string;
+    expirationDays: number;
+
+    logoUrl: string;
+    primaryColor: string;
+    backgroundColor: string;
+    galleryLayout: 'grid' | 'masonry' | 'slideshow';
+
+    requirePassword: boolean;
+    password: string;
+    allowDownload: boolean;
+    showMetadata: boolean;
+}
+
+export function NewDelivery() {
+    const { user } = useAuth();
+    const navigate = useNavigate();
+    const [currentStep, setCurrentStep] = useState<'details' | 'photos' | 'layout' | 'security'>('details');
+    const [isCreating, setIsCreating] = useState(false);
+    const [dragActive, setDragActive] = useState(false);
+    const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+    const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+    const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+    const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+    const [formData, setFormData] = useState<DeliveryFormData>({
+        name: '',
+        clientEmail: '',
+        expirationDays: 7,
+        logoUrl: '',
+        primaryColor: '#10B981',
+        backgroundColor: '#FFFFFF',
+        galleryLayout: 'grid',
+        requirePassword: false,
+        password: '',
+        allowDownload: true,
+        showMetadata: false
+    });
+
+    // Funções de navegação do slideshow
+    const handlePreviousSlide = useCallback(() => {
+        setCurrentSlideIndex(prev =>
+            prev === 0 ? previewUrls.length - 1 : prev - 1
+        );
+    }, [previewUrls.length]);
+
+    const handleNextSlide = useCallback(() => {
+        setCurrentSlideIndex(prev =>
+            prev === previewUrls.length - 1 ? 0 : prev + 1
+        );
+    }, [previewUrls.length]);
+
+    // Limpar URLs de preview quando o componente é desmontado
+    useEffect(() => {
+        return () => {
+            previewUrls.forEach(url => URL.revokeObjectURL(url));
+        };
+    }, [previewUrls]);
+
+    // Navegação com teclado no slideshow
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (formData.galleryLayout === 'slideshow' && previewUrls.length > 1) {
+                if (e.key === 'ArrowLeft') {
+                    handlePreviousSlide();
+                } else if (e.key === 'ArrowRight') {
+                    handleNextSlide();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [formData.galleryLayout, previewUrls.length, handlePreviousSlide, handleNextSlide]);
+
+    const handleInputChange = (field: keyof DeliveryFormData, value: string | number | boolean) => {
+        setFormData(prev => ({
+            ...prev,
+            [field]: value
+        }));
+
+        // Resetar índice do slideshow ao mudar o layout
+        if (field === 'galleryLayout') {
+            setCurrentSlideIndex(0);
+        }
+    };
+
+    const handleDrag = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setDragActive(true);
+        } else if (e.type === "dragleave") {
+            setDragActive(false);
+        }
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            const files = Array.from(e.dataTransfer.files);
+            const MAX_SIZE = 15 * 1024 * 1024; // 15MB em bytes
+
+            const validFiles: File[] = [];
+            const invalidFiles: string[] = [];
+
+            files.forEach(file => {
+                if (file.size > MAX_SIZE) {
+                    invalidFiles.push(file.name);
+                } else {
+                    validFiles.push(file);
+                }
+            });
+
+            if (invalidFiles.length > 0) {
+                toast.error(
+                    `${invalidFiles.length} arquivo${invalidFiles.length > 1 ? 's foram rejeitados' : ' foi rejeitado'} por exceder 15MB: ${invalidFiles.slice(0, 3).join(', ')}${invalidFiles.length > 3 ? '...' : ''}`,
+                    { autoClose: 5000 }
+                );
+            }
+
+            if (validFiles.length > 0) {
+                setUploadedFiles(prev => [...prev, ...validFiles]);
+
+                // Criar URLs de preview
+                validFiles.forEach(file => {
+                    const url = URL.createObjectURL(file);
+                    setPreviewUrls(prev => [...prev, url]);
+                });
+            }
+        }
+    }, []);
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            const files = Array.from(e.target.files);
+            const MAX_SIZE = 15 * 1024 * 1024; // 15MB em bytes
+
+            const validFiles: File[] = [];
+            const invalidFiles: string[] = [];
+
+            files.forEach(file => {
+                if (file.size > MAX_SIZE) {
+                    invalidFiles.push(file.name);
+                } else {
+                    validFiles.push(file);
+                }
+            });
+
+            if (invalidFiles.length > 0) {
+                toast.error(
+                    `${invalidFiles.length} arquivo${invalidFiles.length > 1 ? 's foram rejeitados' : ' foi rejeitado'} por exceder 15MB: ${invalidFiles.slice(0, 3).join(', ')}${invalidFiles.length > 3 ? '...' : ''}`,
+                    { autoClose: 5000 }
+                );
+            }
+
+            if (validFiles.length > 0) {
+                setUploadedFiles(prev => [...prev, ...validFiles]);
+
+                // Criar URLs de preview
+                validFiles.forEach(file => {
+                    const url = URL.createObjectURL(file);
+                    setPreviewUrls(prev => [...prev, url]);
+                });
+            }
+        }
+    };
+
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || !e.target.files[0]) {
+            return;
+        }
+
+        const file = e.target.files[0];
+
+        try {
+            setIsUploadingLogo(true);
+            const result = await uploadLogoEntregaLumiPhoto(file, user);
+            setFormData(prev => ({
+                ...prev,
+                logoUrl: result.url,
+            }));
+            toast.success('Logo enviada com sucesso!');
+        } catch (error: any) {
+            console.error('Erro ao enviar logo:', error);
+            toast.error(error.response?.data?.message || 'Erro ao enviar logo');
+        } finally {
+            setIsUploadingLogo(false);
+            e.target.value = '';
+        }
+    };
+
+    const removeFile = (index: number) => {
+        // Liberar a URL do preview
+        if (previewUrls[index]) {
+            URL.revokeObjectURL(previewUrls[index]);
+        }
+        setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+        setPreviewUrls(prev => prev.filter((_, i) => i !== index));
+
+        // Resetar o índice do slideshow se necessário
+        if (currentSlideIndex >= previewUrls.length - 1) {
+            setCurrentSlideIndex(0);
+        }
+    };
+
+    const handleNext = () => {
+        if (currentStep === 'details') {
+            setCurrentStep('photos');
+        } else if (currentStep === 'photos') {
+            setCurrentStep('layout');
+        } else if (currentStep === 'layout') {
+            setCurrentStep('security');
+        }
+    };
+
+    const handleBack = () => {
+        if (currentStep === 'security') {
+            setCurrentStep('layout');
+        } else if (currentStep === 'layout') {
+            setCurrentStep('photos');
+        } else if (currentStep === 'photos') {
+            setCurrentStep('details');
+        } else {
+            navigate('/lumiphoto/delivery');
+        }
+    };
+
+    const isStepValid = () => {
+        if (currentStep === 'details') {
+            return formData.name.trim() && formData.clientEmail.trim();
+        }
+        if (currentStep === 'security' && formData.requirePassword) {
+            return formData.password.trim().length >= 4;
+        }
+        return true;
+    };
+
+    const handleCreateDelivery = async () => {
+        // Avisar se não houver fotos
+        if (uploadedFiles.length === 0) {
+            const confirmCreate = window.confirm(
+                'Você está criando uma entrega sem fotos. Deseja continuar?\n\n' +
+                'Você poderá adicionar fotos posteriormente, mas a entrega estará vazia inicialmente.'
+            );
+            if (!confirmCreate) {
+                return;
+            }
+        }
+
+        try {
+            setIsCreating(true);
+
+            const deliveryData: any = {
+                name: formData.name,
+                client_email: formData.clientEmail,
+                expiration_days: formData.expirationDays,
+                layout_settings: {
+                    logo_url: formData.logoUrl || null,
+                    primary_color: formData.primaryColor,
+                    background_color: formData.backgroundColor,
+                    gallery_layout: formData.galleryLayout,
+                    show_logo: !!formData.logoUrl,
+                    show_photographer_name: false
+                },
+                security_settings: {
+                    require_password: formData.requirePassword,
+                    password: formData.requirePassword ? formData.password : undefined,
+                    allow_download: formData.allowDownload,
+                    allow_individual_download: formData.allowDownload,
+                    allow_zip_download: formData.allowDownload,
+                    show_metadata: formData.showMetadata,
+                    disable_right_click: false,
+                    add_watermark_on_view: false
+                },
+                status: 'pending'
+            };
+
+            const createdDelivery = await criarEntregaLumiPhoto(deliveryData, user);
+            toast.success('Entrega criada com sucesso!');
+
+            if (uploadedFiles.length > 0 && createdDelivery?.id) {
+                try {
+                    setIsUploadingPhotos(true);
+                    setUploadProgress(0);
+
+                    toast.info(`Enviando ${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's' : ''}...`);
+
+                    await uploadFotosEntregaLumiPhoto(
+                        createdDelivery.id,
+                        uploadedFiles,
+                        {
+                            onProgress: (progress) => {
+                                setUploadProgress(progress);
+                            }
+                        },
+                        user
+                    );
+
+                    toast.success(`${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's enviadas' : ' enviada'} com sucesso!`);
+                    setUploadedFiles([]);
+                } catch (uploadError: any) {
+                    console.error('Erro detalhado ao fazer upload das fotos:', uploadError);
+                    console.error('Response:', uploadError.response?.data);
+                    const errorMsg = uploadError.response?.data?.message || uploadError.message || 'Erro desconhecido';
+                    toast.error(`Erro ao enviar fotos: ${errorMsg}`);
+                } finally {
+                    setIsUploadingPhotos(false);
+                    setUploadProgress(0);
+                }
+            }
+
+            navigate('/lumiphoto/delivery');
+        } catch (error: any) {
+            console.error('Erro ao criar entrega:', error);
+            toast.error(error.message || 'Erro ao criar entrega');
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    const renderStepContent = () => {
+        switch (currentStep) {
+            case 'details':
+                return (
+                    <div className="space-y-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Nome da entrega
+                            </label>
+                            <input
+                                type="text"
+                                value={formData.name}
+                                onChange={(e) => handleInputChange('name', e.target.value)}
+                                placeholder="Ex: Casamento Ana & Pedro - Fotos Editadas"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-colors"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                E-mail do cliente
+                            </label>
+                            <input
+                                type="email"
+                                value={formData.clientEmail}
+                                onChange={(e) => handleInputChange('clientEmail', e.target.value)}
+                                placeholder="cliente@exemplo.com"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-colors"
+                            />
+                            <p className="text-sm text-gray-500 mt-1">
+                                Um link para download será enviado para este e-mail
+                            </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Dias para expiração
+                            </label>
+                            <input
+                                type="number"
+                                value={formData.expirationDays}
+                                onChange={(e) => handleInputChange('expirationDays', parseInt(e.target.value) || 7)}
+                                min="1"
+                                max="365"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-colors"
+                            />
+                            <p className="text-sm text-gray-500 mt-1">
+                                Após este período, o link expira e o cliente não poderá mais baixar as fotos
+                            </p>
+                        </div>
+                    </div>
+                );
+            case 'photos':
+                return (
+                    <div className="space-y-6">
+                        {uploadedFiles.length === 0 ? (
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                                <div className="flex items-start">
+                                    <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 mr-2" />
+                                    <div>
+                                        <h3 className="text-sm font-medium text-amber-900">
+                                            Nenhuma foto adicionada
+                                        </h3>
+                                        <p className="text-sm text-amber-700 mt-1">
+                                            Adicione pelo menos uma foto para continuar. Você pode adicionar mais fotos depois se necessário.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                                <div className="flex items-start">
+                                    <Image className="h-5 w-5 text-blue-600 mt-0.5 mr-2" />
+                                    <div>
+                                        <h3 className="text-sm font-medium text-blue-900">
+                                            Upload de Fotos
+                                        </h3>
+                                        <p className="text-sm text-blue-700 mt-1">
+                                            Adicione as fotos que serão incluídas nesta entrega
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-between mb-4">
+                            {uploadedFiles.length > 0 && (
+                                <div className="flex items-center space-x-4 text-sm">
+                                    <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">
+                                        {uploadedFiles.length} arquivo{uploadedFiles.length !== 1 ? 's' : ''}
+                                    </div>
+                                    <div className="text-gray-500">
+                                        {(uploadedFiles.reduce((acc, file) => acc + file.size, 0) / (1024 * 1024)).toFixed(1)} MB
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div
+                            className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${dragActive ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-gray-400'
+                                }`}
+                            onDragEnter={handleDrag}
+                            onDragLeave={handleDrag}
+                            onDragOver={handleDrag}
+                            onDrop={handleDrop}
+                        >
+                            <Upload className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                            <p className="text-lg text-gray-700 mb-2 font-medium">
+                                Arraste e solte arquivos aqui
+                            </p>
+                            <p className="text-sm text-gray-500 mb-6">
+                                ou clique no botão abaixo para selecionar
+                            </p>
+                            <input
+                                type="file"
+                                multiple
+                                accept="image/*"
+                                onChange={handleFileSelect}
+                                className="hidden"
+                                id="file-upload-delivery"
+                            />
+                            <label
+                                htmlFor="file-upload-delivery"
+                                className="inline-flex items-center px-6 py-3 bg-white border-2 border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors"
+                            >
+                                <Upload className="h-4 w-4 mr-2" />
+                                Selecionar Arquivos
+                            </label>
+                            <p className="text-xs text-gray-400 mt-4">
+                                Suporte para JPG, PNG, RAW (máximo 15MB por arquivo)
+                            </p>
+                        </div>
+
+                        {uploadedFiles.length > 0 && (
+                            <div className="mt-6 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-sm font-medium text-gray-700 flex items-center">
+                                        <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
+                                        Arquivos selecionados ({uploadedFiles.length})
+                                    </h4>
+                                    <button
+                                        onClick={() => {
+                                            previewUrls.forEach(url => URL.revokeObjectURL(url));
+                                            setUploadedFiles([]);
+                                            setPreviewUrls([]);
+                                            setCurrentSlideIndex(0);
+                                        }}
+                                        className="text-xs text-red-600 hover:text-red-800 font-medium"
+                                    >
+                                        Limpar todos
+                                    </button>
+                                </div>
+                                <div className="space-y-2 max-h-60 overflow-y-auto">
+                                    {uploadedFiles.map((file, index) => (
+                                        <div key={index} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
+                                            <div className="flex items-center flex-1 min-w-0">
+                                                <div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded flex items-center justify-center mr-3">
+                                                    <Image className="h-5 w-5 text-green-600" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm text-gray-700 truncate font-medium">{file.name}</p>
+                                                    <p className="text-xs text-gray-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => removeFile(index)}
+                                                className="ml-4 text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            case 'layout':
+                return (
+                    <div className="space-y-6">
+                        {/* Preview da Galeria */}
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center">
+                                    <Palette className="h-5 w-5 text-blue-600 mr-2" />
+                                    <h3 className="text-sm font-semibold text-blue-900">
+                                        Preview da Galeria
+                                    </h3>
+                                </div>
+                                {previewUrls.length === 0 && (
+                                    <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                                        Adicione fotos na etapa "Fotos"
+                                    </span>
+                                )}
+                            </div>
+                            <div
+                                className="rounded-lg overflow-hidden shadow-lg"
+                                style={{
+                                    backgroundColor: formData.backgroundColor,
+                                    minHeight: '200px'
+                                }}
+                            >
+                                <div className="p-6">
+                                    {formData.logoUrl && (
+                                        <div className="mb-4 text-center">
+                                            <img
+                                                src={formData.logoUrl}
+                                                alt="Logo Preview"
+                                                className="h-12 mx-auto object-contain"
+                                                onError={(e) => {
+                                                    e.currentTarget.style.display = 'none';
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+                                    <div
+                                        className="text-center py-8"
+                                        style={{ color: formData.primaryColor }}
+                                    >
+                                        <h3 className="text-2xl font-bold mb-2" style={{ color: formData.primaryColor }}>
+                                            {formData.name || 'Nome da Entrega'}
+                                        </h3>
+                                        <p className="text-sm opacity-75">
+                                            Layout: {formData.galleryLayout === 'grid' ? 'Grade' : formData.galleryLayout === 'masonry' ? 'Mosaico' : 'Slideshow'}
+                                        </p>
+                                    </div>
+
+                                    {/* Simulação do layout */}
+                                    <div className="mt-4">
+                                        {formData.galleryLayout === 'grid' && (
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {previewUrls.length > 0 ? (
+                                                    previewUrls.slice(0, 6).map((url, i) => (
+                                                        <div
+                                                            key={i}
+                                                            className="aspect-square rounded overflow-hidden"
+                                                            style={{ borderColor: formData.primaryColor }}
+                                                        >
+                                                            <img
+                                                                src={url}
+                                                                alt={`Preview ${i + 1}`}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    [1, 2, 3, 4, 5, 6].map(i => (
+                                                        <div
+                                                            key={i}
+                                                            className="aspect-square rounded bg-white/20 backdrop-blur-sm flex items-center justify-center"
+                                                            style={{ borderColor: formData.primaryColor }}
+                                                        >
+                                                            <Image className="h-8 w-8 text-gray-400 opacity-50" />
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        )}
+                                        {formData.galleryLayout === 'masonry' && (
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {previewUrls.length > 0 ? (
+                                                    <>
+                                                        {previewUrls[0] && (
+                                                            <div className="aspect-[3/4] rounded overflow-hidden">
+                                                                <img src={previewUrls[0]} alt="Preview 1" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        )}
+                                                        {previewUrls[1] && (
+                                                            <div className="aspect-square rounded overflow-hidden">
+                                                                <img src={previewUrls[1]} alt="Preview 2" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        )}
+                                                        {previewUrls[2] && (
+                                                            <div className="aspect-[4/3] rounded overflow-hidden">
+                                                                <img src={previewUrls[2]} alt="Preview 3" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        )}
+                                                        {previewUrls[3] && (
+                                                            <div className="aspect-square rounded overflow-hidden">
+                                                                <img src={previewUrls[3]} alt="Preview 4" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        )}
+                                                        {previewUrls[4] && (
+                                                            <div className="aspect-[3/4] rounded overflow-hidden">
+                                                                <img src={previewUrls[4]} alt="Preview 5" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        )}
+                                                        {previewUrls[5] && (
+                                                            <div className="aspect-square rounded overflow-hidden">
+                                                                <img src={previewUrls[5]} alt="Preview 6" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <div className="aspect-[3/4] rounded bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                            <Image className="h-8 w-8 text-gray-400 opacity-50" />
+                                                        </div>
+                                                        <div className="aspect-square rounded bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                            <Image className="h-8 w-8 text-gray-400 opacity-50" />
+                                                        </div>
+                                                        <div className="aspect-[4/3] rounded bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                            <Image className="h-8 w-8 text-gray-400 opacity-50" />
+                                                        </div>
+                                                        <div className="aspect-square rounded bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                            <Image className="h-8 w-8 text-gray-400 opacity-50" />
+                                                        </div>
+                                                        <div className="aspect-[3/4] rounded bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                            <Image className="h-8 w-8 text-gray-400 opacity-50" />
+                                                        </div>
+                                                        <div className="aspect-square rounded bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                            <Image className="h-8 w-8 text-gray-400 opacity-50" />
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
+                                        {formData.galleryLayout === 'slideshow' && (
+                                            <div className="aspect-video rounded overflow-hidden bg-white/20 backdrop-blur-sm flex items-center justify-center relative group">
+                                                {previewUrls.length > 0 ? (
+                                                    <>
+                                                        <img
+                                                            src={previewUrls[currentSlideIndex]}
+                                                            alt={`Preview slideshow ${currentSlideIndex + 1}`}
+                                                            className="w-full h-full object-contain transition-opacity duration-300"
+                                                            key={currentSlideIndex}
+                                                        />
+
+                                                        {/* Botões de navegação */}
+                                                        {previewUrls.length > 1 && (
+                                                            <>
+                                                                <button
+                                                                    onClick={handlePreviousSlide}
+                                                                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all opacity-0 group-hover:opacity-100"
+                                                                    style={{ color: 'white' }}
+                                                                >
+                                                                    <ChevronLeft className="h-6 w-6" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={handleNextSlide}
+                                                                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all opacity-0 group-hover:opacity-100"
+                                                                    style={{ color: 'white' }}
+                                                                >
+                                                                    <ChevronRight className="h-6 w-6" />
+                                                                </button>
+
+                                                                {/* Indicador de posição */}
+                                                                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
+                                                                    <div className="bg-black/60 text-white px-3 py-1 rounded-full text-xs font-medium">
+                                                                        {currentSlideIndex + 1} / {previewUrls.length}
+                                                                    </div>
+                                                                    <div className="bg-black/50 text-white/75 px-2 py-0.5 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        Use ← → para navegar
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Indicadores de pontos */}
+                                                                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex gap-1.5 items-center">
+                                                                    {previewUrls.slice(0, 10).map((_, index) => (
+                                                                        <button
+                                                                            key={index}
+                                                                            onClick={() => setCurrentSlideIndex(index)}
+                                                                            className={`rounded-full transition-all ${
+                                                                                index === currentSlideIndex
+                                                                                    ? 'w-6 h-2 bg-white'
+                                                                                    : 'w-2 h-2 bg-white/50 hover:bg-white/75'
+                                                                            }`}
+                                                                        />
+                                                                    ))}
+                                                                    {previewUrls.length > 10 && (
+                                                                        <span className="text-white/75 text-xs ml-1">+{previewUrls.length - 10}</span>
+                                                                    )}
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <div className="text-center" style={{ color: formData.primaryColor }}>
+                                                        <Image className="h-16 w-16 mx-auto mb-2 opacity-50" />
+                                                        <p className="text-sm opacity-75">Modo Slideshow</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    <Palette className="h-4 w-4 inline mr-1" />
+                                    Cor Primária
+                                </label>
+                                <div className="flex items-center space-x-3">
+                                    <input
+                                        type="color"
+                                        value={formData.primaryColor}
+                                        onChange={(e) => handleInputChange('primaryColor', e.target.value)}
+                                        className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={formData.primaryColor}
+                                        onChange={(e) => handleInputChange('primaryColor', e.target.value)}
+                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-colors"
+                                        placeholder="#10B981"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    <Globe className="h-4 w-4 inline mr-1" />
+                                    Cor de Fundo
+                                </label>
+                                <div className="flex items-center space-x-3">
+                                    <input
+                                        type="color"
+                                        value={formData.backgroundColor}
+                                        onChange={(e) => handleInputChange('backgroundColor', e.target.value)}
+                                        className="w-12 h-10 border border-gray-300 rounded cursor-pointer"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={formData.backgroundColor}
+                                        onChange={(e) => handleInputChange('backgroundColor', e.target.value)}
+                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-colors"
+                                        placeholder="#FFFFFF"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Logo da galeria
+                            </label>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleLogoUpload}
+                                    className="hidden"
+                                    id="delivery-logo-upload"
+                                />
+                                <label
+                                    htmlFor="delivery-logo-upload"
+                                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors"
+                                >
+                                    <Image className="h-4 w-4 mr-2 text-gray-500" />
+                                    {isUploadingLogo ? 'Enviando...' : 'Enviar logo'}
+                                </label>
+                                {formData.logoUrl && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleInputChange('logoUrl', '')}
+                                        className="text-sm text-red-600 hover:text-red-800 font-medium"
+                                    >
+                                        Remover
+                                    </button>
+                                )}
+                            </div>
+                            <p className="text-sm text-gray-500 mt-1">
+                                Formatos aceitos: JPG, PNG, WEBP, SVG (máx. 5MB)
+                            </p>
+                            {formData.logoUrl && (
+                                <div className="mt-4 flex items-center gap-4 bg-white border border-gray-200 rounded-lg p-3">
+                                    <img
+                                        src={formData.logoUrl}
+                                        alt="Logo preview"
+                                        className="h-16 object-contain"
+                                    />
+                                    <div className="text-sm text-gray-600 break-all">
+                                        {formData.logoUrl}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-3">
+                                Layout da Galeria
+                            </label>
+                            <div className="grid grid-cols-3 gap-4">
+                                <button
+                                    type="button"
+                                    onClick={() => handleInputChange('galleryLayout', 'grid')}
+                                    className={`p-4 border-2 rounded-lg text-center transition-colors ${formData.galleryLayout === 'grid'
+                                        ? 'border-green-500 bg-green-50 text-green-700'
+                                        : 'border-gray-300 hover:border-gray-400'
+                                        }`}
+                                >
+                                    <div className="grid grid-cols-2 gap-1 w-8 h-8 mx-auto mb-2">
+                                        <div className="bg-current opacity-20 rounded"></div>
+                                        <div className="bg-current opacity-20 rounded"></div>
+                                        <div className="bg-current opacity-20 rounded"></div>
+                                        <div className="bg-current opacity-20 rounded"></div>
+                                    </div>
+                                    <span className="text-sm font-medium">Grade</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => handleInputChange('galleryLayout', 'masonry')}
+                                    className={`p-4 border-2 rounded-lg text-center transition-colors ${formData.galleryLayout === 'masonry'
+                                        ? 'border-green-500 bg-green-50 text-green-700'
+                                        : 'border-gray-300 hover:border-gray-400'
+                                        }`}
+                                >
+                                    <div className="grid grid-cols-2 gap-1 w-8 h-8 mx-auto mb-2">
+                                        <div className="bg-current opacity-20 rounded h-4"></div>
+                                        <div className="bg-current opacity-20 rounded h-2"></div>
+                                        <div className="bg-current opacity-20 rounded h-2"></div>
+                                        <div className="bg-current opacity-20 rounded h-4"></div>
+                                    </div>
+                                    <span className="text-sm font-medium">Mosaico</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => handleInputChange('galleryLayout', 'slideshow')}
+                                    className={`p-4 border-2 rounded-lg text-center transition-colors ${formData.galleryLayout === 'slideshow'
+                                        ? 'border-green-500 bg-green-50 text-green-700'
+                                        : 'border-gray-300 hover:border-gray-400'
+                                        }`}
+                                >
+                                    <div className="w-8 h-8 mx-auto mb-2 bg-current opacity-20 rounded"></div>
+                                    <span className="text-sm font-medium">Slideshow</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            case 'security':
+                return (
+                    <div className="space-y-6">
+                        {/* Resumo da Configuração */}
+                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6">
+                            <div className="flex items-center mb-4">
+                                <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                                <h3 className="text-sm font-semibold text-green-900">
+                                    Resumo da Entrega
+                                </h3>
+                            </div>
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between py-2 border-b border-green-200">
+                                    <span className="text-sm text-gray-600">Nome:</span>
+                                    <span className="text-sm font-medium text-gray-900">{formData.name || '-'}</span>
+                                </div>
+                                <div className="flex items-center justify-between py-2 border-b border-green-200">
+                                    <span className="text-sm text-gray-600">Cliente:</span>
+                                    <span className="text-sm font-medium text-gray-900">{formData.clientEmail || '-'}</span>
+                                </div>
+                                <div className="flex items-center justify-between py-2 border-b border-green-200">
+                                    <span className="text-sm text-gray-600">Fotos selecionadas:</span>
+                                    <span className={`text-sm font-medium ${uploadedFiles.length > 0 ? 'text-green-700' : 'text-amber-600'}`}>
+                                        {uploadedFiles.length > 0 ? `${uploadedFiles.length} foto${uploadedFiles.length !== 1 ? 's' : ''}` : 'Nenhuma foto'}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between py-2 border-b border-green-200">
+                                    <span className="text-sm text-gray-600">Layout:</span>
+                                    <span className="text-sm font-medium text-gray-900">
+                                        {formData.galleryLayout === 'grid' ? 'Grade' : formData.galleryLayout === 'masonry' ? 'Mosaico' : 'Slideshow'}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between py-2">
+                                    <span className="text-sm text-gray-600">Expira em:</span>
+                                    <span className="text-sm font-medium text-gray-900">{formData.expirationDays} dias</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div className="flex items-start">
+                                <Shield className="h-5 w-5 text-blue-600 mt-0.5 mr-2" />
+                                <div>
+                                    <h3 className="text-sm font-medium text-blue-900">
+                                        Proteção de Conteúdo
+                                    </h3>
+                                    <p className="text-sm text-blue-700 mt-1">
+                                        Configure as opções de segurança para proteger suas fotos
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                <div>
+                                    <div className="flex items-center">
+                                        <Lock className="h-4 w-4 text-gray-600 mr-2" />
+                                        <span className="text-sm font-medium text-gray-900">Proteger com senha</span>
+                                    </div>
+                                    <p className="text-sm text-gray-500 mt-1">
+                                        Exige senha para acessar a galeria
+                                    </p>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={formData.requirePassword}
+                                    onChange={(e) => handleInputChange('requirePassword', e.target.checked)}
+                                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                                />
+                            </div>
+
+                            {formData.requirePassword && (
+                                <div className="ml-6 pl-4 border-l-2 border-gray-200">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Senha de acesso
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={formData.password}
+                                        onChange={(e) => handleInputChange('password', e.target.value)}
+                                        placeholder="Digite uma senha"
+                                        className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-colors"
+                                    />
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                <div>
+                                    <div className="flex items-center">
+                                        <Download className="h-4 w-4 text-gray-600 mr-2" />
+                                        <span className="text-sm font-medium text-gray-900">Permitir downloads</span>
+                                    </div>
+                                    <p className="text-sm text-gray-500 mt-1">
+                                        Clientes podem baixar as fotos
+                                    </p>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={formData.allowDownload}
+                                    onChange={(e) => handleInputChange('allowDownload', e.target.checked)}
+                                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                <div>
+                                    <div className="flex items-center">
+                                        <Info className="h-4 w-4 text-gray-600 mr-2" />
+                                        <span className="text-sm font-medium text-gray-900">Exibir metadados</span>
+                                    </div>
+                                    <p className="text-sm text-gray-500 mt-1">
+                                        Mostra informações técnicas das fotos
+                                    </p>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={formData.showMetadata}
+                                    onChange={(e) => handleInputChange('showMetadata', e.target.checked)}
+                                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                            <div className="flex items-start">
+                                <div className="flex-shrink-0">
+                                    <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+                                </div>
+                                <div className="ml-3">
+                                    <h3 className="text-sm font-medium text-amber-900">
+                                        Importante sobre a segurança
+                                    </h3>
+                                    <p className="text-sm text-amber-700 mt-1">
+                                        Lembre-se de que estas são medidas básicas de proteção. Para maior segurança, considere limitar o tempo de acesso e usar senha para proteção.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            default:
+                return null;
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-50">
+            <LumiPhotoHeader delivery={true} />
+
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="text-center mb-8">
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Nova Entrega</h1>
+                    <p className="text-gray-600">Configure uma nova entrega para seus clientes</p>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border">
+                    <div className="p-8">
+                        <div className="mb-8">
+                            <h2 className="text-xl font-bold text-gray-900 mb-2">Nova Entrega</h2>
+                            <p className="text-gray-600">Configure os detalhes da sua nova entrega de fotos</p>
+                        </div>
+
+                        <div className="mb-8">
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex space-x-4">
+                                    <button
+                                        onClick={() => setCurrentStep('details')}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${currentStep === 'details'
+                                            ? 'bg-blue-100 text-blue-800'
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                    >
+                                        Detalhes
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentStep('photos')}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${currentStep === 'photos'
+                                            ? 'bg-blue-100 text-blue-800'
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                    >
+                                        Fotos
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentStep('layout')}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${currentStep === 'layout'
+                                            ? 'bg-blue-100 text-blue-800'
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                    >
+                                        Layout
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentStep('security')}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${currentStep === 'security'
+                                            ? 'bg-blue-100 text-blue-800'
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                    >
+                                        Segurança
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {renderStepContent()}
+
+                        <div className="flex justify-end space-x-4 mt-8">
+                            <button
+                                onClick={handleBack}
+                                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                            >
+                                <ArrowLeft className="h-4 w-4 mr-2" />
+                                {currentStep === 'details' ? 'Voltar' : 'Anterior'}
+                            </button>
+                            <button
+                                onClick={currentStep === 'security' ? handleCreateDelivery : handleNext}
+                                disabled={!isStepValid()}
+                                className="inline-flex items-center px-6 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {currentStep === 'security' ? 'Criar Entrega' : 'Próximo'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Loading Overlay */}
+            {(isCreating || isUploadingPhotos) && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-8 flex flex-col items-center max-w-md w-full mx-4">
+                        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-600 mb-4"></div>
+                        <p className="text-gray-900 font-medium text-lg text-center">
+                            {isUploadingPhotos
+                                ? `Enviando fotos (${uploadProgress}%)...`
+                                : 'Criando entrega...'
+                            }
+                        </p>
+                        <p className="text-gray-500 text-sm mt-2 text-center">
+                            {isUploadingPhotos
+                                ? `Aguarde enquanto enviamos ${uploadedFiles.length} foto${uploadedFiles.length > 1 ? 's' : ''} para o servidor`
+                                : 'Aguarde enquanto processamos suas informações'
+                            }
+                        </p>
+                        {isUploadingPhotos && (
+                            <div className="w-full bg-gray-200 rounded-full h-2 mt-4">
+                                <div
+                                    className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                                    style={{ width: `${uploadProgress}%` }}
+                                ></div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
