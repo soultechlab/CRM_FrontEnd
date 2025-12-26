@@ -120,7 +120,7 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
 
       setPhotos(photosList);
     } catch (error: any) {
-      console.error('❌ [GALLERY] Erro ao carregar fotos:', error);
+      console.error('[GALLERY] Erro ao carregar fotos:', error);
       toast.error('Erro ao carregar fotos do projeto');
     } finally {
       setLoadingPhotos(false);

@@ -25,6 +25,9 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  AlertTriangle,
+  Gem,
+  Package,
 } from 'lucide-react';
 
 interface GalleryPhoto {
@@ -74,10 +77,50 @@ export function PublicGallery() {
   const [actionPhotoId, setActionPhotoId] = useState<number | null>(null);
   const [fullPhoto, setFullPhoto] = useState<GalleryPhoto | null>(null);
   const [pendingExtraSelection, setPendingExtraSelection] = useState<GalleryPhoto | null>(null);
+  const [isFinalizingSelection, setIsFinalizingSelection] = useState(false);
+  const [showConfirmFinalize, setShowConfirmFinalize] = useState(false);
+  const [showThankYouModal, setShowThankYouModal] = useState(false);
 
   const selectionLimit = gallery?.max_selections ?? null;
   const selectedCount = useMemo(() => photos.filter(photo => photo.is_selected).length, [photos]);
   const remainingSelections = selectionLimit ? selectionLimit - selectedCount : null;
+
+  // Calcula quantidade de fotos extras selecionadas
+  const extraPhotosCount = useMemo(() => {
+    if (!selectionLimit || selectedCount <= selectionLimit) return 0;
+    return selectedCount - selectionLimit;
+  }, [selectedCount, selectionLimit]);
+
+  // Calcula o valor total das fotos extras
+  const calculateExtraPhotosTotal = useMemo(() => {
+    if (extraPhotosCount === 0 || !gallery?.allow_extra_photos) return 0;
+
+    const extraPhotosType = gallery.extra_photos_type || 'individual';
+    const individualPrice = gallery.extra_photo_price || 0;
+    const packageQuantity = gallery.package_quantity || 0;
+    const packagePrice = gallery.package_price || 0;
+
+    // Se vende apenas individual
+    if (extraPhotosType === 'individual') {
+      return extraPhotosCount * individualPrice;
+    }
+
+    // Se vende apenas pacotes
+    if (extraPhotosType === 'packages' && packageQuantity > 0) {
+      const packagesNeeded = Math.ceil(extraPhotosCount / packageQuantity);
+      return packagesNeeded * packagePrice;
+    }
+
+    // Se vende ambos, calcula o melhor preço (menor valor)
+    if (extraPhotosType === 'both' && packageQuantity > 0) {
+      const individualTotal = extraPhotosCount * individualPrice;
+      const packagesNeeded = Math.ceil(extraPhotosCount / packageQuantity);
+      const packageTotal = packagesNeeded * packagePrice;
+      return Math.min(individualTotal, packageTotal);
+    }
+
+    return extraPhotosCount * individualPrice;
+  }, [extraPhotosCount, gallery]);
 
   useEffect(() => {
     if (!shareToken) return;
@@ -224,6 +267,35 @@ export function PublicGallery() {
 
   const cancelExtraSelection = () => {
     setPendingExtraSelection(null);
+  };
+
+  const handleFinalizeSelection = () => {
+    if (!shareToken || selectedCount === 0) {
+      toast.warning('Você precisa selecionar pelo menos uma foto antes de finalizar.');
+      return;
+    }
+
+    // Mostra o modal de confirmação
+    setShowConfirmFinalize(true);
+  };
+
+  const confirmFinalizeSelection = async () => {
+    if (!shareToken) return;
+
+    try {
+      setIsFinalizingSelection(true);
+      setShowConfirmFinalize(false);
+
+      await finalizarSelecaoGaleriaLumiPhoto(shareToken);
+
+      // Mostra o modal de agradecimento
+      setShowThankYouModal(true);
+    } catch (err) {
+      console.error('Erro ao finalizar seleção:', err);
+      toast.error('Não foi possível finalizar a seleção. Tente novamente.');
+    } finally {
+      setIsFinalizingSelection(false);
+    }
   };
 
   const updatePhotoSelection = (photoId: number, isSelected: boolean, order: number | null) => {
@@ -625,6 +697,8 @@ export function PublicGallery() {
     <div className="min-h-screen bg-gray-50 text-gray-900">
       {renderPhotoModal()}
       {renderExtraSelectionModal()}
+      {renderConfirmFinalizeModal()}
+      {renderThankYouModal()}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -790,23 +864,95 @@ export function PublicGallery() {
               <li>Assim que finalizar, avise o fotógrafo para que ele continue o processo de edição e entrega.</li>
             </ol>
           </div>
-          <div className="bg-blue-50 border border-blue-100 rounded-3xl p-6 shadow-sm">
-            <p className="text-xs uppercase tracking-[0.3em] text-blue-600 mb-2">Seu progresso</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold text-gray-900">{selectedCount}</span>
-              {selectionLimit ? (
-                <span className="text-gray-600">/ {selectionLimit} selecionadas</span>
-              ) : (
-                <span className="text-gray-600">fotos favoritas</span>
-              )}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-3xl p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-blue-600 font-bold">Resumo da Seleção</p>
+              <CheckCircle2 className="h-5 w-5 text-blue-600" />
             </div>
+
+            {/* Total Selecionado */}
+            <div className="bg-white rounded-xl p-4 mb-4 shadow-sm">
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-4xl font-extrabold text-gray-900">{selectedCount}</span>
+                <span className="text-gray-600 text-lg">foto{selectedCount !== 1 ? 's' : ''} selecionada{selectedCount !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
+
+            {/* Breakdown das fotos quando há limite */}
             {selectionLimit && (
-              <p className="text-sm text-gray-600 mt-2">
-                {remainingSelections && remainingSelections > 0
-                  ? `Você ainda pode escolher ${remainingSelections} foto(s).`
-                  : 'Limite atingido. Remova alguma seleção para escolher novas fotos.'}
-              </p>
+              <div className="space-y-3">
+                {/* Pacote Contratado */}
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                      <span className="text-sm font-medium text-gray-700">Pacote Contratado</span>
+                    </div>
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Incluídas no valor pago</span>
+                    <span className="text-xl font-bold text-green-600">{selectionLimit} fotos</span>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-gray-100">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-600">Selecionadas:</span>
+                      <span className="font-semibold text-gray-900">{Math.min(selectedCount, selectionLimit)} / {selectionLimit}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fotos Extras */}
+                {extraPhotosCount > 0 && gallery.allow_extra_photos && (
+                  <div className="bg-gradient-to-br from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-xl p-4 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-yellow-600 animate-pulse"></div>
+                        <span className="text-sm font-bold text-yellow-900">Fotos Extras</span>
+                      </div>
+                      <DollarSign className="h-5 w-5 text-yellow-700" />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-yellow-800">Quantidade:</span>
+                        <span className="text-lg font-bold text-yellow-950">+ {extraPhotosCount} foto{extraPhotosCount !== 1 ? 's' : ''}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs text-yellow-800 bg-yellow-100/50 -mx-2 px-2 py-1 rounded">
+                        <span>
+                          {gallery.extra_photos_type === 'individual' && `${extraPhotosCount} × R$ ${Number(gallery.extra_photo_price).toFixed(2)}`}
+                          {gallery.extra_photos_type === 'packages' && gallery.package_quantity && `${Math.ceil(extraPhotosCount / gallery.package_quantity)} pacote(s) de ${gallery.package_quantity}`}
+                          {gallery.extra_photos_type === 'both' && 'Melhor preço aplicado'}
+                        </span>
+                      </div>
+
+                      <div className="pt-2 mt-2 border-t-2 border-yellow-300">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-yellow-900">Valor Adicional:</span>
+                          <span className="text-2xl font-extrabold text-yellow-950">
+                            R$ {calculateExtraPhotosTotal.toFixed(2)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-yellow-800 mt-1 text-right font-medium">
+                          a pagar ao fotógrafo
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mensagem quando tem saldo */}
+                {remainingSelections !== null && remainingSelections > 0 && extraPhotosCount === 0 && (
+                  <div className="bg-blue-100 border border-blue-200 rounded-xl p-3">
+                    <p className="text-sm text-blue-800 text-center">
+                      ✨ Você ainda pode escolher <span className="font-bold">{remainingSelections}</span> foto{remainingSelections !== 1 ? 's' : ''} sem custo extra
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
+
             <div className="mt-5 space-y-3 text-sm text-gray-700">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-blue-500" />
@@ -819,6 +965,27 @@ export function PublicGallery() {
                 </div>
               )}
             </div>
+
+            {/* Botão de Finalizar Seleção */}
+            {selectedCount > 0 && (
+              <button
+                onClick={handleFinalizeSelection}
+                disabled={isFinalizingSelection}
+                className="w-full mt-6 py-3 px-4 rounded-xl bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isFinalizingSelection ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Finalizando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-5 w-5" />
+                    Finalizar Seleção
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </section>
 
