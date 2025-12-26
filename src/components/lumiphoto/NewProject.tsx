@@ -1044,63 +1044,8 @@ export function NewProject() {
                       </div>
                     )}
                   </div>
-
-                  <div className="bg-white border-2 border-purple-200 rounded-lg p-5 space-y-3">
-                    <div className="flex items-center justify-between pb-3 border-b border-purple-100">
-                      <p className="text-sm text-gray-700">Pacote contratado:</p>
-                      <p className="font-bold text-purple-900">{formData.maxSelections} fotos incluídas</p>
-                    </div>
-
-                    {formData.allowExtraPhotos && (
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium text-gray-900">Fotos extras disponíveis:</p>
-
-                        {formData.extraPhotosType === 'individual' && formData.extraPhotoPrice > 0 && (
-                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                            <p className="text-sm text-yellow-900">
-                              <span className="font-semibold">R$ {formData.extraPhotoPrice.toFixed(2)}</span> por foto adicional
-                            </p>
-                            <p className="text-xs text-yellow-700 mt-1">
-                              Exemplo: {formData.maxSelections + 3} fotos = R$ {(formData.extraPhotoPrice * 3).toFixed(2)} extra
-                            </p>
-                          </div>
-                        )}
-
-                        {formData.extraPhotosType === 'packages' && formData.packageQuantity > 0 && formData.packagePrice > 0 && (
-                          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                            <p className="text-sm text-green-900">
-                              <span className="font-semibold">Pacote:</span> {formData.packageQuantity} fotos por R$ {formData.packagePrice.toFixed(2)}
-                            </p>
-                            <p className="text-xs text-green-700 mt-1">
-                              R$ {(formData.packagePrice / formData.packageQuantity).toFixed(2)} por foto
-                            </p>
-                          </div>
-                        )}
-
-                        {formData.extraPhotosType === 'both' && formData.extraPhotoPrice > 0 && formData.packageQuantity > 0 && formData.packagePrice > 0 && (
-                          <div className="space-y-2">
-                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                              <p className="text-xs text-gray-600 uppercase font-medium mb-1">Opção 1: Individual</p>
-                              <p className="text-sm text-yellow-900 font-semibold">R$ {formData.extraPhotoPrice.toFixed(2)} por foto</p>
-                            </div>
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                              <p className="text-xs text-gray-600 uppercase font-medium mb-1">Opção 2: Pacote</p>
-                              <p className="text-sm text-green-900 font-semibold">{formData.packageQuantity} fotos por R$ {formData.packagePrice.toFixed(2)}</p>
-                              <p className="text-xs text-green-700 mt-1">R$ {(formData.packagePrice / formData.packageQuantity).toFixed(2)} cada</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {!formData.allowExtraPhotos && (
-                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                        <p className="text-sm text-gray-600">Fotos extras não disponíveis</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Additional Settings */}
               <div className="space-y-4">
