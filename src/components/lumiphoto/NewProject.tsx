@@ -147,9 +147,9 @@ export function NewProject() {
           maxSelections: parseNumber(project.max_selections, 50),
           allowExtraPhotos: project.allow_extra_photos || false,
           extraPhotosType: project.extra_photos_type || 'individual',
-          extraPhotoPrice: parseNumber(project.extra_photo_price, 20),
-          packageQuantity: parseNumber(project.package_quantity, 10),
-          packagePrice: parseNumber(project.package_price, 200),
+          extraPhotoPrice: project.extra_photo_price || 20,
+          packageQuantity: project.package_quantity || 10,
+          packagePrice: project.package_price || 200,
           requirePassword: project.require_password || false,
           password: project.access_password || '',
           linkExpiration: parseNumber(project.link_expiration, 30),
@@ -968,118 +968,81 @@ export function NewProject() {
 
                     {/* Campo de preço individual - aparece quando for individual ou ambas */}
                     {(formData.extraPhotosType === 'individual' || formData.extraPhotosType === 'both') && (
-                      <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-                        <label className="block text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
-                          <DollarSign className="h-4 w-4 text-blue-600" />
-                          Valor de cada foto extra <span className="text-red-500">*</span>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Preço por foto extra (R$) <span className="text-red-500">*</span>
                         </label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">R$</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            className="w-full pl-10 pr-3 py-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-semibold"
-                            value={formData.extraPhotoPrice}
-                            onChange={(e) => handleInputChange('extraPhotoPrice', parseFloat(e.target.value) || 0)}
-                            placeholder="20.00"
-                          />
-                        </div>
-                        <p className="text-xs text-blue-700 mt-2">
-                          {formData.maxSelections > 0 && formData.extraPhotoPrice > 0
-                            ? `Exemplo: ${formData.maxSelections + 3} fotos = 3 extras × R$ ${formData.extraPhotoPrice.toFixed(2)} = R$ ${(formData.extraPhotoPrice * 3).toFixed(2)} extra`
-                            : 'Valor cobrado por cada foto adicional'}
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          value={formData.extraPhotoPrice}
+                          onChange={(e) => handleInputChange('extraPhotoPrice', parseFloat(e.target.value) || 0)}
+                          placeholder="Ex: 20.00"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Valor cobrado por cada foto adicional além do contratado
                         </p>
                       </div>
                     )}
 
                     {/* Campos de pacote - aparecem quando for packages ou ambas */}
                     {(formData.extraPhotosType === 'packages' || formData.extraPhotosType === 'both') && (
-                      <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 space-y-4">
-                        <div className="flex items-center gap-2 text-green-800 mb-2">
-                          <Package className="h-5 w-5" />
-                          <h4 className="text-sm font-semibold">Pacote de Fotos Extras</h4>
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
+                        <div className="flex items-center gap-2 text-blue-700 mb-2">
+                          <DollarSign className="h-4 w-4" />
+                          <h4 className="text-sm font-semibold">Configuração de Pacote</h4>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-sm font-medium text-gray-900 mb-2 whitespace-nowrap">
-                              Quantidade de fotos <span className="text-red-500">*</span>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Quantidade de fotos no pacote <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="number"
                               min="1"
                               step="1"
-                              className="w-full px-4 py-3 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 font-semibold text-lg"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               value={formData.packageQuantity}
                               onChange={(e) => handleInputChange('packageQuantity', parseInt(e.target.value) || 0)}
-                              placeholder="10"
+                              placeholder="Ex: 10"
                             />
-                            <p className="text-xs text-green-700 mt-1">
-                              Fotos incluídas no pacote extra
+                            <p className="text-xs text-gray-500 mt-1">
+                              Número de fotos incluídas no pacote
                             </p>
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-900 mb-2 whitespace-nowrap">
-                              Preço do pacote <span className="text-red-500">*</span>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Preço do pacote (R$) <span className="text-red-500">*</span>
                             </label>
-                            <div className="relative">
-                              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium text-lg">R$</span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                className="w-full pl-12 pr-4 py-3 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 font-semibold text-lg"
-                                value={formData.packagePrice}
-                                onChange={(e) => handleInputChange('packagePrice', parseFloat(e.target.value) || 0)}
-                                placeholder="150.00"
-                              />
-                            </div>
-                            <p className="text-xs text-green-700 mt-1">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              value={formData.packagePrice}
+                              onChange={(e) => handleInputChange('packagePrice', parseFloat(e.target.value) || 0)}
+                              placeholder="Ex: 200.00"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
                               Valor total do pacote
                             </p>
                           </div>
                         </div>
 
                         {formData.packageQuantity > 0 && formData.packagePrice > 0 && (
-                          <div className="bg-white border-2 border-green-300 rounded-lg p-4">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-semibold text-gray-900">Resumo do Pacote Extra</p>
-                                <p className="text-xs text-gray-600 mt-1">{formData.packageQuantity} fotos por R$ {formData.packagePrice.toFixed(2)}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-lg font-bold text-green-600">R$ {(formData.packagePrice / formData.packageQuantity).toFixed(2)}</p>
-                                <p className="text-xs text-gray-600">por foto</p>
-                              </div>
-                            </div>
-                            {formData.extraPhotoPrice > 0 && formData.extraPhotosType === 'both' && (
-                              <div className="mt-3 pt-3 border-t border-green-200">
-                                <p className="text-xs text-green-700">
-                                  💡 <span className="font-medium">Economia:</span> R$ {(formData.extraPhotoPrice - (formData.packagePrice / formData.packageQuantity)).toFixed(2)} por foto comparado ao preço individual
-                                </p>
-                              </div>
-                            )}
+                          <div className="bg-white border border-blue-300 rounded-md p-3">
+                            <p className="text-xs text-gray-600">
+                              <span className="font-semibold">Resumo:</span> Pacote de {formData.packageQuantity} fotos por R$ {formData.packagePrice.toFixed(2)}
+                              <span className="text-blue-600"> (R$ {(formData.packagePrice / formData.packageQuantity).toFixed(2)} por foto)</span>
+                            </p>
                           </div>
                         )}
                       </div>
                     )}
-                  </div>
-                )}
-              </div>
-
-              {/* RESUMO: Preview do que o cliente verá */}
-              {formData.maxSelections > 0 && (
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-purple-600 rounded-lg">
-                      <AlertCircle className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900">Prévia para o Cliente</h3>
-                      <p className="text-sm text-gray-600">O que o cliente verá na galeria</p>
-                    </div>
                   </div>
 
                   <div className="bg-white border-2 border-purple-200 rounded-lg p-5 space-y-3">
