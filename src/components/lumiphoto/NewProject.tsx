@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { ChevronLeft, Upload, Copy, X, Calendar, Camera, Eye, Star, Info, CheckCircle, AlertCircle, Palette, Shield, Clock, DollarSign, HelpCircle, Save, Droplets } from 'lucide-react';
+import { ChevronLeft, Upload, Copy, X, Calendar, Camera, Eye, Star, Info, CheckCircle, AlertCircle, Palette, Shield, Clock, DollarSign, HelpCircle, Save, Droplets, Package } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { LumiPhotoHeader } from './components/LumiPhotoHeader';
 import {
@@ -25,6 +25,8 @@ interface FormData {
   allowExtraPhotos: boolean;
   extraPhotosType: 'individual' | 'packages' | 'both';
   extraPhotoPrice: number;
+  packageQuantity: number;
+  packagePrice: number;
   requirePassword: boolean;
   password: string;
   linkExpiration: number;
@@ -52,6 +54,11 @@ interface UploadItem {
   watermark: UploadWatermarkConfig;
 }
 
+const parseNumber = (value: unknown, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 const DEFAULT_WATERMARK: UploadWatermarkConfig = {
   enabled: true,
   text: '© Meu Estúdio',
@@ -76,6 +83,8 @@ export function NewProject() {
     allowExtraPhotos: false,
     extraPhotosType: 'individual',
     extraPhotoPrice: 20,
+    packageQuantity: 10,
+    packagePrice: 200,
     requirePassword: false,
     password: '',
     linkExpiration: 30,
@@ -83,7 +92,7 @@ export function NewProject() {
     projectType: '',
     clientPhone: '',
     deliveryDate: '',
-    allowDownload: true,
+    allowDownload: false,
   });
 
   const [shareLink, setShareLink] = useState('');
@@ -134,19 +143,21 @@ export function NewProject() {
           description: project.description || '',
           clientName: project.client_name || '',
           clientEmail: project.client_email || '',
-          contractedPhotos: project.contracted_photos || 50,
-          maxSelections: project.max_selections || 50,
+          contractedPhotos: parseNumber(project.contracted_photos, 50),
+          maxSelections: parseNumber(project.max_selections, 50),
           allowExtraPhotos: project.allow_extra_photos || false,
           extraPhotosType: project.extra_photos_type || 'individual',
-          extraPhotoPrice: project.extra_photo_price || 20,
+          extraPhotoPrice: parseNumber(project.extra_photo_price, 20),
+          packageQuantity: parseNumber(project.package_quantity, 10),
+          packagePrice: parseNumber(project.package_price, 200),
           requirePassword: project.require_password || false,
           password: project.access_password || '',
-          linkExpiration: project.link_expiration || 30,
+          linkExpiration: parseNumber(project.link_expiration, 30),
           projectDate: project.project_date || '',
           projectType: project.project_type || '',
           clientPhone: project.client_phone || '',
           deliveryDate: project.delivery_date || '',
-          allowDownload: project.allow_download !== undefined ? project.allow_download : true,
+          allowDownload: project.allow_download !== undefined ? project.allow_download : false,
         });
 
       } catch (error: any) {
@@ -232,16 +243,60 @@ export function NewProject() {
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const files = Array.from(e.dataTransfer.files);
-      const items = files.map(createUploadItem);
-      setUploadedFiles(prev => [...prev, ...items]);
+      const MAX_SIZE = 2 * 1024 * 1024; // 2MB em bytes
+
+      const validFiles: File[] = [];
+      const invalidFiles: string[] = [];
+
+      files.forEach(file => {
+        if (file.size > MAX_SIZE) {
+          invalidFiles.push(file.name);
+        } else {
+          validFiles.push(file);
+        }
+      });
+
+      if (invalidFiles.length > 0) {
+        toast.error(
+          `${invalidFiles.length} arquivo${invalidFiles.length > 1 ? 's foram rejeitados' : ' foi rejeitado'} por exceder 2MB: ${invalidFiles.slice(0, 3).join(', ')}${invalidFiles.length > 3 ? '...' : ''}`,
+          { autoClose: 5000 }
+        );
+      }
+
+      if (validFiles.length > 0) {
+        const items = validFiles.map(createUploadItem);
+        setUploadedFiles(prev => [...prev, ...items]);
+      }
     }
   }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      const items = files.map(createUploadItem);
-      setUploadedFiles(prev => [...prev, ...items]);
+      const MAX_SIZE = 2 * 1024 * 1024; // 2MB em bytes
+
+      const validFiles: File[] = [];
+      const invalidFiles: string[] = [];
+
+      files.forEach(file => {
+        if (file.size > MAX_SIZE) {
+          invalidFiles.push(file.name);
+        } else {
+          validFiles.push(file);
+        }
+      });
+
+      if (invalidFiles.length > 0) {
+        toast.error(
+          `${invalidFiles.length} arquivo${invalidFiles.length > 1 ? 's foram rejeitados' : ' foi rejeitado'} por exceder 2MB: ${invalidFiles.slice(0, 3).join(', ')}${invalidFiles.length > 3 ? '...' : ''}`,
+          { autoClose: 5000 }
+        );
+      }
+
+      if (validFiles.length > 0) {
+        const items = validFiles.map(createUploadItem);
+        setUploadedFiles(prev => [...prev, ...items]);
+      }
     }
   };
 
@@ -400,6 +455,8 @@ export function NewProject() {
         allow_extra_photos: formData.allowExtraPhotos,
         extra_photos_type: formData.extraPhotosType,
         extra_photo_price: formData.extraPhotoPrice,
+        package_quantity: formData.packageQuantity,
+        package_price: formData.packagePrice,
         require_password: formData.requirePassword,
         access_password: formData.password || undefined,
         link_expiration: formData.linkExpiration,
@@ -461,7 +518,7 @@ export function NewProject() {
                   : undefined
               );
 
-              // ✅ Marca d'água já foi aplicada no upload inicial
+              // Marca d'água já foi aplicada no upload inicial
               // Não precisa chamar configurarMarcaDaguaFoto novamente
 
               successful += 1;
@@ -688,7 +745,7 @@ export function NewProject() {
                   Arraste e solte arquivos aqui ou clique para selecionar
                 </p>
                 <p className="text-sm text-gray-500 mb-4">
-                  Suporte JPG, PNG, RAW (máximo 20MB por arquivo)
+                  Suporte JPG, PNG, RAW (máximo 2MB por arquivo)
                 </p>
                 <input
                   type="file"
@@ -774,43 +831,69 @@ export function NewProject() {
             <p className="text-gray-500 text-sm mb-6">Personalize as opções do projeto</p>
 
             <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Número de fotos contratadas <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  value={formData.contractedPhotos}
-                  onChange={(e) => handleInputChange('contractedPhotos', parseInt(e.target.value) || 0)}
-                />
-                <p className="text-xs text-gray-500 mt-1">Número de fotos inclusas no contrato original</p>
+              {/* SEÇÃO: PACOTE CONTRATADO */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 space-y-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-blue-600 rounded-lg">
+                    <Camera className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Pacote Contratado</h3>
+                    <p className="text-sm text-gray-600">O que está incluso no valor já pago pelo cliente</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quantas fotos estão incluídas no pacote? <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-semibold"
+                    value={formData.maxSelections}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 0;
+                      handleInputChange('maxSelections', value);
+                      handleInputChange('contractedPhotos', value); // Manter sincronizado
+                    }}
+                    placeholder="Ex: 50"
+                  />
+                  <p className="text-xs text-blue-700 mt-2 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    O cliente poderá selecionar até esta quantidade sem custo adicional
+                  </p>
+                </div>
+
+                <div className="bg-white border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-semibold text-blue-900">Resumo do pacote:</span>{' '}
+                    {formData.maxSelections > 0 ? (
+                      <>
+                        Cliente pode escolher até <span className="font-bold text-blue-600">{formData.maxSelections} foto{formData.maxSelections !== 1 ? 's' : ''}</span> sem custo extra
+                      </>
+                    ) : (
+                      <span className="text-gray-500">Configure a quantidade de fotos incluídas</span>
+                    )}
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Número máximo de seleções <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  value={formData.maxSelections}
-                  onChange={(e) => handleInputChange('maxSelections', parseInt(e.target.value) || 0)}
-                />
-                <p className="text-xs text-gray-500 mt-1">Limite quantas fotos o cliente pode selecionar</p>
-              </div>
 
-
-              {/* Additional Settings */}
-              <div className="space-y-4">
+              {/* SEÇÃO: FOTOS EXTRAS */}
+              <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-200 rounded-xl p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <DollarSign className="h-4 w-4 text-gray-500 mr-2" />
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-yellow-600 rounded-lg">
+                      <DollarSign className="h-5 w-5 text-white" />
+                    </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-700">Venda de fotos extras</span>
-                      <p className="text-xs text-gray-500">Permite que o cliente compre fotos adicionais</p>
+                      <h3 className="text-lg font-bold text-gray-900">Fotos Extras</h3>
+                      <p className="text-sm text-gray-600">
+                        {formData.maxSelections > 0
+                          ? `Cobrar por fotos além das ${formData.maxSelections} incluídas`
+                          : 'Cobrar por fotos além do pacote contratado'}
+                      </p>
                     </div>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -820,69 +903,244 @@ export function NewProject() {
                       checked={formData.allowExtraPhotos}
                       onChange={(e) => handleInputChange('allowExtraPhotos', e.target.checked)}
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-600"></div>
                   </label>
                 </div>
 
                 {formData.allowExtraPhotos && (
-                  <div className="ml-6 space-y-4">
+                  <div className="bg-white border border-yellow-200 rounded-lg p-5 space-y-5">
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                      <p className="text-xs text-yellow-800 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        Configure os valores que serão cobrados quando o cliente selecionar mais fotos do que as {formData.maxSelections || '___'} incluídas no pacote
+                      </p>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-3">
-                        Tipo de venda de fotos extras
+                        Como você quer vender as fotos extras?
                       </label>
-                      <div className="space-y-2">
-                        <label className="flex items-center">
+                      <div className="space-y-3">
+                        <label className="flex items-start p-3 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-yellow-500 hover:bg-yellow-50 transition-all">
                           <input
                             type="radio"
                             name="extraPhotosType"
                             value="individual"
                             checked={formData.extraPhotosType === 'individual'}
                             onChange={(e) => handleInputChange('extraPhotosType', e.target.value)}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                            className="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 mt-1"
                           />
-                          <span className="ml-2 text-sm text-gray-700">Por foto individual</span>
+                          <div className="ml-3">
+                            <span className="text-sm font-medium text-gray-900">Por foto individual</span>
+                            <p className="text-xs text-gray-600 mt-1">Exemplo: Cada foto extra custa R$ 20,00</p>
+                          </div>
                         </label>
-                        <label className="flex items-center">
+                        <label className="flex items-start p-3 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-yellow-500 hover:bg-yellow-50 transition-all">
                           <input
                             type="radio"
                             name="extraPhotosType"
                             value="packages"
                             checked={formData.extraPhotosType === 'packages'}
                             onChange={(e) => handleInputChange('extraPhotosType', e.target.value)}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                            className="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 mt-1"
                           />
-                          <span className="ml-2 text-sm text-gray-700">Por pacotes de fotos</span>
+                          <div className="ml-3">
+                            <span className="text-sm font-medium text-gray-900">Por pacotes de fotos</span>
+                            <p className="text-xs text-gray-600 mt-1">Exemplo: Pacote de 10 fotos extras por R$ 150,00</p>
+                          </div>
                         </label>
-                        <label className="flex items-center">
+                        <label className="flex items-start p-3 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-yellow-500 hover:bg-yellow-50 transition-all">
                           <input
                             type="radio"
                             name="extraPhotosType"
                             value="both"
                             checked={formData.extraPhotosType === 'both'}
                             onChange={(e) => handleInputChange('extraPhotosType', e.target.value)}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                            className="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 mt-1"
                           />
-                          <span className="ml-2 text-sm text-gray-700">Ambas opções</span>
+                          <div className="ml-3">
+                            <span className="text-sm font-medium text-gray-900">Ambas as opções</span>
+                            <p className="text-xs text-gray-600 mt-1">Cliente escolhe entre comprar individual ou em pacote</p>
+                          </div>
                         </label>
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Preço por foto extra (R$) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        value={formData.extraPhotoPrice}
-                        onChange={(e) => handleInputChange('extraPhotoPrice', parseFloat(e.target.value) || 0)}
-                      />
-                    </div>
+                    {/* Campo de preço individual - aparece quando for individual ou ambas */}
+                    {(formData.extraPhotosType === 'individual' || formData.extraPhotosType === 'both') && (
+                      <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                        <label className="block text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
+                          <DollarSign className="h-4 w-4 text-blue-600" />
+                          Valor de cada foto extra <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">R$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className="w-full pl-10 pr-3 py-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-semibold"
+                            value={formData.extraPhotoPrice}
+                            onChange={(e) => handleInputChange('extraPhotoPrice', parseFloat(e.target.value) || 0)}
+                            placeholder="20.00"
+                          />
+                        </div>
+                        <p className="text-xs text-blue-700 mt-2">
+                          {formData.maxSelections > 0 && formData.extraPhotoPrice > 0
+                            ? `Exemplo: ${formData.maxSelections + 3} fotos = 3 extras × R$ ${formData.extraPhotoPrice.toFixed(2)} = R$ ${(formData.extraPhotoPrice * 3).toFixed(2)} extra`
+                            : 'Valor cobrado por cada foto adicional'}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Campos de pacote - aparecem quando for packages ou ambas */}
+                    {(formData.extraPhotosType === 'packages' || formData.extraPhotosType === 'both') && (
+                      <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 space-y-4">
+                        <div className="flex items-center gap-2 text-green-800 mb-2">
+                          <Package className="h-5 w-5" />
+                          <h4 className="text-sm font-semibold">Pacote de Fotos Extras</h4>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-900 mb-2 whitespace-nowrap">
+                              Quantidade de fotos <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              className="w-full px-4 py-3 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 font-semibold text-lg"
+                              value={formData.packageQuantity}
+                              onChange={(e) => handleInputChange('packageQuantity', parseInt(e.target.value) || 0)}
+                              placeholder="10"
+                            />
+                            <p className="text-xs text-green-700 mt-1">
+                              Fotos incluídas no pacote extra
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-900 mb-2 whitespace-nowrap">
+                              Preço do pacote <span className="text-red-500">*</span>
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium text-lg">R$</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                className="w-full pl-12 pr-4 py-3 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 font-semibold text-lg"
+                                value={formData.packagePrice}
+                                onChange={(e) => handleInputChange('packagePrice', parseFloat(e.target.value) || 0)}
+                                placeholder="150.00"
+                              />
+                            </div>
+                            <p className="text-xs text-green-700 mt-1">
+                              Valor total do pacote
+                            </p>
+                          </div>
+                        </div>
+
+                        {formData.packageQuantity > 0 && formData.packagePrice > 0 && (
+                          <div className="bg-white border-2 border-green-300 rounded-lg p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">Resumo do Pacote Extra</p>
+                                <p className="text-xs text-gray-600 mt-1">{formData.packageQuantity} fotos por R$ {formData.packagePrice.toFixed(2)}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-lg font-bold text-green-600">R$ {(formData.packagePrice / formData.packageQuantity).toFixed(2)}</p>
+                                <p className="text-xs text-gray-600">por foto</p>
+                              </div>
+                            </div>
+                            {formData.extraPhotoPrice > 0 && formData.extraPhotosType === 'both' && (
+                              <div className="mt-3 pt-3 border-t border-green-200">
+                                <p className="text-xs text-green-700">
+                                  💡 <span className="font-medium">Economia:</span> R$ {(formData.extraPhotoPrice - (formData.packagePrice / formData.packageQuantity)).toFixed(2)} por foto comparado ao preço individual
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
+              </div>
 
+              {/* RESUMO: Preview do que o cliente verá */}
+              {formData.maxSelections > 0 && (
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-purple-600 rounded-lg">
+                      <AlertCircle className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">Prévia para o Cliente</h3>
+                      <p className="text-sm text-gray-600">O que o cliente verá na galeria</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border-2 border-purple-200 rounded-lg p-5 space-y-3">
+                    <div className="flex items-center justify-between pb-3 border-b border-purple-100">
+                      <p className="text-sm text-gray-700">Pacote contratado:</p>
+                      <p className="font-bold text-purple-900">{formData.maxSelections} fotos incluídas</p>
+                    </div>
+
+                    {formData.allowExtraPhotos && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-gray-900">Fotos extras disponíveis:</p>
+
+                        {formData.extraPhotosType === 'individual' && formData.extraPhotoPrice > 0 && (
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                            <p className="text-sm text-yellow-900">
+                              <span className="font-semibold">R$ {formData.extraPhotoPrice.toFixed(2)}</span> por foto adicional
+                            </p>
+                            <p className="text-xs text-yellow-700 mt-1">
+                              Exemplo: {formData.maxSelections + 3} fotos = R$ {(formData.extraPhotoPrice * 3).toFixed(2)} extra
+                            </p>
+                          </div>
+                        )}
+
+                        {formData.extraPhotosType === 'packages' && formData.packageQuantity > 0 && formData.packagePrice > 0 && (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <p className="text-sm text-green-900">
+                              <span className="font-semibold">Pacote:</span> {formData.packageQuantity} fotos por R$ {formData.packagePrice.toFixed(2)}
+                            </p>
+                            <p className="text-xs text-green-700 mt-1">
+                              R$ {(formData.packagePrice / formData.packageQuantity).toFixed(2)} por foto
+                            </p>
+                          </div>
+                        )}
+
+                        {formData.extraPhotosType === 'both' && formData.extraPhotoPrice > 0 && formData.packageQuantity > 0 && formData.packagePrice > 0 && (
+                          <div className="space-y-2">
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                              <p className="text-xs text-gray-600 uppercase font-medium mb-1">Opção 1: Individual</p>
+                              <p className="text-sm text-yellow-900 font-semibold">R$ {formData.extraPhotoPrice.toFixed(2)} por foto</p>
+                            </div>
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                              <p className="text-xs text-gray-600 uppercase font-medium mb-1">Opção 2: Pacote</p>
+                              <p className="text-sm text-green-900 font-semibold">{formData.packageQuantity} fotos por R$ {formData.packagePrice.toFixed(2)}</p>
+                              <p className="text-xs text-green-700 mt-1">R$ {(formData.packagePrice / formData.packageQuantity).toFixed(2)} cada</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {!formData.allowExtraPhotos && (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <p className="text-sm text-gray-600">Fotos extras não disponíveis</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Additional Settings */}
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <Shield className="h-4 w-4 text-gray-500 mr-2" />

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Eye, Heart, Calendar, Mail, User, CheckCircle, Clock, Archive, Send, Pencil, XCircle, Activity as ActivityIcon, Image, Copy, Link2, Download } from 'lucide-react';
+import { Eye, Heart, Calendar, Mail, User, CheckCircle, Clock, Archive, Send, Pencil, XCircle, Activity as ActivityIcon, Image, Copy, Link2, Download, DollarSign, Info, Gem, Package } from 'lucide-react';
 import { Offcanvas } from './Offcanvas';
 import { PhotoViewer } from './PhotoViewer';
 import { Modal } from './Modal';
@@ -24,6 +24,11 @@ interface Project {
   maxSelections?: number | null;
   contractedPhotos?: number | null;
   allowDownload?: boolean;
+  allowExtraPhotos?: boolean;
+  extraPhotosType?: 'individual' | 'packages' | 'both';
+  extraPhotoPrice?: number | null;
+  packageQuantity?: number | null;
+  packagePrice?: number | null;
   requirePassword?: boolean;
   accessPassword?: string | null;
   linkExpiration?: number | null;
@@ -115,7 +120,7 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
 
       setPhotos(photosList);
     } catch (error: any) {
-      console.error('❌ [GALLERY] Erro ao carregar fotos:', error);
+      console.error('[GALLERY] Erro ao carregar fotos:', error);
       toast.error('Erro ao carregar fotos do projeto');
     } finally {
       setLoadingPhotos(false);
@@ -508,6 +513,69 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
             </p>
           </div>
         </div>
+
+        {/* Card de Fotos Extras */}
+        {project.allowExtraPhotos && (
+          <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-200 rounded-lg p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <DollarSign className="h-5 w-5 text-blue-600" />
+              <h5 className="font-semibold text-blue-900">Opções de Fotos Extras</h5>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Individual */}
+              {(project.extraPhotosType === 'individual' || project.extraPhotosType === 'both') &&
+               project.extraPhotoPrice && (
+                <div className="bg-white rounded-lg p-4 border border-blue-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600 flex items-center gap-1">
+                      <Gem className="h-3.5 w-3.5" />
+                      Individual
+                    </span>
+                    <span className="text-xl font-bold text-blue-600">
+                      R$ {Number(project.extraPhotoPrice).toFixed(2)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">por foto adicional</p>
+                </div>
+              )}
+
+              {/* Pacote */}
+              {(project.extraPhotosType === 'packages' || project.extraPhotosType === 'both') &&
+               project.packageQuantity && project.packagePrice && (
+                <div className="bg-white rounded-lg p-4 border border-green-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600 flex items-center gap-1">
+                      <Package className="h-3.5 w-3.5" />
+                      Pacote
+                    </span>
+                    <span className="text-xl font-bold text-green-600">
+                      R$ {Number(project.packagePrice).toFixed(2)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-1">
+                    {project.packageQuantity} fotos extras
+                  </p>
+                  <p className="text-xs text-green-700 font-medium">
+                    R$ {(Number(project.packagePrice) / project.packageQuantity).toFixed(2)} por foto
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-3 bg-blue-100 rounded-md p-3">
+              <p className="text-xs text-blue-800 flex items-start gap-2">
+                <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                <span>
+                  <span className="font-semibold">Modo:</span>{' '}
+                  {project.extraPhotosType === 'individual' && 'Venda individual de fotos extras'}
+                  {project.extraPhotosType === 'packages' && 'Venda por pacotes de fotos'}
+                  {project.extraPhotosType === 'both' && 'Cliente pode escolher entre individual ou pacote'}
+                </span>
+              </p>
+            </div>
+          </div>
+        )}
 
         {selectionLimit && (
           <div>
