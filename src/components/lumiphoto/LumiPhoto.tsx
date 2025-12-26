@@ -93,6 +93,17 @@ export function LumiPhoto() {
     loadActivities();
   }, [selectedStatus, sortOrder]);
 
+  // Polling para atualização em tempo real dos status
+  useEffect(() => {
+    // Atualizar a cada 15 segundos para pegar mudanças de status em tempo real
+    const intervalId = setInterval(() => {
+      loadProjects();
+      loadDashboardStats();
+    }, 15000); // 15 segundos
+
+    return () => clearInterval(intervalId);
+  }, [selectedStatus, sortOrder]);
+
   const loadActivities = async () => {
     try {
       setLoadingActivities(true);
@@ -112,7 +123,7 @@ export function LumiPhoto() {
 
       setActivities(projectActivities);
     } catch (error: any) {
-      console.error('❌ Erro ao carregar atividades:', error);
+      console.error('[LUMIPHOTO] Erro ao carregar atividades:', error);
     } finally {
       setLoadingActivities(false);
     }

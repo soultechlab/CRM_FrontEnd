@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Eye, Heart, Calendar, Mail, User, CheckCircle, Clock, Archive, Send, Pencil, XCircle, Activity as ActivityIcon, Image, Copy, Link2, Download, DollarSign } from 'lucide-react';
+import { Eye, Heart, Calendar, Mail, User, CheckCircle, Clock, Archive, Send, Pencil, XCircle, Activity as ActivityIcon, Image, Copy, Link2, Download, DollarSign, Info, Gem, Package } from 'lucide-react';
 import { Offcanvas } from './Offcanvas';
 import { PhotoViewer } from './PhotoViewer';
 import { Modal } from './Modal';
@@ -120,7 +120,7 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
 
       setPhotos(photosList);
     } catch (error: any) {
-      console.error('❌ [GALLERY] Erro ao carregar fotos:', error);
+      console.error('[GALLERY] Erro ao carregar fotos:', error);
       toast.error('Erro ao carregar fotos do projeto');
     } finally {
       setLoadingPhotos(false);
@@ -528,7 +528,10 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
                project.extraPhotoPrice && (
                 <div className="bg-white rounded-lg p-4 border border-blue-200">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">💎 Individual</span>
+                    <span className="text-sm text-gray-600 flex items-center gap-1">
+                      <Gem className="h-3.5 w-3.5" />
+                      Individual
+                    </span>
                     <span className="text-xl font-bold text-blue-600">
                       R$ {Number(project.extraPhotoPrice).toFixed(2)}
                     </span>
@@ -542,7 +545,10 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
                project.packageQuantity && project.packagePrice && (
                 <div className="bg-white rounded-lg p-4 border border-green-200">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">📦 Pacote</span>
+                    <span className="text-sm text-gray-600 flex items-center gap-1">
+                      <Package className="h-3.5 w-3.5" />
+                      Pacote
+                    </span>
                     <span className="text-xl font-bold text-green-600">
                       R$ {Number(project.packagePrice).toFixed(2)}
                     </span>
@@ -558,11 +564,14 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
             </div>
 
             <div className="mt-3 bg-blue-100 rounded-md p-3">
-              <p className="text-xs text-blue-800">
-                <span className="font-semibold">ℹ️ Modo:</span>{' '}
-                {project.extraPhotosType === 'individual' && 'Venda individual de fotos extras'}
-                {project.extraPhotosType === 'packages' && 'Venda por pacotes de fotos'}
-                {project.extraPhotosType === 'both' && 'Cliente pode escolher entre individual ou pacote'}
+              <p className="text-xs text-blue-800 flex items-start gap-2">
+                <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                <span>
+                  <span className="font-semibold">Modo:</span>{' '}
+                  {project.extraPhotosType === 'individual' && 'Venda individual de fotos extras'}
+                  {project.extraPhotosType === 'packages' && 'Venda por pacotes de fotos'}
+                  {project.extraPhotosType === 'both' && 'Cliente pode escolher entre individual ou pacote'}
+                </span>
               </p>
             </div>
           </div>

@@ -97,7 +97,7 @@ export function Delivery() {
 
             setActivities(deliveryActivities);
         } catch (error: any) {
-            console.error('❌ Erro ao carregar atividades:', error);
+            console.error('[DELIVERY] Erro ao carregar atividades:', error);
         } finally {
             setLoadingActivities(false);
         }
@@ -161,7 +161,7 @@ export function Delivery() {
                 });
             }
         } catch (error: any) {
-            console.error('❌ Erro ao carregar entregas:', error);
+            console.error('[DELIVERY] Erro ao carregar entregas:', error);
             console.error('Detalhes do erro:', error.response?.data || error.message);
             toast.error(`Erro ao carregar entregas: ${error.response?.data?.message || error.message}`);
         } finally {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Droplet, Type, Move } from 'lucide-react';
+import { X, Droplet, Type, Move, Lightbulb, Palette, Camera, Info, Eye, AlertTriangle, MapPin, Check } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 // Mapeamento de fontes para Google Fonts (para preview no navegador)
@@ -154,7 +154,7 @@ export function WatermarkConfigModal({
         saveConfig.font_size = config.font_size;
       }
 
-      console.info('🛰️ [LUMIPHOTO][WATERMARK_MODAL] Salvando configuração a partir do modal', {
+      console.info('[LUMIPHOTO][WATERMARK_MODAL] Salvando configuração a partir do modal', {
         photoName,
         hasPreview: !!photoPreviewUrl,
         rawConfig: config,
@@ -226,7 +226,7 @@ export function WatermarkConfigModal({
       const result = await response.json();
 
       toast.success(
-        `Marca d'água aplicada! ✅ ${result.data.success} fotos | ⏭️ ${result.data.skipped} ignoradas | ❌ ${result.data.failed} com erro`
+        `Marca d'água aplicada! ${result.data.success} fotos processadas | ${result.data.skipped} ignoradas | ${result.data.failed} com erro`
       );
 
       // Recarregar a página para mostrar as mudanças
@@ -389,8 +389,9 @@ export function WatermarkConfigModal({
 
             {/* Label da posição selecionada */}
             <div className="text-center">
-              <span className="inline-block px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                ✓ {positions.find(p => p.value === config.position)?.label}
+              <span className="inline-block px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-sm font-medium flex items-center justify-center gap-2">
+                <Check className="h-4 w-4" />
+                {positions.find(p => p.value === config.position)?.label}
               </span>
             </div>
           </div>
@@ -494,8 +495,9 @@ export function WatermarkConfigModal({
               </div>
             ) : (
               <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                <p className="text-sm text-blue-800">
-                  ℹ️ O tamanho será calculado automaticamente com base na resolução da foto
+                <p className="text-sm text-blue-800 flex items-center gap-2">
+                  <Info className="h-4 w-4" />
+                  O tamanho será calculado automaticamente com base na resolução da foto
                 </p>
               </div>
             )}
@@ -529,7 +531,7 @@ export function WatermarkConfigModal({
           <div className="bg-gradient-to-br from-gray-100 to-gray-200 p-6 rounded-xl border-2 border-gray-300 shadow-inner">
             <div className="text-center mb-4">
               <p className="text-base font-bold text-gray-800 mb-1 flex items-center justify-center gap-2">
-                <span className="text-2xl">👁️</span>
+                <Eye className="h-5 w-5" />
                 Preview da Marca d'Água
               </p>
               <p className="text-sm text-gray-600">Visualização em tempo real - exatamente como ficará na foto</p>
@@ -548,7 +550,8 @@ export function WatermarkConfigModal({
               ) : (
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200 flex items-center justify-center">
                   <div className="text-center">
-                    <p className="text-gray-600 text-lg font-medium mb-2">📷 Sua Foto Aparecerá Aqui</p>
+                    <Camera className="h-16 w-16 text-gray-600 mx-auto mb-3" />
+                    <p className="text-gray-600 text-lg font-medium mb-2">Sua Foto Aparecerá Aqui</p>
                     <p className="text-gray-500 text-sm">Preview em tempo real da marca d'água</p>
                   </div>
                 </div>
@@ -604,29 +607,35 @@ export function WatermarkConfigModal({
               </div>
 
               {/* Badge de informação da posição */}
-              <div className="absolute top-3 left-3 bg-black bg-opacity-60 text-white px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-sm">
-                📍 {positions.find(p => p.value === config.position)?.label}
+              <div className="absolute top-3 left-3 bg-black bg-opacity-60 text-white px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-sm flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                {positions.find(p => p.value === config.position)?.label}
               </div>
 
               {/* Badge de opacidade */}
-              <div className="absolute top-3 right-3 bg-black bg-opacity-60 text-white px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-sm">
-                💧 {Math.round((config.opacity || 0.35) * 100)}%
+              <div className="absolute top-3 right-3 bg-black bg-opacity-60 text-white px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-sm flex items-center gap-1">
+                <Droplet className="h-3 w-3" />
+                {Math.round((config.opacity || 0.35) * 100)}%
               </div>
             </div>
 
             {/* Dica visual */}
             <div className="mt-3 text-center">
-              <p className="text-xs text-gray-600 italic">
-                💡 Ajuste a posição, tamanho e opacidade para ver em tempo real
+              <p className="text-xs text-gray-600 italic flex items-center justify-center gap-1">
+                <Lightbulb className="h-3.5 w-3.5" />
+                Ajuste a posição, tamanho e opacidade para ver em tempo real
               </p>
             </div>
           </div>
 
           {/* Info */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm text-blue-800">
-              <strong>💡 Dica:</strong> A marca d'água será processada e salva permanentemente no bucket.
-              Isso garante que a foto sempre terá a marca d'água, protegendo contra uso não autorizado.
+            <p className="text-sm text-blue-800 flex items-start gap-2">
+              <Lightbulb className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>
+                <strong>Dica:</strong> A marca d'água será processada e salva permanentemente no bucket.
+                Isso garante que a foto sempre terá a marca d'água, protegendo contra uso não autorizado.
+              </span>
             </p>
           </div>
         </div>
@@ -688,16 +697,18 @@ export function WatermarkConfigModal({
         {showBulkConfirm && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 rounded-2xl">
             <div className="bg-white rounded-xl p-6 max-w-md mx-4 shadow-2xl">
-              <h3 className="text-xl font-bold text-gray-900 mb-3">
-                🎨 Aplicar em Todas as Fotos?
+              <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
+                <Palette className="h-6 w-6 text-blue-600" />
+                Aplicar em Todas as Fotos?
               </h3>
               <p className="text-gray-600 mb-6">
                 Esta ação irá aplicar a configuração atual de marca d'água em <strong>TODAS as fotos</strong> deste projeto.
                 Isso pode levar alguns minutos dependendo da quantidade de fotos.
               </p>
               <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-                <p className="text-sm text-yellow-800">
-                  ⚠️ <strong>Atenção:</strong> As marcas d'água existentes serão substituídas pela nova configuração.
+                <p className="text-sm text-yellow-800 flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span><strong>Atenção:</strong> As marcas d'água existentes serão substituídas pela nova configuração.</span>
                 </p>
               </div>
               <div className="flex items-center justify-end gap-3">
