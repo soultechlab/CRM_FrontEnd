@@ -551,6 +551,140 @@ export function PublicGallery() {
     );
   };
 
+  const renderConfirmFinalizeModal = () => {
+    if (!showConfirmFinalize) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-5">
+          <div className="flex items-center justify-center mb-4">
+            <div className="p-4 bg-blue-100 rounded-full">
+              <AlertCircle className="h-10 w-10 text-blue-600" />
+            </div>
+          </div>
+
+          <div className="text-center space-y-3">
+            <h3 className="text-2xl font-bold text-gray-900">Confirmar Finalização</h3>
+            <p className="text-gray-600">
+              Você está prestes a finalizar sua seleção de fotos. Após confirmar, suas escolhas serão enviadas ao fotógrafo.
+            </p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">Total selecionado:</span>
+              <span className="text-2xl font-bold text-blue-600">{selectedCount} foto{selectedCount !== 1 ? 's' : ''}</span>
+            </div>
+
+            {selectionLimit && (
+              <div className="mt-3 pt-3 border-t border-blue-200 space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Pacote contratado:</span>
+                  <span className="font-semibold text-gray-900">{selectionLimit} fotos</span>
+                </div>
+                {extraPhotosCount > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-yellow-700 font-medium">Fotos extras:</span>
+                    <span className="font-bold text-yellow-900">+{extraPhotosCount} foto{extraPhotosCount !== 1 ? 's' : ''}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <p className="text-sm text-gray-500 text-center">
+            Deseja confirmar e finalizar sua seleção?
+          </p>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowConfirmFinalize(false)}
+              className="flex-1 px-5 py-3 rounded-xl border-2 border-gray-300 text-gray-700 font-medium hover:bg-gray-100 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={confirmFinalizeSelection}
+              disabled={isFinalizingSelection}
+              className="flex-1 px-5 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {isFinalizingSelection ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Finalizando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-5 w-5" />
+                  Confirmar
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderThankYouModal = () => {
+    if (!showThankYouModal) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8 space-y-6">
+          <div className="flex items-center justify-center">
+            <div className="p-5 bg-green-100 rounded-full animate-pulse">
+              <CheckCircle2 className="h-16 w-16 text-green-600" />
+            </div>
+          </div>
+
+          <div className="text-center space-y-4">
+            <h2 className="text-3xl font-bold text-gray-900">Obrigado por Selecionar!</h2>
+            <p className="text-lg text-gray-600">
+              Sua seleção de <span className="font-bold text-blue-600">{selectedCount} foto{selectedCount !== 1 ? 's' : ''}</span> foi recebida com sucesso.
+            </p>
+          </div>
+
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-5 space-y-3">
+            <div className="flex items-center gap-3">
+              <Camera className="h-6 w-6 text-blue-600 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-gray-900">Próximos Passos</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  O fotógrafo foi notificado e entrará em contato em breve para dar continuidade ao processo de edição e entrega das suas fotos.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {extraPhotosCount > 0 && gallery?.allow_extra_photos && (
+            <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <DollarSign className="h-5 w-5 text-yellow-700" />
+                <p className="font-semibold text-yellow-900">Fotos Extras</p>
+              </div>
+              <p className="text-sm text-yellow-800">
+                Você selecionou {extraPhotosCount} foto{extraPhotosCount !== 1 ? 's' : ''} extra{extraPhotosCount !== 1 ? 's' : ''}.
+                O fotógrafo entrará em contato para combinar o pagamento e forma de entrega.
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center justify-center pt-4">
+            <button
+              onClick={() => {
+                window.location.href = 'https://www.lumicrm.com.br/';
+              }}
+              className="px-8 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderPhotoModal = () => {
     if (!fullPhoto) return null;
 
