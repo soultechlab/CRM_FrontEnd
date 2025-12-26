@@ -7,6 +7,7 @@ import {
   registrarVisualizacaoGaleriaLumiPhoto,
   removerSelecaoGaleriaLumiPhoto,
   notificarPrimeiraSelecaoGaleriaLumiPhoto,
+  finalizarSelecaoGaleriaLumiPhoto,
 } from '../../../services/lumiPhotoService';
 import { toast } from 'react-toastify';
 import {

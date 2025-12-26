@@ -700,6 +700,14 @@ export const removerSelecaoGaleriaLumiPhoto = async (shareToken: string, photoId
   return response.data;
 };
 
+export const finalizarSelecaoGaleriaLumiPhoto = async (shareToken: string) => {
+  const response = await publicApiClient.post(
+    `/public/lumiphoto/gallery/${shareToken}/finalize-selection`,
+    {}
+  );
+  return response.data;
+};
+
 export const obterComentariosGaleriaLumiPhoto = async (shareToken: string) => {
   const response = await publicApiClient.get(`/public/lumiphoto/gallery/${shareToken}/comments`);
   return response.data.data || response.data;
