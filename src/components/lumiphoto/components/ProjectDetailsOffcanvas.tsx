@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Eye, Heart, Calendar, Mail, User, CheckCircle, Clock, Archive, Send, Pencil, XCircle, Activity as ActivityIcon, Image, Copy, Link2, Download, DollarSign } from 'lucide-react';
+import { Eye, Heart, Calendar, Mail, User, CheckCircle, Clock, Archive, Send, Pencil, XCircle, Activity as ActivityIcon, Image, Copy, Link2, Download, DollarSign, Plus } from 'lucide-react';
 import { Offcanvas } from './Offcanvas';
 import { PhotoViewer } from './PhotoViewer';
 import { Modal } from './Modal';
+import { AddPhotosToProjectModal } from './AddPhotosToProjectModal';
 import { useAuth } from '../../../contexts/AuthContext';
 import { obterAtividadesProjetoLumiPhoto, obterFotosLumiPhoto, obterSelecoesGaleriaLumiPhoto, LumiPhotoActivity, LumiPhotoPhoto } from '../../../services/lumiPhotoService';
 import { toast } from 'react-toastify';
@@ -62,6 +63,7 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
   const [isPhotoViewerOpen, setIsPhotoViewerOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportTab, setExportTab] = useState<'lightroom' | 'finder' | 'windows'>('lightroom');
+  const [isAddPhotosModalOpen, setIsAddPhotosModalOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen && project && activeTab === 'activities') {
@@ -161,6 +163,11 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
 
   const resolvePhotoFull = (photo: LumiPhotoPhoto) =>
     photo.watermarked_url || photo.digital_ocean_url;
+
+  const handleAddPhotosComplete = async () => {
+    await loadPhotos();
+    toast.success('Fotos adicionadas com sucesso!');
+  };
 
   const handlePhotoDeleted = async () => {
     await loadPhotos();
@@ -376,13 +383,22 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
 
   const renderPhotos = () => (
     <div className="p-4 sm:p-6">
-      <div className="mb-4">
-        <h4 className="text-lg font-semibold text-gray-900">Fotos do Projeto</h4>
-        <p className="text-gray-600">
-          {loadingPhotos
-            ? 'Carregando fotos...'
-            : `${photos.length} foto${photos.length !== 1 ? 's' : ''} disponível${photos.length !== 1 ? 'eis' : ''}`}
-        </p>
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h4 className="text-lg font-semibold text-gray-900">Fotos do Projeto</h4>
+          <p className="text-gray-600">
+            {loadingPhotos
+              ? 'Carregando fotos...'
+              : `${photos.length} foto${photos.length !== 1 ? 's' : ''} disponível${photos.length !== 1 ? 'eis' : ''}`}
+          </p>
+        </div>
+        <button
+          onClick={() => setIsAddPhotosModalOpen(true)}
+          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+        >
+          <Plus className="h-4 w-4" />
+          Adicionar Fotos
+        </button>
       </div>
 
       {loadingPhotos ? (
@@ -876,6 +892,13 @@ export function ProjectDetailsOffcanvas({ isOpen, onClose, project }: ProjectDet
           onPhotoDeleted={handlePhotoDeleted}
         />
       )}
+
+      <AddPhotosToProjectModal
+        isOpen={isAddPhotosModalOpen}
+        onClose={() => setIsAddPhotosModalOpen(false)}
+        projectId={project.id}
+        onUploadComplete={handleAddPhotosComplete}
+      />
 
       <Modal
         isOpen={isExportModalOpen}
